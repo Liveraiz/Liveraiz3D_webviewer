@@ -1,0 +1,36 @@
+[build]
+  publish = "build"
+  functions = "functions"
+  command = "npm run build"
+
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/:splat"
+  status = 200
+
+# 동적 OG HTML 생성을 위한 리다이렉트
+[[redirects]]
+  from = "/og/*"
+  to = "/.netlify/functions/dynamic-og"
+  status = 200
+  force = true
+
+# 모든 요청을 동적 OG 함수로 처리 (json 파라미터가 있으면)
+[[redirects]]
+  from = "/*"
+  to = "/.netlify/functions/dynamic-og"
+  status = 200
+  query = "json"
+
+# json 파라미터가 없는 경우 SPA 라우팅
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-XSS-Protection = "1; mode=block"
+    X-Content-Type-Options = "nosniff" 

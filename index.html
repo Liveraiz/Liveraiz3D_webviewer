@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Liver Viewer - 3D Model Viewer</title>
+    
+    <!-- 동적 오픈그래프 메타 태그 (JavaScript로 업데이트됨) -->
+    <meta property="og:title" content="LiverAiz3D - 3D Model Viewer">
+    <meta property="og:description" content="Pre-operative 3D Model for assisting the surgical planning">
+    <meta property="og:image" content="https://3dviewertest.netlify.app/img/main2.png">
+    <meta property="og:url" content="https://3dviewertest.netlify.app/">
+    <meta property="og:type" content="video.other">
+    <meta property="og:image:secure_url" content="https://3dviewertest.netlify.app/img/main2.png">
+    
+    <!-- 카카오톡 전용 메타태그 -->
+    <meta property="og:site_name" content="Liver Viewer">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="900">
+    <meta property="og:image:type" content="image/jpeg">
+    <meta property="og:locale" content="ko_KR">
+    <meta property="og:locale:alternate" content="en_US">
+    <meta property="og:determiner" content="the">
+    <meta property="og:image:alt" content="LiverAiz3D - 3D Model Viewer">
+    <meta property="og:updated_time" content="">
+    
+    <!-- Twitter Card 메타 태그 -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="LiverAiz3D - 3D Model Viewer">
+    <meta name="twitter:description" content="Pre-operative 3D Model for assisting the surgical planning">
+    <meta name="twitter:image" content="https://3dviewertest.netlify.app/img/main2.png">
+    <meta name="twitter:site" content="@liver_viewer">
+    <meta name="twitter:image:alt" content="LiverAiz3D - 3D Model Viewer">
+    <meta name="twitter:creator" content="@liver_viewer">
+    
+    <!-- 추가 메타 태그 -->
+    <meta name="description" content="Pre-operative 3D Model for assisting the surgical planning">
+    <meta name="keywords" content="3D, model, viewer, liver, surgery, medical">
+    <meta name="author" content="Liver Viewer">
+    
+    <!-- 카카오톡 크롤러 최적화 -->
+    <meta name="robots" content="index, follow">
+    <meta name="googlebot" content="index, follow">
+    <meta name="kakao" content="index, follow">
+    
+    <!-- 카카오톡 디버깅용 -->
+    <meta name="format-detection" content="telephone=no">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    
+    <!-- 카카오톡 추가 최적화 -->
+    <meta name="application-name" content="Liver Viewer">
+    <meta name="msapplication-TileColor" content="#667eea">
+    <meta name="theme-color" content="#667eea">
+    
+    <!-- 파비콘 -->
+    <link rel="icon" type="image/svg+xml" href="/public/img/favicon_light_b.svg">
+    <!-- <link rel="icon" type="image/png" href="/public/img/favicon-96x96.png"> -->
+    <link rel="apple-touch-icon" href="/public/img/web-app-manifest-192x192.png">
+    <link rel="manifest" href="/public/img/site.webmanifest">
+    
+    <!-- Pretendard 폰트 -->
+    <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+    
+    <!-- 스타일시트 -->
+    <link rel="stylesheet" href="style.css">
+    
+    <!-- 서버 사이드 오픈그래프 처리 -->
+    <script>
+        // 즉시 실행하여 카카오톡이 읽을 수 있도록 함
+                            // 메타태그 업데이트 헬퍼 함수 (전역으로 정의)
+                    const updateMetaTag = (property, content) => {
+                        let meta = document.querySelector(`meta[property="${property}"]`);
+                        if (!meta) {
+                            meta = document.querySelector(`meta[name="${property}"]`);
+                        }
+                        
+                        if (meta) {
+                            meta.setAttribute('content', content);
+                        } else {
+                            meta = document.createElement('meta');
+                            if (property.startsWith('og:') || property.startsWith('twitter:')) {
+                                meta.setAttribute('property', property);
+                            } else {
+                                meta.setAttribute('name', property);
+                            }
+                            meta.setAttribute('content', content);
+                            document.head.appendChild(meta);
+                        }
+                    };
+                    
+                    (function() {
+                        console.log('=== 즉시 오픈그래프 처리 시작 ===');
+                        
+                        // 카카오톡 크롤러 감지 (개선)
+                        const userAgent = navigator.userAgent;
+                        const isKakaoCrawler = userAgent.includes('KakaoTalk') || 
+                                             userAgent.includes('KakaoBot') || 
+                                             userAgent.includes('KakaoStory') ||
+                                             userAgent.includes('KakaoWebView') ||
+                                             userAgent.includes('Kakao') ||
+                                             userAgent.includes('kakao');
+                        
+                        console.log('User-Agent:', userAgent);
+                        console.log('카카오톡 크롤러 감지:', isKakaoCrawler);
+                        
+                        // URL 파라미터 파싱
+                        const urlParams = new URLSearchParams(window.location.search);
+                        const jsonPath = urlParams.get('json');
+                        const dateParam = urlParams.get('date');
+                        const timeParam = urlParams.get('time');
+                        const sourceParam = urlParams.get('source');
+            
+                                        console.log('URL 파라미터에서 추출한 jsonPath:', jsonPath);
+                            console.log('날짜 파라미터:', dateParam);
+                            console.log('시간 파라미터:', timeParam);
+                            console.log('소스 파라미터:', sourceParam);
+            
+            if (jsonPath) {
+                // URL 디코딩
+                const decodedJsonPath = decodeURIComponent(jsonPath);
+                console.log('디코딩된 JSON 경로:', decodedJsonPath);
+                
+                // Dropbox URL을 직접 다운로드 URL로 변환
+                const directJsonUrl = decodedJsonPath
+                    .replace('www.dropbox.com', 'dl.dropboxusercontent.com')
+                    .replace('?dl=0', '?dl=1')
+                    .replace('&dl=0', '&dl=1');
+                
+                console.log('변환된 JSON URL:', directJsonUrl);
+                
+                // 동기적 XMLHttpRequest 사용 (더 빠름)
+                const xhr = new XMLHttpRequest();
+                xhr.open('GET', directJsonUrl, false); // 동기적 요청
+                xhr.send();
+                
+                if (xhr.status === 200) {
+                    try {
+                        const data = JSON.parse(xhr.responseText);
+                        console.log('JSON 데이터 로드 완료:', data);
+                        
+                        if (data && data.models && data.models.length > 0) {
+                            const firstModel = data.models[0];
+                            const thumbnailUrl = firstModel.thumbnailUrl;
+                            
+                            // 모델 정보 추출
+                            const modelName = firstModel.name || 'Pre-operative 3D Model';
+                            const folderName = data.folderInfo?.name || '';
+                            const description = data.folderInfo?.description || '';
+                            
+                            // 날짜 정보 포맷팅
+                            let dateInfo = '';
+                            if (dateParam) {
+                                const formattedDate = new Date(dateParam).toLocaleDateString('en-US', {
+                                    year: 'numeric',
+                                    month: 'long',
+                                    day: 'numeric'
+                                });
+                                dateInfo = ` (${formattedDate})`;
+                            }
+                            
+                            // 소스 정보 추가
+                            const sourceInfo = sourceParam === 'LiverAiz3D' ? ' - LiverAiz3D' : '';
+                            
+                            // 폴더명만 사용 (LiverAiz3D 중복 제거)
+                            const title = folderName ? `${folderName}${sourceInfo}` : `LiverAiz3D${sourceInfo}`;
+                            // description 무시하고 기본 설명 사용
+                            const fullDescription = `Pre-operative 3D Model for assisting the surgical planning${dateInfo}${sourceInfo}`;
+                            
+                            // 정적 이미지 사용
+                            const imageUrl = "https://3dviewertest.netlify.app/img/main2.png";
+                            console.log('정적 이미지 URL 사용:', imageUrl);
+                            
+                            // 메타태그 업데이트 함수
+                            function updateMetaTagsWithImage(finalImageUrl) {
+                                updateMetaTag('og:title', title);
+                                updateMetaTag('og:description', fullDescription);
+                                updateMetaTag('og:image', finalImageUrl);
+                                updateMetaTag('og:url', window.location.href);
+                                updateMetaTag('og:type', 'video.other');
+                                updateMetaTag('og:site_name', 'Liver Viewer');
+                                updateMetaTag('og:image:width', '1200');
+                                updateMetaTag('og:image:height', '630');
+                                updateMetaTag('og:image:type', 'image/png');
+                                updateMetaTag('og:locale', 'ko_KR');
+                                updateMetaTag('og:locale:alternate', 'en_US');
+                                
+                                // 카카오톡 전용 추가 메타태그 (강화)
+                                if (isKakaoCrawler) {
+                                    updateMetaTag('og:image:secure_url', finalImageUrl);
+                                    updateMetaTag('og:image:alt', modelName);
+                                    updateMetaTag('og:updated_time', new Date().toISOString());
+                                    
+                                    // 정적 이미지 속성
+                                    updateMetaTag('og:image:width', '1200');
+                                    updateMetaTag('og:image:height', '630');
+                                    updateMetaTag('og:image:type', 'image/png');
+                                }
+                                
+                                updateMetaTag('twitter:title', title);
+                                updateMetaTag('twitter:description', fullDescription);
+                                updateMetaTag('twitter:image', finalImageUrl);
+                                updateMetaTag('twitter:card', 'summary_large_image');
+                                updateMetaTag('twitter:site', '@liver_viewer');
+                                updateMetaTag('twitter:image:alt', modelName);
+                                updateMetaTag('twitter:creator', '@liver_viewer');
+                                
+                                updateMetaTag('description', fullDescription);
+                                updateMetaTag('keywords', '3D, model, viewer, liver, surgery, medical, ' + modelName);
+                                updateMetaTag('author', 'Liver Viewer');
+                                
+                                document.title = `${title} - Liver Viewer`;
+                                
+                                console.log('정적 오픈그래프 업데이트 완료:', {
+                                    title,
+                                    description: fullDescription,
+                                    image: finalImageUrl
+                                });
+                                
+                                // 정적 이미지 사용 로그
+                                console.log('정적 이미지 URL 사용:', finalImageUrl);
+                            }
+                            
+                            // 항상 정적 이미지로 메타태그 업데이트
+                            updateMetaTagsWithImage(imageUrl);
+                        }
+                    } catch (error) {
+                        console.error('JSON 파싱 실패:', error);
+                    }
+                } else {
+                    console.error('JSON 요청 실패:', xhr.status);
+                }
+            } else {
+                console.log('JSON 파라미터가 없습니다.');
+            }
+        })();
+        
+        // 기존 동적 업데이트 함수 (ModelSelector에서 호출용)
+        function updateOpenGraphFromData(data) {
+            if (!data || !data.models || data.models.length === 0) {
+                console.log('오픈그래프 업데이트: 데이터가 없습니다.');
+                return;
+            }
+            
+            const firstModel = data.models[0];
+            const thumbnailUrl = firstModel.thumbnailUrl;
+            
+            if (thumbnailUrl) {
+                // Dropbox URL 변환
+                let convertedUrl = thumbnailUrl;
+                if (thumbnailUrl.includes("dropbox.com")) {
+                    convertedUrl = thumbnailUrl
+                        .replace("www.dropbox.com", "dl.dropboxusercontent.com")
+                        .replace("?dl=0", "?dl=1")
+                        .replace("&dl=0", "&dl=1");
+                    
+                    if (!convertedUrl.includes("dl=")) {
+                        convertedUrl += (convertedUrl.includes("?") ? "&" : "?") + "dl=1";
+                    }
+                }
+                
+                // 모델 정보로 제목과 설명 업데이트
+                const modelName = firstModel.name || 'Pre-operative 3D Model';
+                const folderName = data.folderInfo?.name || '';
+                const description = data.folderInfo?.description || '';
+                
+                // 폴더명만 사용 (LiverAiz3D 중복 제거)
+                const title = folderName || 'LiverAiz3D';
+                
+                // description 무시하고 기본 설명 사용
+                const fullDescription = `Pre-operative 3D Model for assisting the surgical planning`;
+                
+
+                
+                console.log('동적 업데이트 - 원본 썸네일 URL:', thumbnailUrl);
+                
+                // Model Selector와 동일한 방식으로 URL 변환
+                let imageUrl = thumbnailUrl;
+                if (thumbnailUrl.includes("dropbox.com")) {
+                    let publicUrl = thumbnailUrl
+                        .replace("www.dropbox.com", "dl.dropboxusercontent.com")
+                        .replace("?dl=0", "?dl=1")
+                        .replace("&dl=0", "&dl=1");
+                    
+                    // uid 파라미터 제거 (더 안정적)
+                    if (publicUrl.includes("&uid=")) {
+                        publicUrl = publicUrl.replace(/&uid=[^&]*/, '');
+                    }
+                    
+                    if (!publicUrl.includes("dl=")) {
+                        publicUrl += (publicUrl.includes("?") ? "&" : "?") + "dl=1";
+                    }
+                    
+                                    // 정적 이미지 사용
+                imageUrl = "https://3dviewertest.netlify.app/img/main2.png";
+                console.log('동적 업데이트 - 정적 이미지 사용');
+                }
+                
+                // 실제 썸네일 URL 사용
+                const actualImageUrl = imageUrl;
+                console.log('동적 업데이트 - 최종 이미지 URL:', actualImageUrl);
+                
+                updateMetaTag('og:title', title);
+                updateMetaTag('og:description', fullDescription);
+                updateMetaTag('og:image', actualImageUrl);
+                updateMetaTag('og:url', window.location.href);
+                updateMetaTag('og:type', 'video.other');
+                updateMetaTag('og:site_name', 'Liver Viewer');
+                updateMetaTag('og:image:width', '1200');
+                updateMetaTag('og:image:height', '630');
+                updateMetaTag('og:image:type', 'image/png');
+                updateMetaTag('og:locale', 'ko_KR');
+                updateMetaTag('og:locale:alternate', 'en_US');
+                
+                updateMetaTag('twitter:title', title);
+                updateMetaTag('twitter:description', fullDescription);
+                updateMetaTag('twitter:image', actualImageUrl);
+                updateMetaTag('twitter:card', 'summary_large_image');
+                updateMetaTag('twitter:site', '@liver_viewer');
+                updateMetaTag('twitter:image:alt', modelName);
+                updateMetaTag('twitter:creator', '@liver_viewer');
+                
+                updateMetaTag('description', fullDescription);
+                updateMetaTag('keywords', '3D, model, viewer, liver, surgery, medical, ' + modelName);
+                updateMetaTag('author', 'Liver Viewer');
+                
+                document.title = `${title} - Liver Viewer`;
+                
+                console.log('동적 오픈그래프 업데이트 완료:', {
+                    title,
+                    description: fullDescription,
+                    image: actualImageUrl
+                });
+            } else {
+                console.warn('썸네일 URL이 없습니다.');
+            }
+        }
+        
+        // 전역 함수로 등록
+        window.updateOpenGraphFromData = updateOpenGraphFromData;
+    </script>
+</head>
+<body>
+    <div id="container"></div>
+    <script type="module" src="/src/index.js"></script>
+</body>
+</html>
+
