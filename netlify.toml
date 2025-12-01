@@ -3,10 +3,12 @@
   functions = "functions"
   command = "npm run build"
 
+# API 리다이렉트 (가장 먼저 처리되어야 함)
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/:splat"
   status = 200
+  force = true
 
 # 동적 OG HTML 생성을 위한 리다이렉트
 [[redirects]]
