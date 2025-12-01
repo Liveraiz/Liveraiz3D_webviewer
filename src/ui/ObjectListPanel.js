@@ -4,6 +4,7 @@ import {
     VESSEL_KEYWORDS,
     PRIMARY_EXCLUDE_KEYWORDS,
     EXCLUDE_KEYWORDS,
+    OPACITY_CONTROLLABLE_KEYWORDS,
     Constants,
 } from "../utils/Constants";
 
@@ -53,6 +54,9 @@ export class ObjectListPanel {
         this.meshHierarchyMap = new Map();
 
         this.meshTooltip = null; // MeshTooltip 참조 추가
+
+        // 드래그 스크롤 이벤트 리스너 참조 저장
+        this.dragScrollHandlers = null;
     }
 
     initialize() {
@@ -174,6 +178,10 @@ export class ObjectListPanel {
             .sort((a, b) => {
                 const orderA = this.getObjectSortOrder(a.mesh.name);
                 const orderB = this.getObjectSortOrder(b.mesh.name);
+                // 우선순위가 같으면 알파벳순으로 정렬
+                if (orderA === orderB) {
+                    return a.mesh.name.localeCompare(b.mesh.name, 'en', { numeric: true, sensitivity: 'base' });
+                }
                 return orderA - orderB;
             });
 
@@ -209,6 +217,10 @@ export class ObjectListPanel {
                 .sort((a, b) => {
                     const orderA = this.getObjectSortOrder(a.mesh.name);
                     const orderB = this.getObjectSortOrder(b.mesh.name);
+                    // 우선순위가 같으면 알파벳순으로 정렬
+                    if (orderA === orderB) {
+                        return a.mesh.name.localeCompare(b.mesh.name, 'en', { numeric: true, sensitivity: 'base' });
+                    }
                     return orderA - orderB;
                 })
                 .forEach((childInfo) => {
@@ -249,14 +261,22 @@ export class ObjectListPanel {
     setupPanel() {
         const topBarHeight = "60px"; // TopBar 높이와 동일하게 설정
 
+        // 패널을 flexbox로 설정하여 하단 고정 토글 버튼을 위한 구조 생성
+        Object.assign(this.panel.style, {
+            display: "flex",
+            flexDirection: "column",
+        });
+
         this.contentContainer = document.createElement("div");
         Object.assign(this.contentContainer.style, {
-            height: "100%",
+            flex: "1 1 auto",
             boxSizing: "border-box",
             overflowY: "auto",
             display: "flex",
             flexDirection: "column",
             padding: "20px",
+            minHeight: "0", // flex item이 overflow를 처리할 수 있도록
+            maxHeight: "100%", // 부모 높이를 넘지 않도록
             // 스크롤바 숨기기
             scrollbarWidth: "none",
             msOverflowStyle: "none",
@@ -284,7 +304,8 @@ export class ObjectListPanel {
         this.contentContainer.appendChild(measurementTitle);
         this.contentContainer.appendChild(this.measurementContainer);
 
-        // Webkit 스크롤바 숨기기
+        // 메시 이름 표시 토글 버튼 추가 (하단 고정)
+        this.createMeshTooltipToggle();
         const styleSheet = document.createElement("style");
         styleSheet.textContent = `
             .object-list-panel div::-webkit-scrollbar {
@@ -292,6 +313,9 @@ export class ObjectListPanel {
             }
         `;
         document.head.appendChild(styleSheet);
+
+        // 드래그 스크롤 기능 추가
+        this.setupDragScroll();
     }
 
     createPanel() {
@@ -304,8 +328,8 @@ export class ObjectListPanel {
             left: `-${Constants.UI.PANEL.WIDTH}px`,
             top: "0",
             width: `${Constants.UI.PANEL.WIDTH}px`,
-            height: "100%",
-            paddingTop: topBarHeight,
+            height: `calc(100vh - ${topBarHeight})`,
+            marginTop: topBarHeight,
             backgroundColor: this.isDarkMode
                 ? "rgba(0, 0, 0, 0.4)"
                 : "rgba(255, 255, 255, 0.4)",
@@ -316,7 +340,7 @@ export class ObjectListPanel {
             fontFamily: "Arial, sans-serif",
             zIndex: "950",
             transition: "left 0.3s ease-in-out",
-            overflowY: "auto",
+            overflowY: "hidden", // 패널 자체는 스크롤 없음 (contentContainer가 스크롤)
             overflowX: "hidden",
             border: this.isDarkMode
                 ? "1px solid rgba(255, 255, 255, 0.08)"
@@ -637,12 +661,13 @@ export class ObjectListPanel {
                 name.toLowerCase().includes(keyword.toLowerCase())
             );
 
-        const isLiverObject = LIVER_KEYWORDS.some((keyword) =>
+        // 투명도 조절 가능한 객체인지 확인
+        const isOpacityControllable = OPACITY_CONTROLLABLE_KEYWORDS.some((keyword) =>
             name.toLowerCase().includes(keyword.toLowerCase())
         );
 
-        // 간 관련 객체이면서 제외되지 않은 경우에만 투명도 버튼 추가
-        if (isLiverObject && material && !isExcluded) {
+        // 투명도 조절 가능한 객체이면서 제외되지 않은 경우에만 투명도 버튼 추가
+        if (isOpacityControllable && material && !isExcluded) {
             const opacityButton = document.createElement("button");
             Object.assign(opacityButton.style, buttonStyle);
 
@@ -1279,6 +1304,21 @@ export class ObjectListPanel {
 
             this.isOpen = false;
         }
+
+        // 드래그 스크롤 이벤트 리스너 정리
+        if (this.dragScrollHandlers) {
+            document.removeEventListener("mousemove", this.dragScrollHandlers.mouseMove);
+            document.removeEventListener("mouseup", this.dragScrollHandlers.mouseUp);
+            if (this.dragScrollHandlers.keyDown) {
+                document.removeEventListener("keydown", this.dragScrollHandlers.keyDown);
+            }
+            if (this.dragScrollHandlers.container) {
+                this.dragScrollHandlers.container.removeEventListener("touchstart", this.dragScrollHandlers.touchStart);
+                this.dragScrollHandlers.container.removeEventListener("touchmove", this.dragScrollHandlers.touchMove);
+                this.dragScrollHandlers.container.removeEventListener("touchend", this.dragScrollHandlers.touchEnd);
+            }
+            this.dragScrollHandlers = null;
+        }
     }
 
     // meshes를 설정하는 새로운 메서드
@@ -1468,6 +1508,26 @@ export class ObjectListPanel {
             this.panel.style.transition = originalPanelTransition;
             this.toggleContainer.style.transition = originalToggleTransition;
         });
+
+        // 메시 이름 표시 토글 버튼 테마 업데이트
+        if (this.meshTooltipToggle) {
+            this.updateMeshTooltipToggleState();
+            // 토글 컨테이너 배경색 업데이트
+            if (this.meshTooltipToggleContainer) {
+                this.meshTooltipToggleContainer.style.backgroundColor = isDarkMode
+                    ? "rgba(255, 255, 255, 0.15)"
+                    : "rgba(70, 70, 70, 0.15)";
+                this.meshTooltipToggleContainer.style.borderTop = isDarkMode
+                    ? "1px solid rgba(255, 255, 255, 0.1)"
+                    : "1px solid rgba(0, 0, 0, 0.1)";
+                
+                // 라벨 색상 업데이트
+                const label = this.meshTooltipToggleContainer.querySelector("span");
+                if (label) {
+                    label.style.color = isDarkMode ? "white" : "black";
+                }
+            }
+        }
     }
 
     // 삭제 아이콘 SVG 함수 추가
@@ -1722,6 +1782,305 @@ export class ObjectListPanel {
     // MeshTooltip 설정 메서드 추가
     setMeshTooltip(meshTooltip) {
         this.meshTooltip = meshTooltip;
+        // 토글이 이미 생성되어 있다면 상태 업데이트
+        if (this.meshTooltipToggle) {
+            this.updateMeshTooltipToggleState();
+        }
+    }
+
+    /**
+     * 메시 이름 표시 토글 버튼 생성
+     */
+    createMeshTooltipToggle() {
+        const toggleContainer = document.createElement("div");
+        Object.assign(toggleContainer.style, {
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            padding: "12px 20px",
+            backgroundColor: this.isDarkMode
+                ? "rgba(255, 255, 255, 0.15)"
+                : "rgba(70, 70, 70, 0.15)",
+            borderRadius: "0",
+            borderTop: this.isDarkMode
+                ? "1px solid rgba(255, 255, 255, 0.1)"
+                : "1px solid rgba(0, 0, 0, 0.1)",
+            flexShrink: "0", // flex item이 축소되지 않도록
+        });
+
+        // 라벨 생성
+        const label = document.createElement("span");
+        label.textContent = "Mesh Name Display";
+        Object.assign(label.style, {
+            fontSize: "14px",
+            fontWeight: "500",
+            color: this.isDarkMode ? "white" : "black",
+        });
+
+        // 토글 버튼 생성
+        const toggleButton = document.createElement("button");
+        this.meshTooltipToggle = toggleButton;
+        Object.assign(toggleButton.style, {
+            background: "none",
+            border: "none",
+            cursor: "pointer",
+            padding: "4px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            borderRadius: "4px",
+            transition: "background-color 0.2s",
+        });
+
+        // 초기 상태 설정 (기본값: 활성화)
+        const isEnabled = this.meshTooltip ? this.meshTooltip.isEnabled : true;
+        this.updateMeshTooltipToggleState();
+
+        // 토글 버튼 클릭 이벤트
+        toggleButton.addEventListener("click", () => {
+            if (this.meshTooltip) {
+                // 현재 실제 활성화 상태 확인 (userDisabled 고려)
+                const currentState = this.meshTooltip.isEnabled && !this.meshTooltip.userDisabled;
+                const newState = !currentState;
+                // 사용자 액션임을 명시하여 설정
+                this.meshTooltip.setEnabled(newState, true);
+                this.updateMeshTooltipToggleState();
+                console.log(`[ObjectListPanel] 메시 이름 표시 ${newState ? '활성화' : '비활성화'}`);
+            } else {
+                console.warn("[ObjectListPanel] MeshTooltip이 설정되지 않았습니다");
+            }
+        });
+
+        toggleContainer.appendChild(label);
+        toggleContainer.appendChild(toggleButton);
+        // 패널의 직접 자식으로 추가 (contentContainer가 아닌)
+        this.panel.appendChild(toggleContainer);
+        this.meshTooltipToggleContainer = toggleContainer;
+    }
+
+    /**
+     * 메시 이름 표시 토글 버튼 상태 업데이트
+     */
+    updateMeshTooltipToggleState() {
+        if (!this.meshTooltipToggle) return;
+
+        // userDisabled 상태를 확인하여 실제 활성화 상태 결정
+        const isEnabled = this.meshTooltip ? 
+            (this.meshTooltip.isEnabled && !this.meshTooltip.userDisabled) : true;
+        const iconColor = this.isDarkMode ? "white" : "black";
+
+        // 체크박스 스타일 토글 아이콘
+        if (isEnabled) {
+            // 체크된 상태
+            this.meshTooltipToggle.innerHTML = `
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="${iconColor}">
+                    <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zM17.99 9l-1.41-1.42-6.59 6.59-2.58-2.57-1.42 1.41 4 3.99z"/>
+                </svg>
+            `;
+            this.meshTooltipToggle.style.backgroundColor = this.isDarkMode
+                ? "rgba(255, 255, 255, 0.2)"
+                : "rgba(70, 70, 70, 0.2)";
+        } else {
+            // 체크 해제된 상태
+            this.meshTooltipToggle.innerHTML = `
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="${iconColor}">
+                    <path d="M19 5v14H5V5h14m0-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/>
+                </svg>
+            `;
+            this.meshTooltipToggle.style.backgroundColor = "transparent";
+        }
+    }
+
+    /**
+     * 드래그 스크롤 기능 설정
+     * 마우스 클릭 후 드래그하여 패널을 스크롤할 수 있게 함
+     */
+    setupDragScroll() {
+        if (!this.contentContainer) {
+            return;
+        }
+
+        let isDragging = false;
+        let startY = 0;
+        let startScrollTop = 0;
+
+        // 마우스 다운 이벤트
+        this.contentContainer.addEventListener("mousedown", (e) => {
+            // 버튼이나 링크 등 인터랙티브 요소는 제외
+            if (e.target.tagName === "BUTTON" || 
+                e.target.tagName === "INPUT" || 
+                e.target.closest("button") ||
+                e.target.closest("input")) {
+                return;
+            }
+
+            isDragging = true;
+            startY = e.clientY;
+            startScrollTop = this.contentContainer.scrollTop;
+            
+            // 드래그 중 커서 변경
+            this.contentContainer.style.cursor = "grabbing";
+            this.contentContainer.style.userSelect = "none";
+            
+            e.preventDefault();
+        });
+
+        // 마우스 이동 이벤트
+        const handleMouseMove = (e) => {
+            if (!isDragging) {
+                return;
+            }
+
+            const deltaY = e.clientY - startY;
+            const newScrollTop = startScrollTop - deltaY;
+            
+            // 스크롤 범위 체크
+            const maxScroll = this.contentContainer.scrollHeight - this.contentContainer.clientHeight;
+            const clampedScrollTop = Math.max(0, Math.min(maxScroll, newScrollTop));
+            
+            this.contentContainer.scrollTop = clampedScrollTop;
+            
+            e.preventDefault();
+        };
+
+        // 마우스 업 이벤트
+        const handleMouseUp = () => {
+            if (isDragging) {
+                isDragging = false;
+                this.contentContainer.style.cursor = "";
+                this.contentContainer.style.userSelect = "";
+            }
+        };
+
+        // 전역 이벤트 리스너 (드래그가 패널 밖으로 나가도 계속 추적)
+        document.addEventListener("mousemove", handleMouseMove);
+        document.addEventListener("mouseup", handleMouseUp);
+
+        // 터치 이벤트 지원 (모바일/리모컨 터치패드)
+        let touchStartY = 0;
+        let touchStartScrollTop = 0;
+        let isTouchDragging = false;
+
+        const handleTouchStart = (e) => {
+            if (e.target.tagName === "BUTTON" || 
+                e.target.tagName === "INPUT" || 
+                e.target.closest("button") ||
+                e.target.closest("input")) {
+                return;
+            }
+
+            if (e.touches.length === 1) {
+                isTouchDragging = true;
+                touchStartY = e.touches[0].clientY;
+                touchStartScrollTop = this.contentContainer.scrollTop;
+                e.preventDefault();
+            }
+        };
+
+        const handleTouchMove = (e) => {
+            if (!isTouchDragging || e.touches.length !== 1) {
+                return;
+            }
+
+            const deltaY = e.touches[0].clientY - touchStartY;
+            const newScrollTop = touchStartScrollTop - deltaY;
+            
+            // 스크롤 범위 체크
+            const maxScroll = this.contentContainer.scrollHeight - this.contentContainer.clientHeight;
+            const clampedScrollTop = Math.max(0, Math.min(maxScroll, newScrollTop));
+            
+            this.contentContainer.scrollTop = clampedScrollTop;
+            e.preventDefault();
+        };
+
+        const handleTouchEnd = () => {
+            isTouchDragging = false;
+        };
+
+        this.contentContainer.addEventListener("touchstart", handleTouchStart, { passive: false });
+        this.contentContainer.addEventListener("touchmove", handleTouchMove, { passive: false });
+        this.contentContainer.addEventListener("touchend", handleTouchEnd);
+
+        // 리모컨 방향키로 스크롤 기능 추가
+        const handleKeyDown = (e) => {
+            // 패널이 열려있지 않으면 무시
+            if (!this.isOpen) {
+                return;
+            }
+
+            // 입력 필드에 포커스가 있으면 무시
+            const target = e.target;
+            if (target.tagName === "INPUT" || 
+                target.tagName === "TEXTAREA" || 
+                target.isContentEditable ||
+                target.closest("input") ||
+                target.closest("textarea")) {
+                return;
+            }
+
+            const key = e.key || e.code || "";
+            const keyCode = e.keyCode;
+            let scrollAmount = 0;
+            let isScrollKey = false;
+
+            // 상하 방향키 감지
+            if (key === "ArrowUp" || keyCode === 38 || 
+                key.toUpperCase() === "UP" || 
+                key.toUpperCase() === "VK_UP" ||
+                key.toUpperCase() === "NAV_UP") {
+                scrollAmount = -80; // 위로 스크롤
+                isScrollKey = true;
+            } else if (key === "ArrowDown" || keyCode === 40 || 
+                       key.toUpperCase() === "DOWN" || 
+                       key.toUpperCase() === "VK_DOWN" ||
+                       key.toUpperCase() === "NAV_DOWN") {
+                scrollAmount = 80; // 아래로 스크롤
+                isScrollKey = true;
+            } else {
+                return; // 다른 키는 무시
+            }
+
+            if (!isScrollKey) {
+                return;
+            }
+
+            // 스크롤 실행
+            const currentScroll = this.contentContainer.scrollTop;
+            const newScrollTop = currentScroll + scrollAmount;
+            const maxScroll = this.contentContainer.scrollHeight - this.contentContainer.clientHeight;
+            const clampedScrollTop = Math.max(0, Math.min(maxScroll, newScrollTop));
+            
+            // 개발 모드에서 디버깅 로그 (선택적)
+            if (process.env.NODE_ENV === "development") {
+                console.log("[ObjectListPanel] 방향키 스크롤:", {
+                    key,
+                    keyCode,
+                    currentScroll,
+                    newScrollTop,
+                    clampedScrollTop,
+                    maxScroll,
+                    scrollHeight: this.contentContainer.scrollHeight,
+                    clientHeight: this.contentContainer.clientHeight
+                });
+            }
+            
+            this.contentContainer.scrollTop = clampedScrollTop;
+            
+            e.preventDefault();
+        };
+
+        document.addEventListener("keydown", handleKeyDown, { passive: false });
+
+        // 이벤트 핸들러 참조 저장 (나중에 정리하기 위해)
+        this.dragScrollHandlers = {
+            mouseMove: handleMouseMove,
+            mouseUp: handleMouseUp,
+            touchStart: handleTouchStart,
+            touchMove: handleTouchMove,
+            touchEnd: handleTouchEnd,
+            keyDown: handleKeyDown,
+            container: this.contentContainer
+        };
     }
 }
 

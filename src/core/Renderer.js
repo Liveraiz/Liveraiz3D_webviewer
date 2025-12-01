@@ -1,6 +1,7 @@
 // core/Renderer.js
 import * as THREE from 'three';
 import { CSS2DRenderer } from 'three/examples/jsm/renderers/CSS2DRenderer';
+import { Constants } from '../utils/Constants';
 
 // WebViewer 렌더링 Class
 export default class Renderer {
@@ -41,6 +42,11 @@ export default class Renderer {
         this.renderer.setSize(container.clientWidth, container.clientHeight);
         this.renderer.shadowMap.enabled = true;
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        
+        // 비디오 텍스처를 위한 톤 매핑 설정
+        this.renderer.toneMapping = THREE.NoToneMapping; // 톤 매핑 비활성화
+        this.renderer.toneMappingExposure = 1.0; // 비디오를 위해 노출값을 1.0으로 설정
+        this.renderer.outputColorSpace = THREE.SRGBColorSpace; // 출력 색상 공간을 SRGB로 설정
         
         container.appendChild(this.renderer.domElement);
 

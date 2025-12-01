@@ -391,4 +391,236 @@ export default class MaterialManager {
             }
         });
     }
+
+    /**
+     * Blender shader node를 기반으로 한 fibrosis 셰이더 재질 생성
+     * @returns {THREE.MeshStandardMaterial} fibrosis 셰이더가 적용된 재질
+     */
+    createFibrosisShader() {
+        const material = new THREE.MeshStandardMaterial({
+            side: THREE.DoubleSide,
+            transparent: false,
+            metalness: 0.141,
+            roughness: 0.35,
+            ior: 1.5,
+            //envMapIntensity: 0.3, // 환경 반사 강도 감소
+        });
+
+        // 셰이더 커스터마이징
+        material.onBeforeCompile = (shader) => {
+            // Uniforms 추가
+            shader.uniforms.fibrosisScale = { value: 0.1 };
+            shader.uniforms.noiseScale = { value: 0.9 };
+            shader.uniforms.noiseDetail = { value: 0.15 }; // 노이즈 세부사항 감소 (0.4 -> 0.15)
+            shader.uniforms.noiseRoughness = { value: 0.5 }; // 노이즈 거칠기 감소 (1.0 -> 0.5)
+            shader.uniforms.noiseLacunarity = { value: 40.1 };
+            shader.uniforms.noiseDistortion = { value: 0.3 }; // 노이즈 왜곡 감소 (0.9 -> 0.3)
+            shader.uniforms.noiseIntensity = { value: 0.5 }; // 노이즈 강도 조절 (0~1)
+            shader.uniforms.colorStop1 = { value: new THREE.Vector3(0.9, 0.6, 0.7) }; // 밝은 분홍색
+            shader.uniforms.colorStop2 = { value: new THREE.Vector3(0.6, 0.2, 0.3) }; // 어두운 갈색
+            shader.uniforms.colorStopPosition = { value: 0.65 };
+
+            // Noise 함수들 (fBM - Fractal Brownian Motion)
+            const noiseFunctions = `
+                // Simplex noise 기반 fBM 구현
+                vec3 mod289(vec3 x) {
+                    return x - floor(x * (1.0 / 289.0)) * 289.0;
+                }
+
+                vec4 mod289(vec4 x) {
+                    return x - floor(x * (1.0 / 289.0)) * 289.0;
+                }
+
+                vec4 permute(vec4 x) {
+                    return mod289(((x*34.0)+1.0)*x);
+                }
+
+                vec4 taylorInvSqrt(vec4 r) {
+                    return 1.79284291400159 - 0.85373472095314 * r;
+                }
+
+                float snoise(vec3 v) {
+                    const vec2 C = vec2(1.0/6.0, 1.0/3.0);
+                    const vec4 D = vec4(0.0, 0.5, 1.0, 2.0);
+
+                    vec3 i = floor(v + dot(v, C.yyy));
+                    vec3 x0 = v - i + dot(i, C.xxx);
+
+                    vec3 g = step(x0.yzx, x0.xyz);
+                    vec3 l = 1.0 - g;
+                    vec3 i1 = min(g.xyz, l.zxy);
+                    vec3 i2 = max(g.xyz, l.zxy);
+
+                    vec3 x1 = x0 - i1 + C.xxx;
+                    vec3 x2 = x0 - i2 + C.yyy;
+                    vec3 x3 = x0 - D.yyy;
+
+                    i = mod289(i);
+                    vec4 p = permute(permute(permute(
+                        i.z + vec4(0.0, i1.z, i2.z, 1.0))
+                        + i.y + vec4(0.0, i1.y, i2.y, 1.0))
+                        + i.x + vec4(0.0, i1.x, i2.x, 1.0));
+
+                    float n_ = 0.142857142857;
+                    vec3 ns = n_ * D.wyz - D.xzx;
+
+                    vec4 j = p - 49.0 * floor(p * ns.z * ns.z);
+
+                    vec4 x_ = floor(j * ns.z);
+                    vec4 y_ = floor(j - 7.0 * x_);
+
+                    vec4 x = x_ *ns.x + ns.yyyy;
+                    vec4 y = y_ *ns.x + ns.yyyy;
+                    vec4 h = 1.0 - abs(x) - abs(y);
+
+                    vec4 b0 = vec4(x.xy, y.xy);
+                    vec4 b1 = vec4(x.zw, y.zw);
+
+                    vec4 s0 = floor(b0)*2.0 + 1.0;
+                    vec4 s1 = floor(b1)*2.0 + 1.0;
+                    vec4 sh = -step(h, vec4(0.0));
+
+                    vec4 a0 = b0.xzyw + s0.xzyw*sh.xxyy;
+                    vec4 a1 = b1.xzyw + s1.xzyw*sh.zzww;
+
+                    vec3 p0 = vec3(a0.xy,h.x);
+                    vec3 p1 = vec3(a0.zw,h.y);
+                    vec3 p2 = vec3(a1.xy,h.z);
+                    vec3 p3 = vec3(a1.zw,h.w);
+
+                    vec4 norm = taylorInvSqrt(vec4(dot(p0,p0), dot(p1,p1), dot(p2, p2), dot(p3,p3)));
+                    p0 *= norm.x;
+                    p1 *= norm.y;
+                    p2 *= norm.z;
+                    p3 *= norm.w;
+
+                    vec4 m = max(0.6 - vec4(dot(x0,x0), dot(x1,x1), dot(x2,x2), dot(x3,x3)), 0.0);
+                    m = m * m;
+                    return 42.0 * dot(m*m, vec4(dot(p0,x0), dot(p1,x1), dot(p2,x2), dot(p3,x3)));
+                }
+
+                // fBM (Fractal Brownian Motion) 구현
+                float fbm(vec3 p, float scale, float detail, float roughness, float lacunarity, float distortion) {
+                    float value = 0.0;
+                    float amplitude = 1.0;
+                    float frequency = scale;
+                    float maxValue = 0.0;
+
+                    for (int i = 0; i < 4; i++) {
+                        if (float(i) >= detail * 4.0) break;
+                        
+                        // Distortion 적용
+                        vec3 distortedP = p + distortion * snoise(p * frequency) * 0.5;
+                        
+                        float noiseValue = snoise(distortedP * frequency);
+                        value += noiseValue * amplitude;
+                        maxValue += amplitude;
+                        
+                        amplitude *= roughness;
+                        frequency *= lacunarity;
+                    }
+                    
+                    return value / maxValue;
+                }
+
+                // Ease interpolation (smoothstep 사용)
+                float ease(float t) {
+                    return t * t * (3.0 - 2.0 * t);
+                }
+            `;
+
+            // Vertex shader 수정 - object space coordinates 전달
+            shader.vertexShader = `
+                varying vec3 vObjectPosition;
+                ${shader.vertexShader.replace(
+                    '#include <begin_vertex>',
+                    `
+                    #include <begin_vertex>
+                    vObjectPosition = position;
+                    `
+                )}
+            `;
+
+            // Fragment shader 수정
+            shader.fragmentShader = `
+                uniform float fibrosisScale;
+                uniform float noiseScale;
+                uniform float noiseDetail;
+                uniform float noiseRoughness;
+                uniform float noiseLacunarity;
+                uniform float noiseDistortion;
+                uniform float noiseIntensity;
+                uniform vec3 colorStop1;
+                uniform vec3 colorStop2;
+                uniform float colorStopPosition;
+                
+                varying vec3 vObjectPosition;
+                
+                ${noiseFunctions}
+                
+                ${shader.fragmentShader.replace(
+                    '#include <color_fragment>',
+                    `
+                    #include <color_fragment>
+                    
+                    // Mapping: Object coordinates에 scale 적용 (0.1)
+                    vec3 mappedCoords = vObjectPosition * fibrosisScale;
+                    
+                    // Noise Texture: fBM noise 생성
+                    float noiseValue = fbm(
+                        mappedCoords,
+                        noiseScale,
+                        noiseDetail,
+                        noiseRoughness,
+                        noiseLacunarity,
+                        noiseDistortion
+                    );
+                    
+                    // Normalize (0~1 범위로)
+                    noiseValue = noiseValue * 0.5 + 0.5;
+                    
+                    // 노이즈 강도 적용: 기본 색상과 노이즈를 혼합
+                    float baseNoise = 0.5; // 중간값 (기본 색상)
+                    noiseValue = mix(baseNoise, noiseValue, noiseIntensity);
+                    
+                    // Color Ramp: Ease interpolation으로 색상 보간
+                    float t = ease(clamp(noiseValue / colorStopPosition, 0.0, 1.0));
+                    vec3 rampColor = mix(colorStop1, colorStop2, t);
+                    
+                    // Base color에 적용
+                    diffuseColor.rgb = rampColor;
+                    `
+                )}
+            `;
+        };
+
+        return material;
+    }
+
+    /**
+     * fibroid 메시에 셰이더 재질 적용
+     * @param {THREE.Mesh} mesh - 적용할 메시
+     */
+    applyFibrosisShader(mesh) {
+        if (!mesh || !mesh.isMesh) {
+            console.warn('[MaterialManager] Invalid mesh for fibroid shader');
+            return;
+        }
+
+        const fibrosisMaterial = this.createFibrosisShader();
+        
+        // 기존 재질 정리
+        if (mesh.material) {
+            if (Array.isArray(mesh.material)) {
+                mesh.material.forEach(m => m.dispose());
+            } else {
+                mesh.material.dispose();
+            }
+        }
+
+        mesh.material = fibrosisMaterial;
+        mesh.material.needsUpdate = true;
+
+        console.log(`[MaterialManager] Fibroid shader applied to mesh: ${mesh.name}`);
+    }
 }

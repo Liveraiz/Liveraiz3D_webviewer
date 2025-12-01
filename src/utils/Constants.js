@@ -206,6 +206,12 @@ export const LIVER_KEYWORDS = [
     "V4t", "V4at", "V4bt", "LHVt", "Remnant", "Resection"
 ];
 
+// 투명도 조절 가능한 mesh 이름 키워드 (통합 관리)
+export const OPACITY_CONTROLLABLE_KEYWORDS = [
+    ...LIVER_KEYWORDS,
+    "myometrium","uterus", "recipient_cavity"
+];
+
 export const VESSEL_KEYWORDS = [
     "ha",     // hepatic artery
     "pv",     // portal vein

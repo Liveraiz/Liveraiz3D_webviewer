@@ -1133,10 +1133,48 @@ export default class ModelSelector {
                 console.log("Current model index saved:", this.currentModelIndex);
             }
 
+            // 드롭박스 URL인 경우, 폴더 URL 추출 시도
+            // modelUrl이 드롭박스 공유 링크인 경우 lastJsonUrl 업데이트
+            if (modelUrl && (modelUrl.includes('dropbox.com') || modelUrl.includes('dropboxusercontent.com'))) {
+                try {
+                    // 개별 파일 URL에서 폴더 URL 추출
+                    const url = new URL(modelUrl);
+                    const pathParts = url.pathname.split('/').filter(part => part);
+                    const sclIndex = pathParts.indexOf('scl');
+                    if (sclIndex !== -1) {
+                        const sclType = pathParts[sclIndex + 1]; // 'fo' 또는 'fi'
+                        if (sclType === 'fo' || sclType === 'fi') {
+                            const folderId = pathParts[sclIndex + 2];
+                            if (folderId) {
+                                // 폴더 URL 생성 (model.json이 있는 폴더)
+                                const folderUrl = `https://www.dropbox.com/scl/${sclType}/${folderId}/?dl=0`;
+                                
+                                // lastJsonUrl이 없거나 다른 폴더인 경우에만 업데이트
+                                if (!this.lastJsonUrl || !this.lastJsonUrl.includes(folderId)) {
+                                    this.lastJsonUrl = folderUrl;
+                                    console.log("📋 lastJsonUrl 업데이트 (모델 URL에서 추출):", this.lastJsonUrl);
+                                }
+                            }
+                        }
+                    }
+                } catch (error) {
+                    console.warn("모델 URL에서 폴더 URL 추출 실패:", error);
+                }
+            }
+
             if (this.liverViewer && this.liverViewer.modelLoader) {
                 console.log("Starting model load");
                 await this.liverViewer.modelLoader.loadModel(modelUrl);
                 console.log("Model loaded successfully");
+
+                // 카메라 상태 기록기에 드롭박스 URL 업데이트 알림
+                if (this.liverViewer.controlManager && this.liverViewer.controlManager.getCameraStateRecorder) {
+                    const recorder = this.liverViewer.controlManager.getCameraStateRecorder();
+                    if (recorder) {
+                        recorder.setModelSelector(this);
+                        recorder.updateDropboxUrl();
+                    }
+                }
 
                 console.log("Model and patient info load completed");
                 this.close();

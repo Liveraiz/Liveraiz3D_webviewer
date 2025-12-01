@@ -1,5 +1,7 @@
 import * as THREE from "three";
 import { ArcballControls } from "three/examples/jsm/controls/ArcballControls";
+import CameraStateManager from "../functions/CameraStateManager";
+import CameraStateRecorder from "../functions/CameraStateRecorder";
 
 export default class ControlManager {
     /**
@@ -65,6 +67,55 @@ export default class ControlManager {
         // 마우스 이벤트 핸들러 바인딩
         this.boundMouseMoveHandler = this.handleMouseMove.bind(this);
         this.setupMouseEvents();
+
+        // CameraStateManager 초기화 (선택사항)
+        this.cameraStateManager = null;
+        
+        // CameraStateRecorder 초기화 (자동 기록)
+        this.cameraStateRecorder = null;
+    }
+
+    /**
+     * CameraStateManager 인스턴스 가져오기 (lazy initialization)
+     * @returns {CameraStateManager} CameraStateManager 인스턴스
+     */
+    getCameraStateManager() {
+        if (!this.cameraStateManager) {
+            this.cameraStateManager = new CameraStateManager(this.camera, this.controls);
+        }
+        return this.cameraStateManager;
+    }
+
+    /**
+     * CameraStateRecorder 초기화 및 시작
+     * @param {ModelLoader} modelLoader - 모델 로더 (드롭박스 URL 추출용)
+     * @param {ModelSelector} modelSelector - 모델 셀렉터 (드롭박스 JSON URL 추출용)
+     */
+    setupCameraStateRecorder(modelLoader = null, modelSelector = null) {
+        if (!this.cameraStateRecorder) {
+            this.cameraStateRecorder = new CameraStateRecorder(
+                this.camera,
+                this.controls,
+                modelLoader,
+                modelSelector
+            );
+            console.log('카메라 상태 자동 기록 시작');
+        } else {
+            if (modelLoader) {
+                this.cameraStateRecorder.setModelLoader(modelLoader);
+            }
+            if (modelSelector) {
+                this.cameraStateRecorder.setModelSelector(modelSelector);
+            }
+        }
+    }
+
+    /**
+     * CameraStateRecorder 인스턴스 가져오기
+     * @returns {CameraStateRecorder|null} CameraStateRecorder 인스턴스
+     */
+    getCameraStateRecorder() {
+        return this.cameraStateRecorder;
     }
 
     /**

@@ -29,6 +29,11 @@ export default class TopBar {
         
         // FOV 컨트롤러 인스턴스
         this.fovController = null;
+        
+        // 카메라 상태 관리
+        this.cameraStateManager = null;
+        this.savedStates = new Map(); // 메모리에 저장된 상태들
+        this.currentStateKey = null;
 
         if (!this.viewerState) {
             console.warn(
@@ -715,6 +720,5 @@ export default class TopBar {
         updateTouchSupport(); // 초기 실행
         touchMediaQuery.addEventListener("change", updateTouchSupport);
     }
-
 
 }

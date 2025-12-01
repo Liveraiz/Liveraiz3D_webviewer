@@ -35,11 +35,25 @@ export default class CameraPlayer {
     // 사용 가능한 비디오 장치 목록 가져오기
     async _getVideoDevices() {
         try {
+            // 먼저 권한 요청
+            await navigator.mediaDevices.getUserMedia({ video: true });
+            console.log("카메라 권한 확인됨");
+            
             const devices = await navigator.mediaDevices.enumerateDevices();
-            return devices.filter(device => device.kind === 'videoinput');
+            const videoDevices = devices.filter(device => device.kind === 'videoinput');
+            console.log(`사용 가능한 비디오 장치 ${videoDevices.length}개 발견`);
+            return videoDevices;
         } catch (error) {
             console.error("장치 열거 중 오류 발생:", error);
-            return [];
+            
+            // 권한 없이도 장치 목록 시도
+            try {
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                return devices.filter(device => device.kind === 'videoinput');
+            } catch (enumError) {
+                console.error("장치 열거 실패:", enumError);
+                return [];
+            }
         }
     }
     
@@ -115,14 +129,30 @@ export default class CameraPlayer {
             const constraints = {
                 video: {
                     deviceId: deviceId ? { exact: deviceId } : undefined,
-                    width: { ideal: this.containerWidth },
-                    height: { ideal: this.containerHeight }
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 },
+                    frameRate: { ideal: 30 }
+                    // 브라우저 호환성을 위해 고급 설정 제거
                 }
             };
 
             try {
-                const stream = await navigator.mediaDevices.getUserMedia(constraints);
-                console.log("웹캠 스트림 획득 성공");
+                let stream;
+                try {
+                    // 고해상도로 시도
+                    stream = await navigator.mediaDevices.getUserMedia(constraints);
+                    console.log("웹캠 스트림 획득 성공 (고해상도)");
+                } catch (highResError) {
+                    console.log("고해상도 실패, 기본 설정으로 재시도:", highResError.message);
+                    // 기본 설정으로 fallback
+                    const fallbackConstraints = {
+                        video: {
+                            deviceId: deviceId ? { exact: deviceId } : undefined
+                        }
+                    };
+                    stream = await navigator.mediaDevices.getUserMedia(fallbackConstraints);
+                    console.log("웹캠 스트림 획득 성공 (기본 설정)");
+                }
                 this.stream = stream;
                 
                 // 비디오 요소 생성
@@ -132,15 +162,34 @@ export default class CameraPlayer {
                 this.videoElement.muted = true;
                 this.videoElement.playsInline = true;
                 
+                // 색상 정확도를 위한 비디오 속성 설정
+                this.videoElement.setAttribute('crossorigin', 'anonymous');
+                this.videoElement.style.filter = 'none'; // CSS 필터 제거
+                
                 try {
                     await this.videoElement.play();
                     console.log("비디오 재생 시작, 해상도:", 
                         this.videoElement.videoWidth, "x", this.videoElement.videoHeight);
                     
-                    // 비디오 텍스처 생성
+                    // 비디오가 실제로 로드될 때까지 잠시 대기
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                    
+                    // 비디오 텍스처 생성 - 정확한 색상 설정
                     this.videoTexture = new THREE.VideoTexture(this.videoElement);
                     this.videoTexture.minFilter = THREE.LinearFilter;
                     this.videoTexture.magFilter = THREE.LinearFilter;
+                    this.videoTexture.generateMipmaps = false;
+                    this.videoTexture.format = THREE.RGBAFormat;
+                    this.videoTexture.colorSpace = THREE.SRGBColorSpace;
+                    this.videoTexture.flipY = true;
+                    
+                    // 색상 정확도를 위한 추가 설정
+                    this.videoTexture.anisotropy = 1;
+                    this.videoTexture.wrapS = THREE.ClampToEdgeWrapping;
+                    this.videoTexture.wrapT = THREE.ClampToEdgeWrapping;
+                    
+                    // 비디오 텍스처가 제대로 로드될 때까지 대기
+                    this.videoTexture.needsUpdate = true;
                     
                     // 씬 배경으로 비디오 텍스처 설정
                     this._setupVideoBackground();
@@ -156,7 +205,23 @@ export default class CameraPlayer {
                 }
             } catch (error) {
                 console.error("getUserMedia 오류:", error);
-                this.showError("웹캠에 접근할 수 없습니다. 카메라 권한을 확인하세요.");
+                
+                // 구체적인 오류 메시지 제공
+                let errorMessage = "웹캠에 접근할 수 없습니다.";
+                
+                if (error.name === 'NotAllowedError') {
+                    errorMessage = "카메라 권한이 거부되었습니다. 브라우저 설정에서 카메라 권한을 허용해주세요.";
+                } else if (error.name === 'NotFoundError') {
+                    errorMessage = "카메라를 찾을 수 없습니다. 카메라가 연결되어 있는지 확인해주세요.";
+                } else if (error.name === 'NotReadableError') {
+                    errorMessage = "카메라가 다른 애플리케이션에서 사용 중입니다. 다른 앱을 종료해주세요.";
+                } else if (error.name === 'OverconstrainedError') {
+                    errorMessage = "카메라가 요청된 설정을 지원하지 않습니다. 다른 카메라를 시도해보세요.";
+                } else if (error.name === 'SecurityError') {
+                    errorMessage = "보안상의 이유로 카메라에 접근할 수 없습니다. HTTPS를 사용해주세요.";
+                }
+                
+                this.showError(errorMessage);
             }
         } else {
             console.error("현재 브라우저는 getUserMedia를 지원하지 않습니다");
@@ -207,6 +272,9 @@ export default class CameraPlayer {
         this.videoTexture.wrapS = THREE.ClampToEdgeWrapping;
         this.videoTexture.wrapT = THREE.ClampToEdgeWrapping;
         
+        // 비디오 텍스처 설정 - 기본값 유지
+        this.videoTexture.flipY = true;
+        
         // 씬의 배경을 비디오 텍스처로 설정
         this.scene.background = this.videoTexture;
         
@@ -223,22 +291,39 @@ export default class CameraPlayer {
         const videoAspect = this.videoElement.videoWidth / this.videoElement.videoHeight;
         const screenAspect = this.containerWidth / this.containerHeight;
         
+        console.log(`비디오 비율: ${videoAspect.toFixed(2)}, 화면 비율: ${screenAspect.toFixed(2)}`);
+        
         // 비디오 텍스처 설정
         this.videoTexture.wrapS = THREE.ClampToEdgeWrapping;
         this.videoTexture.wrapT = THREE.ClampToEdgeWrapping;
         
-        // 텍스처 매핑 설정 - 전체 비디오를 1:1로 표시 (늘어나지 않음)
-        this.videoTexture.repeat.set(1, 1);
-        this.videoTexture.offset.set(0, 0);
+        // 비율 유지를 위한 스케일링과 오프셋 계산
+        let scaleX = 1, scaleY = 1, offsetX = 0, offsetY = 0;
         
-        // 행렬 초기화 - 비디오가 화면에 맞게 늘어나지 않도록 함
-        this.videoTexture.matrix.identity();
+        if (videoAspect > screenAspect) {
+            // 비디오가 더 넓음 - 세로를 기준으로 하고 가로는 크롭
+            scaleY = 1;
+            scaleX = screenAspect / videoAspect;
+            offsetX = (1 - scaleX) / 2;
+        } else {
+            // 비디오가 더 높음 - 가로를 기준으로 하고 세로는 크롭
+            scaleX = 1;
+            scaleY = videoAspect / screenAspect;
+            offsetY = (1 - scaleY) / 2;
+        }
+        
+        // 텍스처 매핑 설정
+        this.videoTexture.repeat.set(scaleX, scaleY);
+        this.videoTexture.offset.set(offsetX, offsetY);
+        
+        // 행렬 업데이트
+        this.videoTexture.matrix.setUvTransform(offsetX, offsetY, scaleX, scaleY, 0, 0, 0);
         this.videoTexture.matrixAutoUpdate = false;
         
         // 씬의 배경을 비디오 텍스처로 유지
         this.scene.background = this.videoTexture;
         
-        console.log("배경으로 사용하되 비디오 비율을 고정으로 유지 - 윈도우 크기에 반응하지 않음");
+        console.log(`비디오 비율 유지 설정: scale(${scaleX.toFixed(2)}, ${scaleY.toFixed(2)}), offset(${offsetX.toFixed(2)}, ${offsetY.toFixed(2)})`);
     }
     
     showError(message) {
@@ -351,13 +436,21 @@ export default class CameraPlayer {
     
     // 크기 조정 시 호출
     resize() {
-        this.containerWidth = window.innerWidth;
-        this.containerHeight = window.innerHeight;
+        const newWidth = window.innerWidth;
+        const newHeight = window.innerHeight;
         
-        // 비디오 텍스처가 있고 활성화된 경우 비율 재조정
-        if (this.videoTexture && this.active && this.videoElement) {
-            this._adjustBackgroundToFitScreen();
-            console.log("화면 크기 변경: 비디오 비율 재조정");
+        // 크기가 실제로 변경되었을 때만 처리
+        if (this.containerWidth !== newWidth || this.containerHeight !== newHeight) {
+            this.containerWidth = newWidth;
+            this.containerHeight = newHeight;
+            
+            console.log(`화면 크기 변경 감지: ${this.containerWidth}x${this.containerHeight}`);
+            
+            // 비디오 텍스처가 있고 활성화된 경우 비율 재조정
+            if (this.videoTexture && this.active && this.videoElement) {
+                this._adjustBackgroundToFitScreen();
+                console.log("비디오 비율 재조정 완료");
+            }
         }
     }
 

@@ -16,7 +16,7 @@ import { Constants, initializeGlobalStyles } from "../utils/Constants";
 //import ToggleButton from "../ui/ToggleButton";
 // import meshOutlineMarker from "../controls/meshOutlineMarker";
 import ModelSelector from "../ui/ModelSelector";
-import Stats from "three/examples/jsm/libs/stats.module.js";
+// import Stats from "three/examples/jsm/libs/stats.module.js";
 import MeshTransform from "../controls/meshTransform";
 import ViewerState from "./ViewerState";
 import { PanelManager } from "../ui/PanelManager";
@@ -71,15 +71,15 @@ export default class LiverViewer {
             }
 
             // Stats 초기화
-            this.stats = new Stats();
-            this.stats.showPanel(0);
-            document.body.appendChild(this.stats.dom);
-            this.stats.dom.style.position = "absolute";
-            this.stats.dom.style.right = "0px";
-            this.stats.dom.style.left = "auto";
-            this.stats.dom.style.bottom = "0px";
-            this.stats.dom.style.top = "auto";
-            this.stats.dom.style.zIndex = "800"; // TextPanel보다 낮은 z-index 설정
+            // this.stats = new Stats();
+            // this.stats.showPanel(0);
+            // document.body.appendChild(this.stats.dom);
+            // this.stats.dom.style.position = "absolute";
+            // this.stats.dom.style.right = "0px";
+            // this.stats.dom.style.left = "auto";
+            // this.stats.dom.style.bottom = "0px";
+            // this.stats.dom.style.top = "auto";
+            // this.stats.dom.style.zIndex = "800"; // TextPanel보다 낮은 z-index 설정
 
             // ViewerState 초기화
             this.viewerState = new ViewerState();
@@ -448,6 +448,11 @@ export default class LiverViewer {
             }
 
             console.log("ModelLoader 및 ModelSelector 초기화 완료");
+
+            // 카메라 상태 자동 기록 설정
+            if (this.controlManager) {
+                this.controlManager.setupCameraStateRecorder(this.modelLoader, this.modelSelector);
+            }
         } catch (error) {
             console.error("ModelLoader 설정 중 에러:", error);
             ErrorHandler.handle(error, "ModelLoader Setup");
@@ -782,7 +787,7 @@ export default class LiverViewer {
         this.lastFrameTime = currentTime - (elapsed % this.frameInterval);
 
         try {
-            this.stats.begin();
+            // this.stats.begin();
 
             const delta = Math.min(elapsed / 1000, 0.1);
 
@@ -828,7 +833,7 @@ export default class LiverViewer {
                 this.renderNeeded = false;
             }
 
-            this.stats.end();
+            // this.stats.end();
         } catch (error) {
             console.error("Error in animation loop:", error);
         }
@@ -850,9 +855,9 @@ export default class LiverViewer {
         if (this.logoManager) {
             this.logoManager.dispose();
         }
-        if (this.stats) {
-            document.body.removeChild(this.stats.dom);
-        }
+        // if (this.stats) {
+        //     document.body.removeChild(this.stats.dom);
+        // }
     }
 
     // 상태 변경시에만 렌더링 요청

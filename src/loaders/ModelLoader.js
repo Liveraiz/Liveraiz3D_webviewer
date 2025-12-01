@@ -615,12 +615,31 @@ export default class ModelLoader {
 
             model.traverse((child) => {
                 if (child.isMesh) {
+                    // fibroid 메시에 셰이더 자동 적용
+                    if (child.name.toLowerCase().includes('fibroid')) {
+                        console.log(`[ModelLoader] Found fibroid mesh: ${child.name}, applying shader`);
+                        if (this.materialManager && this.materialManager.applyFibrosisShader) {
+                            this.materialManager.applyFibrosisShader(child);
+                        }
+                    }
+
+                    // pelvis 메시의 opacity 기본값을 0.2로 설정
+                    if (child.name.toLowerCase().includes('pelvis')) {
+                        console.log(`[ModelLoader] Found pelvis mesh: ${child.name}, setting opacity to 0.2`);
+                        if (child.material) {
+                            child.material.transparent = true;
+                            child.material.opacity = 0.2;
+                            child.material.needsUpdate = true;
+                        }
+                    }
+
                     if (child.material) {
                         // See-through 효과를 위해 FrontSide를 DoubleSide로 변경
                         child.material.side = THREE.DoubleSide;
 
-                        // 투명도가 있는 경우
-                        if (child.material.transparent) {
+                        // 투명도가 있는 경우 (pelvis는 제외 - 이미 0.2로 설정됨)
+                        const isPelvis = child.name.toLowerCase().includes('pelvis');
+                        if (child.material.transparent && !isPelvis) {
                             // 초기 투명도 값을 0.60으로 설정 (소수점 2자리)
                             child.material.opacity = 0.60;
                             // 알파 테스트 값 설정 (소수점 2자리)

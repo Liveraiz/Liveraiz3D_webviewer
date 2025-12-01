@@ -9,6 +9,7 @@ class MeshTooltip {
         this.camera = null;
         this.isMobile = false;
         this.isEnabled = true; // 활성화 상태 관리
+        this.userDisabled = false; // 사용자가 명시적으로 비활성화한 상태
         console.log("[MeshTooltip] 초기화 완료, 활성화 상태:", this.isEnabled);
     }
 
@@ -111,10 +112,20 @@ class MeshTooltip {
     }
 
     // 활성화/비활성화 설정 메서드
-    setEnabled(enabled) {
-        // console.log(`[MeshTooltip] 활성화 상태 변경: ${enabled}`);
-        this.isEnabled = enabled;
-        if (!enabled) {
+    setEnabled(enabled, isUserAction = false) {
+        // 사용자가 명시적으로 비활성화한 경우 userDisabled 플래그 설정
+        if (isUserAction) {
+            this.userDisabled = !enabled;
+        }
+        
+        // 사용자가 비활성화한 상태이고 자동 활성화 요청인 경우 무시
+        if (this.userDisabled && enabled && !isUserAction) {
+            return;
+        }
+        
+        // console.log(`[MeshTooltip] 활성화 상태 변경: ${enabled}, 사용자 액션: ${isUserAction}`);
+        this.isEnabled = enabled && !this.userDisabled;
+        if (!this.isEnabled) {
             // console.log('[MeshTooltip] 모든 툴팁 숨김 처리');
             this.hideAllTooltips();
         }
