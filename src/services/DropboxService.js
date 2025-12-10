@@ -22,16 +22,52 @@ export class DropboxService {
      * Dropbox 공유 URL을 직접 다운로드 URL로 변환
      * www.dropbox.com을 dl.dropboxusercontent.com으로 변경하고
      * dl 파라미터를 1로 설정하여 직접 다운로드 가능한 URL 생성
+     * 폴더 링크(/scl/fo/)인 경우에만 model.json 파일 경로를 추가
      * @param {string} shareUrl - Dropbox 공유 URL
+     * @param {boolean} isJsonFile - model.json 파일인지 여부 (기본값: false)
      * @returns {string} 변환된 직접 다운로드 URL
      */
-    getDirectDownloadUrl(shareUrl) {
+    getDirectDownloadUrl(shareUrl, isJsonFile = false) {
         if (!shareUrl) return null;
         
-        return shareUrl
+        let url = shareUrl
             .replace('www.dropbox.com', 'dl.dropboxusercontent.com')
             .replace('?dl=0', '?dl=1')
             .replace('&dl=0', '&dl=1');
+        
+        // model.json 파일을 로드하는 경우, 폴더 링크(/scl/fo/)인지 확인하고 파일 경로 추가
+        // /scl/fi/는 파일 링크이므로 수정하지 않음
+        if (isJsonFile) {
+            try {
+                const urlObj = new URL(url);
+                const pathParts = urlObj.pathname.split('/').filter(part => part);
+                const sclIndex = pathParts.indexOf('scl');
+                
+                if (sclIndex !== -1) {
+                    const sclType = pathParts[sclIndex + 1]; // 'fo' 또는 'fi'
+                    const folderId = pathParts[sclIndex + 2];
+                    
+                    // /scl/fo/ (폴더 링크)인 경우에만 model.json 추가
+                    if (sclType === 'fo' && folderId) {
+                        // 폴더 링크인 경우 model.json 파일 경로가 없으면 추가
+                        if (pathParts.length <= sclIndex + 3) {
+                            // 폴더 링크인 경우 model.json 추가
+                            if (urlObj.pathname.endsWith('/')) {
+                                urlObj.pathname = urlObj.pathname + 'model.json';
+                            } else {
+                                urlObj.pathname = urlObj.pathname + '/model.json';
+                            }
+                            url = urlObj.toString();
+                        }
+                    }
+                    // /scl/fi/ (파일 링크)인 경우는 그대로 사용 (이미 특정 파일을 가리킴)
+                }
+            } catch (error) {
+                console.warn('URL 파싱 실패, 원본 URL 사용:', error);
+            }
+        }
+        
+        return url;
     }
 
     /**

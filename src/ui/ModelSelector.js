@@ -69,13 +69,15 @@ export default class ModelSelector {
             this.lastJsonUrl = jsonUrl;
             console.log("입력 URL:", jsonUrl);
 
-            // Dropbox URL 유효성 검사
-            if (!jsonUrl.includes("dropbox.com")) {
+            // Dropbox URL 유효성 검사 (dropbox.com 또는 dropboxusercontent.com 허용)
+            if (!jsonUrl.includes("dropbox.com") && !jsonUrl.includes("dropboxusercontent.com")) {
                 throw new Error("올바른 Dropbox 링크가 아닙니다.");
             }
 
             // JSON 파일 로드 및 처리
-            const directUrl = this.dropboxService.getDirectDownloadUrl(jsonUrl);
+            // isJsonFile=true로 설정하여 폴더 링크인 경우 model.json 경로 자동 추가
+            const directUrl = this.dropboxService.getDirectDownloadUrl(jsonUrl, true);
+            console.log("변환된 JSON URL:", directUrl);
             const response = await fetch(directUrl);
             if (!response.ok) {
                 throw new Error("JSON 파일을 불러올 수 없습니다.");
@@ -95,11 +97,9 @@ export default class ModelSelector {
             }
 
             // UI 업데이트 또는 데이터 저장
-            if (!isDirectLoad) {
-                await this.updateModelList(data);
-            } else {
-                this.lastLoadedModels = data.models || [];
-            }
+            // isDirectLoad일 때도 모델 리스트를 업데이트해야 UI에 표시됨
+            await this.updateModelList(data);
+            this.lastLoadedModels = data.models || [];
 
             return data;
         } catch (error) {
@@ -123,17 +123,48 @@ export default class ModelSelector {
 
                 let tableHTML = "";
 
-                if (model.case === "HCC") {
+                // case 값을 정규화 (대소문자 무시, 공백 제거)
+                const normalizedCase = model.case ? model.case.trim().toUpperCase() : "";
+                // 모델 이름도 확인 (HVT, RL 등을 구분하기 위해)
+                const modelName = model.name ? model.name.trim().toUpperCase() : "";
+                console.log("Table display - model.case:", model.case, "normalized:", normalizedCase, "model.name:", model.name);
+
+                if (normalizedCase === "HCC") {
                     tableHTML = this.tableGenerator.createHCCTable(
                         tableText,
                         model.case
                     );
-                } else if (model.case === "KT") {
+                } else if (normalizedCase === "KT" || normalizedCase === "LDKT") {
                     tableHTML = this.tableGenerator.createKTTable(
                         tableText,
                         model.case
                     );
+                } else if (normalizedCase === "LDLT" || normalizedCase === "LDLT RL" || normalizedCase.includes("LDLT")) {
+                    // LDLT인 경우 모델 이름을 확인하여 HVT 또는 RL 테이블 선택
+                    if (modelName.includes("HVT") || modelName.includes("HVt") || modelName.includes("HVT")) {
+                        // HVT 테이블 (HTML 형식)
+                        console.log("HVT 테이블 사용 (모델 이름 기반):", model.name);
+                        tableHTML = this.tableGenerator.createHVTTable(
+                            tableText,
+                            model.case || "LDLT"
+                        );
+                    } else {
+                        // RL 테이블 (기본 LDLT 테이블)
+                        console.log("LDLT RL 테이블 사용 (모델 이름 기반):", model.name);
+                        tableHTML = this.tableGenerator.createLDLTTable(
+                            tableText,
+                            model.case
+                        );
+                    }
+                } else if (normalizedCase === "HVT" || (normalizedCase.includes("LDLT") && model.case?.toLowerCase().includes("hvt"))) {
+                    // case에 직접 HVT가 명시된 경우
+                    console.log("HVT 테이블 사용 (case 기반):", model.case);
+                    tableHTML = this.tableGenerator.createHVTTable(
+                        tableText,
+                        model.case || "LDLT"
+                    );
                 } else {
+                    console.warn("Unknown case type, using HCC table:", model.case);
                     tableHTML = this.tableGenerator.createHCCTable(
                         tableText,
                         model.case || "Unknown"
@@ -1431,62 +1462,11 @@ export default class ModelSelector {
         console.log("JSON URL:", jsonUrl);
         console.log("Generated share link:", shareUrl);
 
-        // URL 단축 시도
-        this.shortenUrl(shareUrl)
-            .then((shortUrl) => {
-                if (shortUrl) {
-                    this.showShareDialog(shortUrl, shareUrl);
-                } else {
-                    this.showShareDialog(shareUrl, shareUrl);
-                }
-            })
-            .catch(() => {
-                this.showShareDialog(shareUrl, shareUrl);
-            });
-    }
-
-    // URL 단축 함수
-    async shortenUrl(longUrl) {
-        try {
-            // TinyURL API 사용
-            const response = await fetch(
-                `https://tinyurl.com/api-create.php?url=${encodeURIComponent(
-                    longUrl
-                )}`
-            );
-            if (response.ok) {
-                const shortUrl = await response.text();
-                console.log("URL 단축 완료:", shortUrl);
-                return shortUrl;
-            }
-        } catch (error) {
-            console.error("URL 단축 실패:", error);
-        }
-
-        // TinyURL 실패시 다른 서비스 시도
-        try {
-            // is.gd API 사용
-            const response = await fetch(
-                `https://is.gd/create.php?format=json&url=${encodeURIComponent(
-                    longUrl
-                )}`
-            );
-            if (response.ok) {
-                const data = await response.json();
-                if (data.shorturl) {
-                    console.log("is.gd URL 단축 완료:", data.shorturl);
-                    return data.shorturl;
-                }
-            }
-        } catch (error) {
-            console.error("is.gd URL 단축 실패:", error);
-        }
-
-        return null;
+        this.showShareDialog(shareUrl);
     }
 
     // 공유 다이얼로그 표시
-    showShareDialog(shortUrl, fullUrl) {
+    showShareDialog(fullUrl) {
         const dialog = document.createElement("div");
         dialog.style.cssText = `
             position: fixed;
@@ -1520,19 +1500,11 @@ export default class ModelSelector {
                 <p style="margin: 0; color: rgba(255, 255, 255, 0.8); font-size: 14px;">3D Model Viewer - Share Link</p>
             </div>
             
-            <div style="margin-bottom: 20px;">
-                <label style="display: block; margin-bottom: 8px; font-weight: 500; color: white; font-size: 14px;">SHORT LINK:</label>
-                <div style="display: flex; gap: 10px;">
-                    <input type="text" value="${shortUrl}" readonly style="flex: 1; padding: 12px; border: none; border-radius: 8px; background: rgba(255, 255, 255, 0.9); color: #333; font-size: 14px;">
-                    <button onclick="navigator.clipboard.writeText('${shortUrl}').then(() => alert('Short link copied!'))" style="padding: 12px 20px; background: rgba(255, 255, 255, 0.2); color: white; border: 1px solid rgba(255, 255, 255, 0.3); border-radius: 8px; cursor: pointer; font-weight: 500; transition: all 0.3s ease;">COPY</button>
-                </div>
-            </div>
-            
             <div style="margin-bottom: 25px;">
-                <label style="display: block; margin-bottom: 8px; font-weight: 500; color: white; font-size: 14px;">ORIGINAL LINK:</label>
+                <label style="display: block; margin-bottom: 8px; font-weight: 500; color: white; font-size: 14px;">SHARE LINK:</label>
                 <div style="display: flex; gap: 10px;">
                     <input type="text" value="${fullUrl}" readonly style="flex: 1; padding: 12px; border: none; border-radius: 8px; background: rgba(255, 255, 255, 0.9); color: #333; font-size: 14px;">
-                    <button onclick="navigator.clipboard.writeText('${fullUrl}').then(() => alert('Original link copied!'))" style="padding: 12px 20px; background: rgba(255, 255, 255, 0.2); color: white; border: 1px solid rgba(255, 255, 255, 0.3); border-radius: 8px; cursor: pointer; font-weight: 500; transition: all 0.3s ease;">COPY</button>
+                    <button onclick="navigator.clipboard.writeText('${fullUrl}').then(() => alert('Link copied!'))" style="padding: 12px 20px; background: rgba(255, 255, 255, 0.2); color: white; border: 1px solid rgba(255, 255, 255, 0.3); border-radius: 8px; cursor: pointer; font-weight: 500; transition: all 0.3s ease;">COPY</button>
                 </div>
             </div>
             
