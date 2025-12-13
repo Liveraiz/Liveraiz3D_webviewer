@@ -27,27 +27,31 @@ export default class Camera extends THREE.PerspectiveCamera {
             // enableDamping은 ControlManager에서 기기별로 설정하므로 여기서 덮어쓰지 않음
             // this.controls.enableDamping = false; // 제거: ControlManager의 설정을 존중
             
-            // 카메라 변화 감지 및 far 값 동적 조정
+            // 카메라 변화 감지 및 far 값 동적 조정 (throttling으로 성능 최적화)
+            let lastFarCheck = 0;
+            const farCheckInterval = 100; // 100ms마다 체크 (10fps)
+            
             this.controls.addEventListener('change', () => {
+                const now = performance.now();
+                
+                // throttling: 너무 자주 실행되지 않도록 제한
+                if (now - lastFarCheck < farCheckInterval) {
+                    return;
+                }
+                lastFarCheck = now;
+                
                 const distanceToOrigin = this.position.length();
                 
                 // 카메라가 far 평면에 가까워지면 far 값을 자동으로 조정
-                if (distanceToOrigin > this.far * 0.8) {  // far 값의 80% 지점에서 조정
-                    this.far = distanceToOrigin * 2;  // 현재 거리의 2배로 설정
-                    this.updateProjectionMatrix();
+                // 조건을 더 엄격하게 하여 불필요한 업데이트 방지
+                if (distanceToOrigin > this.far * 0.85) {  // 85% 지점에서 조정 (더 여유있게)
+                    const newFar = distanceToOrigin * 2.5;  // 현재 거리의 2.5배로 설정
+                    // far 값이 실제로 변경될 때만 업데이트
+                    if (Math.abs(newFar - this.far) > this.far * 0.1) {  // 10% 이상 차이날 때만
+                        this.far = newFar;
+                        this.updateProjectionMatrix();
+                    }
                 }
-                
-                /* console.log('Camera Movement:', {
-                    position: {
-                        x: this.position.x,
-                        y: this.position.y,
-                        z: this.position.z
-                    },
-                    distanceToOrigin,
-                    isWithinFar: distanceToOrigin < this.far,
-                    currentFar: this.far,
-                    farAdjusted: this.far > 1000
-                }); */
             });
         }
     }

@@ -76,14 +76,20 @@ export default class TransformControlManager {
             return;
         }
 
+        // 이미 같은 모델이 등록되어 있으면 중복 등록 방지
+        if (this.currentModel === model) {
+            return;
+        }
+
         // opacity가 0.01 이하인 메시는 transform control을 적용하지 않음
         if (model.material && model.material.opacity !== undefined && model.material.opacity <= 0.01) {
-            console.log(`TransformControls: ${model.name}은(는) 투명도가 0.01 이하로 transform control을 적용할 수 없습니다.`);
+            // 로그 제거: 성능 최적화
             return;
         }
 
         this.currentModel = model;
-        console.log("TransformControls: Model registered", model.name);
+        // 로그 제거: 성능 최적화 및 콘솔 스팸 방지
+        // console.log("TransformControls: Model registered", model.name);
 
         if (this.currentMode !== "viewer") {
             this.attach(model);

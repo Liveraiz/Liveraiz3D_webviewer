@@ -831,9 +831,18 @@ export default class LiverViewer {
             }
 
             // Update controls
+            // damping이 활성화된 경우에만 업데이트 (ControlManager.update()에서도 처리하므로 중복 방지)
             if (this.controlManager?.controls) {
-                this.controlManager.controls.update();
-                renderNeeded = true;
+                // damping이 활성화되지 않은 경우에만 여기서 업데이트
+                // damping이 활성화된 경우는 ControlManager.update()에서 처리
+                if (!this.controlManager.controls.enableDamping) {
+                    this.controlManager.controls.update();
+                    renderNeeded = true;
+                } else {
+                    // damping이 활성화된 경우, ControlManager.update()를 호출
+                    this.controlManager.update();
+                    renderNeeded = true;
+                }
             }
 
             // Update Transform Controls - only when meshes exist
