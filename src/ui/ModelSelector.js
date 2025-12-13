@@ -1198,14 +1198,14 @@ export default class ModelSelector {
                 await this.liverViewer.modelLoader.loadModel(modelUrl);
                 console.log("Model loaded successfully");
 
-                // 카메라 상태 기록기에 드롭박스 URL 업데이트 알림
-                if (this.liverViewer.controlManager && this.liverViewer.controlManager.getCameraStateRecorder) {
-                    const recorder = this.liverViewer.controlManager.getCameraStateRecorder();
-                    if (recorder) {
-                        recorder.setModelSelector(this);
-                        recorder.updateDropboxUrl();
-                    }
-                }
+                // 카메라 상태 기록기는 삭제되었으므로 제거
+                // if (this.liverViewer.controlManager && this.liverViewer.controlManager.getCameraStateRecorder) {
+                //     const recorder = this.liverViewer.controlManager.getCameraStateRecorder();
+                //     if (recorder) {
+                //         recorder.setModelSelector(this);
+                //         recorder.updateDropboxUrl();
+                //     }
+                // }
 
                 console.log("Model and patient info load completed");
                 this.close();

@@ -67,55 +67,15 @@ export default class ControlManager {
         this.boundMouseMoveHandler = this.handleMouseMove.bind(this);
         this.setupMouseEvents();
 
-        // CameraStateManager 초기화 (선택사항)
-        this.cameraStateManager = null;
-        
-        // CameraStateRecorder 초기화 (자동 기록)
-        this.cameraStateRecorder = null;
+        // CameraStateManager와 CameraStateRecorder는 삭제되었으므로 제거
+        // this.cameraStateManager = null;
+        // this.cameraStateRecorder = null;
     }
 
-    /**
-     * CameraStateManager 인스턴스 가져오기 (lazy initialization)
-     * @returns {CameraStateManager} CameraStateManager 인스턴스
-     */
-    getCameraStateManager() {
-        if (!this.cameraStateManager) {
-            this.cameraStateManager = new CameraStateManager(this.camera, this.controls);
-        }
-        return this.cameraStateManager;
-    }
-
-    /**
-     * CameraStateRecorder 초기화 및 시작
-     * @param {ModelLoader} modelLoader - 모델 로더 (드롭박스 URL 추출용)
-     * @param {ModelSelector} modelSelector - 모델 셀렉터 (드롭박스 JSON URL 추출용)
-     */
-    setupCameraStateRecorder(modelLoader = null, modelSelector = null) {
-        if (!this.cameraStateRecorder) {
-            this.cameraStateRecorder = new CameraStateRecorder(
-                this.camera,
-                this.controls,
-                modelLoader,
-                modelSelector
-            );
-            console.log('카메라 상태 자동 기록 시작');
-        } else {
-            if (modelLoader) {
-                this.cameraStateRecorder.setModelLoader(modelLoader);
-            }
-            if (modelSelector) {
-                this.cameraStateRecorder.setModelSelector(modelSelector);
-            }
-        }
-    }
-
-    /**
-     * CameraStateRecorder 인스턴스 가져오기
-     * @returns {CameraStateRecorder|null} CameraStateRecorder 인스턴스
-     */
-    getCameraStateRecorder() {
-        return this.cameraStateRecorder;
-    }
+    // CameraStateManager와 CameraStateRecorder 관련 메서드 제거 (파일이 삭제됨)
+    // getCameraStateManager() { ... }
+    // setupCameraStateRecorder() { ... }
+    // getCameraStateRecorder() { ... }
 
     /**
      * 터치 이벤트 핸들러
@@ -203,7 +163,8 @@ export default class ControlManager {
         const distance = maxDim / 2 / Math.tan(fov / 2);
         const cameraZ = distance * 1.2;
 
-        this.defaultCameraPosition = new THREE.Vector3(0, 0, cameraZ);
+        // 카메라 위치를 모델 중심 기준으로 설정 (절대 위치가 아닌 상대 위치)
+        this.defaultCameraPosition = center.clone().add(new THREE.Vector3(0, 0, cameraZ));
         this.defaultCameraQuaternion = new THREE.Quaternion();
         this.defaultCameraRotation = new THREE.Euler(0, 0, 0);
         this.defaultTarget = center.clone();
@@ -218,28 +179,35 @@ export default class ControlManager {
      * 카메라를 기본 위치와 방향으로 재설정
      */
     resetCamera() {
-        this.controls.reset(); // added by dip2k 2025021
-
         if (!this.defaultCameraPosition) {
             console.warn("Default camera position not set yet");
             return;
         }
 
+        // controls.reset()을 먼저 호출하면 타겟이 초기화될 수 있으므로,
+        // 타겟을 먼저 설정한 후 reset() 호출하거나 reset()을 제거
+        // reset()은 ArcballControls의 내부 상태를 초기화하므로 주의 필요
+        
+        // 타겟을 먼저 설정
+        if (this.defaultTarget) {
+            this.controls.target.copy(this.defaultTarget);
+        }
+
+        // 카메라 속성 설정
         this.camera.position.copy(this.defaultCameraPosition);
         this.camera.quaternion.copy(this.defaultCameraQuaternion);
         this.camera.rotation.copy(this.defaultCameraRotation);
         this.camera.up.copy(this.defaultUp);
 
-        if (this.defaultTarget) {
-            this.controls.target.copy(this.defaultTarget);
-        }
-
+        // controls 업데이트 (reset() 대신 직접 설정)
         this.controls.update();
 
-        requestAnimationFrame(() => {
-            this.camera.up.copy(this.defaultUp);
-            this.controls.update();
-        });
+        // requestAnimationFrame 제거 - 동기적으로 처리하여 타겟 변경 방지
+        // 추가 업데이트가 필요한 경우에만 사용
+        // requestAnimationFrame(() => {
+        //     this.camera.up.copy(this.defaultUp);
+        //     this.controls.update();
+        // });
     }
 
     /**

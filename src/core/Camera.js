@@ -24,7 +24,8 @@ export default class Camera extends THREE.PerspectiveCamera {
     setControls(controls) {
         this.controls = controls;
         if (this.controls) {
-            this.controls.enableDamping = false;
+            // enableDamping은 ControlManager에서 기기별로 설정하므로 여기서 덮어쓰지 않음
+            // this.controls.enableDamping = false; // 제거: ControlManager의 설정을 존중
             
             // 카메라 변화 감지 및 far 값 동적 조정
             this.controls.addEventListener('change', () => {

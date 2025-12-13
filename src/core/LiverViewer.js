@@ -453,7 +453,8 @@ export default class LiverViewer {
 
             // 카메라 상태 자동 기록 설정
             if (this.controlManager) {
-                this.controlManager.setupCameraStateRecorder(this.modelLoader, this.modelSelector);
+                // 카메라 상태 기록기는 삭제되었으므로 제거
+                // this.controlManager.setupCameraStateRecorder(this.modelLoader, this.modelSelector);
             }
         } catch (error) {
             console.error("ModelLoader 설정 중 에러:", error);
