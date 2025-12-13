@@ -8,7 +8,7 @@ class MeshTooltip {
         this.activeTooltip = null; // 현재 활성화된 툴팁
         this.camera = null;
         this.isMobile = false;
-        this.isEnabled = true; // 활성화 상태 관리
+        this.isEnabled = false; // 활성화 상태 관리 (기본값: 비활성화)
         this.userDisabled = false; // 사용자가 명시적으로 비활성화한 상태
         console.log("[MeshTooltip] 초기화 완료, 활성화 상태:", this.isEnabled);
     }
@@ -135,6 +135,13 @@ class MeshTooltip {
         console.log(
             `[MeshTooltip] setupHoverEvents 호출됨 - mesh: ${mesh.name}`
         );
+        
+        // isEnabled가 false이면 툴팁 생성하지 않음
+        if (!this.isEnabled) {
+            console.log(`[MeshTooltip] 비활성화 상태이므로 툴팁 생성 건너뜀 - mesh: ${mesh.name}`);
+            return;
+        }
+        
         if (!this.camera) {
             console.error("[MeshTooltip] Camera not set in MeshTooltip");
             return;

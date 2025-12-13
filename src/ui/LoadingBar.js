@@ -1,5 +1,6 @@
 export default class LoadingBar {
-    constructor() {
+    constructor(isDarkMode = false) {
+        this.isDarkMode = isDarkMode;
         this.container = document.createElement('div');
         this.container.className = 'loading-bar-container';
         Object.assign(this.container.style, {
@@ -8,18 +9,21 @@ export default class LoadingBar {
             left: '50%',
             transform: 'translate(-50%, -50%)',
             width: '300px',
-            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            backgroundColor: this.isDarkMode ? 'rgba(0, 0, 0, 0.8)' : 'rgba(255, 255, 255, 0.9)',
             borderRadius: '8px',
             padding: '20px',
             display: 'none',
-            zIndex: '1009'
+            zIndex: '1009',
+            boxShadow: this.isDarkMode 
+                ? '0 4px 12px rgba(0, 0, 0, 0.3)' 
+                : '0 4px 12px rgba(0, 0, 0, 0.15)'
         });
 
         // 제목
         this.title = document.createElement('div');
         this.title.textContent = 'Loading Scene...';
         Object.assign(this.title.style, {
-            color: 'white',
+            color: this.isDarkMode ? 'white' : 'black',
             marginBottom: '10px',
             textAlign: 'center',
             fontSize: '16px'
@@ -30,7 +34,7 @@ export default class LoadingBar {
         Object.assign(this.progressContainer.style, {
             width: '100%',
             height: '20px',
-            backgroundColor: 'rgba(255, 255, 255, 0.1)',
+            backgroundColor: this.isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
             borderRadius: '10px',
             overflow: 'hidden'
         });
@@ -40,14 +44,14 @@ export default class LoadingBar {
         Object.assign(this.progressBar.style, {
             width: '0%',
             height: '100%',
-            backgroundColor: '#4CAF50',
+            background: 'linear-gradient(90deg, #3b82f6 0%, #9333ea 100%)',
             transition: 'width 0.3s ease'
         });
 
         // 퍼센트 텍스트
         this.percentText = document.createElement('div');
         Object.assign(this.percentText.style, {
-            color: 'white',
+            color: this.isDarkMode ? 'white' : 'black',
             textAlign: 'center',
             marginTop: '5px',
             fontSize: '14px'
@@ -56,7 +60,7 @@ export default class LoadingBar {
         // 두 번째 진행 상태 표시 (전체 프로세스)
         this.totalProgressText = document.createElement('div');
         Object.assign(this.totalProgressText.style, {
-            color: '#aaaaaa',
+            color: this.isDarkMode ? '#aaaaaa' : '#666666',
             textAlign: 'center',
             marginTop: '5px',
             fontSize: '12px'
@@ -102,6 +106,22 @@ export default class LoadingBar {
 
     setTitle(text) {
         this.title.textContent = text;
+    }
+
+    updateTheme(isDarkMode) {
+        this.isDarkMode = isDarkMode;
+        this.container.style.backgroundColor = this.isDarkMode 
+            ? 'rgba(0, 0, 0, 0.8)' 
+            : 'rgba(255, 255, 255, 0.9)';
+        this.container.style.boxShadow = this.isDarkMode 
+            ? '0 4px 12px rgba(0, 0, 0, 0.3)' 
+            : '0 4px 12px rgba(0, 0, 0, 0.15)';
+        this.title.style.color = this.isDarkMode ? 'white' : 'black';
+        this.percentText.style.color = this.isDarkMode ? 'white' : 'black';
+        this.totalProgressText.style.color = this.isDarkMode ? '#aaaaaa' : '#666666';
+        this.progressContainer.style.backgroundColor = this.isDarkMode 
+            ? 'rgba(255, 255, 255, 0.1)' 
+            : 'rgba(0, 0, 0, 0.1)';
     }
 
     dispose() {

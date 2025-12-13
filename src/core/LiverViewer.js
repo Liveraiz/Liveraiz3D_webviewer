@@ -46,7 +46,7 @@ export default class LiverViewer {
             });
 
             this.meshes = new Map();
-            this.isDarkMode = true;
+            this.isDarkMode = false;
             this.activeModel = null;
 
             this.toggleDarkMode = this.toggleDarkMode.bind(this);
@@ -83,6 +83,8 @@ export default class LiverViewer {
 
             // ViewerState 초기화
             this.viewerState = new ViewerState();
+            // ViewerState의 isDarkMode를 LiverViewer의 초기값과 동기화
+            this.viewerState.setState({ isDarkMode: this.isDarkMode });
             this.viewerState.subscribe(this.handleStateChange.bind(this));
 
             // Panel Manager 초기화를 먼저
@@ -107,8 +109,8 @@ export default class LiverViewer {
             this.meshTooltip = new MeshTooltip();
 
             // 콜백 설정 추가
-            this.objectListPanel.setToggleCallback((name, visible) => {
-                this.handleObjectToggle(name, visible);
+            this.objectListPanel.setToggleCallback((name, visible, opacity) => {
+                this.handleObjectToggle(name, visible, opacity);
             });
 
             // ModelSelector는 마지막에 초기화
@@ -372,7 +374,7 @@ export default class LiverViewer {
     setupModelLoader() {
         try {
             // 로딩 바 생성
-            const loadingBar = new LoadingBar();
+            this.loadingBar = new LoadingBar(this.isDarkMode);
 
             // ModelLoader 초기화
             this.modelLoader = new ModelLoader({
@@ -380,7 +382,7 @@ export default class LiverViewer {
                 camera: this.camera,
                 materialManager: this.materialManager,
                 meshes: this.meshes,
-                loadingBar: loadingBar,
+                loadingBar: this.loadingBar,
                 renderer: this.renderer.renderer,
                 toolbar: this.toolbar,
                 onLoadComplete: (hasAnimation) => {
@@ -531,12 +533,27 @@ export default class LiverViewer {
         );
     }
 
-    handleObjectToggle(objectId, visible) {
-        const mesh = this.meshes.get(objectId);
+    handleObjectToggle(objectId, visible, opacity = undefined) {
+        // meshes Map에서 먼저 찾기
+        let mesh = this.meshes.get(objectId);
+        
+        // meshes Map에 없으면 objectListPanel의 objects Map에서 찾기 (vol 메시 등)
+        if (!mesh && this.objectListPanel) {
+            mesh = this.objectListPanel.getObject(objectId);
+        }
+        
         if (mesh) {
             mesh.visible = visible;
-            // ObjectListPanel에 등록된 오브젝트만 보이도록 설정
-            if (!this.objectListPanel.hasObject(objectId)) {
+            
+            // opacity가 제공된 경우 material 업데이트
+            if (opacity !== undefined && mesh.material) {
+                mesh.material.opacity = opacity;
+                mesh.material.transparent = opacity < 1;
+                mesh.material.needsUpdate = true;
+            }
+            
+            // ObjectListPanel에 등록된 오브젝트만 보이도록 설정 (vol 메시들은 objects Map에 있으므로 통과)
+            if (this.objectListPanel && !this.objectListPanel.hasObject(objectId)) {
                 mesh.visible = false;
             }
         }
@@ -755,6 +772,10 @@ export default class LiverViewer {
             this.meshTooltip.updateTheme(this.isDarkMode);
         }
 
+        // LoadingBar 테마 업데이트
+        if (this.loadingBar) {
+            this.loadingBar.updateTheme(this.isDarkMode);
+        }
 
     }
 

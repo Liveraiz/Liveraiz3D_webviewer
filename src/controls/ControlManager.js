@@ -1,7 +1,6 @@
 import * as THREE from "three";
 import { ArcballControls } from "three/examples/jsm/controls/ArcballControls";
-import CameraStateManager from "../functions/CameraStateManager";
-import CameraStateRecorder from "../functions/CameraStateRecorder";
+
 
 export default class ControlManager {
     /**
@@ -165,7 +164,15 @@ export default class ControlManager {
 
         if (this.meshTooltip) {
             // console.log(`[ControlManager] MeshTooltip 활성화 상태 설정: ${!isTransforming}`);
-            this.meshTooltip.setEnabled(!isTransforming);
+            // 사용자가 비활성화한 경우 활성화하지 않음
+            if (isTransforming) {
+                this.meshTooltip.setEnabled(false);
+            } else {
+                // 사용자가 비활성화하지 않은 경우에만 활성화
+                if (!this.meshTooltip.userDisabled) {
+                    this.meshTooltip.setEnabled(true);
+                }
+            }
             
             // console.log('[ControlManager] MeshTooltip 상태 확인:', {
             //     isEnabled: this.meshTooltip.isEnabled,
@@ -414,7 +421,10 @@ export default class ControlManager {
         if (this.isControlActive) {
             this.isControlActive = false;
             if (this.meshTooltip && !this.isTransforming) {
-                this.meshTooltip.setEnabled(true);
+                // 사용자가 비활성화하지 않은 경우에만 활성화
+                if (!this.meshTooltip.userDisabled) {
+                    this.meshTooltip.setEnabled(true);
+                }
             }
         }
     }

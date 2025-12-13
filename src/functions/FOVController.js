@@ -6,7 +6,7 @@ import * as THREE from 'three';
  */
 export default class FOVController {
     constructor({
-        isDarkMode = true,
+        isDarkMode = false,
         viewerState = null,
         initialFOV = 70,
         minFOV = 26.5,

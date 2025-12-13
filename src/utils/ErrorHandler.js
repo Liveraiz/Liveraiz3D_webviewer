@@ -32,12 +32,16 @@ export class ErrorHandler {
               </div>
           `;
 
+          // 다크모드 여부 확인 (body 배경색 기준)
+          const bodyBg = getComputedStyle(document.body).backgroundColor;
+          const isDarkMode = bodyBg.includes('26, 26, 26') || bodyBg.includes('rgb(26, 26, 26)') || bodyBg.includes('#1a1a1a');
+          
           Object.assign(loadingElement.style, {
-              color: "white",
-              backgroundColor: "rgba(0, 0, 0, 0.8)",
+              color: isDarkMode ? "white" : "black",
+              backgroundColor: isDarkMode ? "rgba(0, 0, 0, 0.8)" : "rgba(255, 255, 255, 0.9)",
               padding: "20px",
               borderRadius: "8px",
-              boxShadow: "0 2px 10px rgba(0, 0, 0, 0.2)",
+              boxShadow: isDarkMode ? "0 2px 10px rgba(0, 0, 0, 0.2)" : "0 2px 10px rgba(0, 0, 0, 0.15)",
               position: "fixed",
               top: "50%",
               left: "50%",

@@ -8,7 +8,7 @@ export default class TextPanel {
    * 기존에 존재하는 TextPanel 요소를 확인하고 제거한 후
    * 새로운 TextPanel을 초기화합니다.
    */
-  constructor({ isMobile, panelManager, isDarkMode = true }) {
+  constructor({ isMobile, panelManager, isDarkMode = false }) {
     // 이미 존재하는 TextPanel 요소 확인
     const existingPanel = document.querySelector(".text-panel");
     const existingToggle = document.querySelector(".text-panel-toggle");

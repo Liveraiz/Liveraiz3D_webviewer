@@ -1041,7 +1041,7 @@ export default class ModelSelector {
         Object.assign(loadButton.style, {
             height: "32px",
             padding: "0 16px",
-            backgroundColor: "#4CAF50",
+            backgroundColor: "#764ba2",
             border: "none",
             borderRadius: "4px",
             color: "white",

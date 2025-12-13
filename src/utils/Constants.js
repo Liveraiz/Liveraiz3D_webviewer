@@ -203,13 +203,16 @@ export const LIVER_KEYWORDS = [
     "LLS", "LMS", "Spigelian",  "Spigel",  "RAS",  "RPS",
     "RHVt", "RSHVt", "RIHVt", "RIHVat", "RIHVpt",
     "MHVt", "V5t", "V58t", "V8t",
-    "V4t", "V4at", "V4bt", "LHVt", "Remnant", "Resection"
+    "V4t", "V4at", "V4bt", "LHVt", "Remnant", "Resection",
+    "Seg1", "Seg2", "Seg3","Seg4","Seg5","Seg6","Seg7","Seg8",
+    "P6", "P6v","P6d", "P67", "P7", "P7v", "P7d", "P7d","P5","P5v","P5d",
+    "P58", "P8","P8v","P8d","P4","P4v","P4d","P3","P23", "P2","P1",
 ];
 
 // 투명도 조절 가능한 mesh 이름 키워드 (통합 관리)
 export const OPACITY_CONTROLLABLE_KEYWORDS = [
     ...LIVER_KEYWORDS,
-    "myometrium","uterus", "recipient_cavity"
+    "myometrium","uterus", "recipient_cavity", "pancreas", "Pancreas"
 ];
 
 export const VESSEL_KEYWORDS = [

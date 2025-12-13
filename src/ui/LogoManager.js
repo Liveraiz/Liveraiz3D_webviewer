@@ -7,7 +7,7 @@ export default class LogoManager {
         height = 60,
         margin = 20,
         opacity = 0.8,
-        isDarkMode = true,
+        isDarkMode = false,
         dropboxService = null, // dropboxService 파라미터 추가
     }) {
         this.imageUrl = imageUrl;

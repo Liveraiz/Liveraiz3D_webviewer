@@ -127,6 +127,8 @@ export class ObjectListPanel {
 
         // 메쉬들을 필터링하고 계층 구조 맵 생성
         const hierarchyMap = new Map();
+        const volMeshes = []; // vol이 포함된 메시들을 별도로 저장
+        
         meshes
             .filter(
                 (mesh) =>
@@ -137,14 +139,38 @@ export class ObjectListPanel {
                     )
             )
             .forEach((mesh) => {
-                hierarchyMap.set(mesh.name, {
-                    mesh: mesh,
-                    parent: mesh.parent?.name,
-                    children: [],
-                    // level은 나중에 계산하도록 초기값 설정
-                    level: 0,
-                });
+                const lowerName = mesh.name.toLowerCase();
+                // vol이 포함된 메시는 별도로 저장
+                if (lowerName.includes("vol")) {
+                    volMeshes.push(mesh);
+                } else {
+                    hierarchyMap.set(mesh.name, {
+                        mesh: mesh,
+                        parent: mesh.parent?.name,
+                        children: [],
+                        level: 0,
+                    });
+                }
             });
+
+        // vol 메시들이 있으면 "Volumes" 그룹 생성 (하위 볼륨들은 리스트에 표시하지 않음)
+        if (volMeshes.length > 0) {
+            // Volumes 그룹을 가상 부모로 생성 (실제 메시는 없지만 UI에서 그룹으로 표시)
+            hierarchyMap.set("Volumes", {
+                mesh: null, // 가상 그룹이므로 실제 메시는 없음
+                parent: null,
+                children: [], // 하위 볼륨들은 표시하지 않으므로 children 비움
+                level: 0,
+                isVolumeGroup: true, // Volumes 그룹임을 표시
+                volumeMeshes: volMeshes, // vol 메시들 저장 (제어용)
+            });
+
+            // vol 메시들은 hierarchyMap에 추가하지 않음 (리스트에 표시하지 않음)
+            // 하지만 objects Map에는 추가하여 제어 가능하도록 함
+            volMeshes.forEach((mesh) => {
+                this.objects.set(mesh.name, mesh);
+            });
+        }
 
         // 부모-자식 관계 설정
         hierarchyMap.forEach((info, name) => {
@@ -176,18 +202,59 @@ export class ObjectListPanel {
         const sortedRootMeshes = Array.from(hierarchyMap.values())
             .filter((info) => !info.parent || !hierarchyMap.has(info.parent))
             .sort((a, b) => {
-                const orderA = this.getObjectSortOrder(a.mesh.name);
-                const orderB = this.getObjectSortOrder(b.mesh.name);
+                // Volumes 그룹은 항상 마지막에 배치
+                if (a.isVolumeGroup) return 1;
+                if (b.isVolumeGroup) return -1;
+                
+                const orderA = a.mesh ? this.getObjectSortOrder(a.mesh.name) : 1000;
+                const orderB = b.mesh ? this.getObjectSortOrder(b.mesh.name) : 1000;
                 // 우선순위가 같으면 알파벳순으로 정렬
                 if (orderA === orderB) {
-                    return a.mesh.name.localeCompare(b.mesh.name, 'en', { numeric: true, sensitivity: 'base' });
+                    const nameA = a.mesh ? a.mesh.name : a.isVolumeGroup ? "Volumes" : "";
+                    const nameB = b.mesh ? b.mesh.name : b.isVolumeGroup ? "Volumes" : "";
+                    return nameA.localeCompare(nameB, 'en', { numeric: true, sensitivity: 'base' });
                 }
                 return orderA - orderB;
             });
 
         // 계층 구조에 따라 렌더링
         const renderHierarchy = (info, level = 0) => {
+            // Volumes 그룹인 경우 특별 처리
+            if (info.isVolumeGroup) {
+                const volumeMeshes = info.volumeMeshes || [];
+                if (volumeMeshes.length === 0) return;
+
+                // Volumes 그룹의 통합 상태 계산
+                const allVisible = volumeMeshes.every(m => m.visible);
+                const allHidden = volumeMeshes.every(m => !m.visible);
+                const groupVisible = !allHidden; // 하나라도 보이면 그룹은 보이는 것으로 표시
+                
+                // 평균 opacity 계산
+                const avgOpacity = volumeMeshes.reduce((sum, m) => {
+                    return sum + (m.material ? m.material.opacity : 1.0);
+                }, 0) / volumeMeshes.length;
+
+                // Volumes 그룹 헤더 생성
+                const groupRow = this.createControlRow({
+                    name: "Volumes",
+                    id: "Volumes",
+                    color: "#888888", // 그룹 색상
+                    visible: groupVisible,
+                    opacity: avgOpacity,
+                    material: null, // 그룹은 실제 material이 없음
+                    level: level,
+                    parent: null,
+                    isVolumeGroup: true,
+                    volumeMeshes: volumeMeshes,
+                });
+                this.contentContainer.appendChild(groupRow);
+                // 하위 볼륨들은 표시하지 않음
+                return;
+            }
+
+            // 일반 메시 처리
             const mesh = info.mesh;
+            if (!mesh) return;
 
             // 색상 설정
             let color = "#FFFFFF";
@@ -438,6 +505,8 @@ export class ObjectListPanel {
         material,
         level = 0,
         parent = null,
+        isVolumeGroup = false,
+        volumeMeshes = null,
     }) {
         const row = document.createElement("div");
         row.classList.add("control-row");
@@ -569,15 +638,80 @@ export class ObjectListPanel {
 
         toggleButton.addEventListener("click", (e) => {
             e.stopPropagation();
-            const newVisibility = !visible;
+            
+            // Volumes 그룹인 경우 현재 상태를 실제 메시들에서 확인
+            let currentVisibility = visible;
+            if (isVolumeGroup && volumeMeshes) {
+                // 실제 메시들의 visible 상태를 확인하여 현재 상태 결정
+                const allVisible = volumeMeshes.every(m => m.visible);
+                const allHidden = volumeMeshes.every(m => !m.visible);
+                currentVisibility = !allHidden; // 하나라도 보이면 true
+            }
+            
+            const newVisibility = !currentVisibility;
 
             console.log("Toggle button clicked:", {
                 objectName: name,
-                currentVisibility: visible,
+                currentVisibility: currentVisibility,
                 newVisibility: newVisibility,
                 hasCallback: !!this.onToggleObject,
+                isVolumeGroup: isVolumeGroup,
             });
 
+            // Volumes 그룹인 경우 모든 vol 메시들을 함께 처리
+            if (isVolumeGroup && volumeMeshes) {
+                const defaultOpacity = newVisibility ? 0.6 : 0;
+                
+                volumeMeshes.forEach((volMesh) => {
+                    // 실제 메시의 visible 속성 업데이트
+                    volMesh.visible = newVisibility;
+                    
+                    // material의 opacity 업데이트
+                    if (volMesh.material) {
+                        volMesh.material.opacity = defaultOpacity;
+                        volMesh.material.transparent = defaultOpacity < 1;
+                        volMesh.material.needsUpdate = true;
+                    }
+                    
+                    // 콜백 호출
+                    if (this.onToggleObject) {
+                        this.onToggleObject(volMesh.name, newVisibility, defaultOpacity);
+                    }
+                    
+                    // UI 업데이트
+                    this.updateObjectVisibility(volMesh.name, newVisibility);
+                });
+                
+                // Volumes 그룹의 visibility 아이콘 업데이트
+                toggleButton.innerHTML = this.getVisibilityIcon(newVisibility);
+                toggleButton.style.opacity = newVisibility ? "1" : "0.5";
+                
+                // opacity 버튼 업데이트
+                const opacityButton = Array.from(buttonContainer.children).find(
+                    (button) => button.querySelector(".opacity-control-icon")
+                );
+                if (opacityButton) {
+                    if (!newVisibility) {
+                        row.opacityState = 3;
+                        opacityButton.innerHTML = this.getOpacityIcon(this.isDarkMode).none;
+                    } else {
+                        row.opacityState = 1;
+                        opacityButton.innerHTML = this.getOpacityIcon(this.isDarkMode).medium;
+                    }
+                }
+                
+                // label opacity 업데이트
+                const label = row.querySelector("span");
+                if (label) {
+                    label.style.opacity = newVisibility ? "1" : "0.5";
+                }
+                
+                // visible 변수 업데이트 (다음 클릭을 위해)
+                visible = newVisibility;
+                return;
+            }
+
+            // 일반 메시 처리
             // visibility 아이콘 업데이트
             toggleButton.innerHTML = this.getVisibilityIcon(newVisibility);
             toggleButton.style.opacity = newVisibility ? "1" : "0.5";
@@ -666,13 +800,13 @@ export class ObjectListPanel {
             name.toLowerCase().includes(keyword.toLowerCase())
         );
 
-        // 투명도 조절 가능한 객체이면서 제외되지 않은 경우에만 투명도 버튼 추가
-        if (isOpacityControllable && material && !isExcluded) {
+        // Volumes 그룹이거나 투명도 조절 가능한 객체이면서 제외되지 않은 경우 투명도 버튼 추가
+        if ((isVolumeGroup && volumeMeshes) || (isOpacityControllable && material && !isExcluded)) {
             const opacityButton = document.createElement("button");
             Object.assign(opacityButton.style, buttonStyle);
 
             // opacity 상태를 row 레벨에서 관리
-            row.opacityState = 1; // 초기값: full (1.0)
+            row.opacityState = 1; // 초기값: medium (0.6)
             const opacityValues = [1.0, 0.6, 0.3, 0]; // 4단계 투명도 값
 
             // 초기 아이콘 설정
@@ -702,7 +836,44 @@ export class ObjectListPanel {
                         break;
                 }
 
-                // material 업데이트
+                // Volumes 그룹인 경우 모든 vol 메시들의 opacity를 함께 변경
+                if (isVolumeGroup && volumeMeshes) {
+                    volumeMeshes.forEach((volMesh) => {
+                        if (volMesh.material) {
+                            volMesh.material.opacity = newOpacity;
+                            volMesh.material.transparent = newOpacity < 1;
+                            volMesh.material.needsUpdate = true;
+                        }
+                        // visibility도 opacity에 따라 업데이트
+                        const isEffectivelyVisible = newOpacity > 0;
+                        volMesh.visible = isEffectivelyVisible;
+                        
+                        if (this.onToggleObject) {
+                            this.onToggleObject(volMesh.name, isEffectivelyVisible, newOpacity);
+                        }
+                        // UI 업데이트
+                        this.updateObjectVisibility(volMesh.name, isEffectivelyVisible);
+                    });
+                    
+                    // Volumes 그룹의 visibility 버튼도 업데이트
+                    const visibilityButton = Array.from(buttonContainer.children).find(
+                        (button) => button.querySelector(".visibility-toggle-icon")
+                    );
+                    if (visibilityButton) {
+                        const isEffectivelyVisible = newOpacity > 0;
+                        visibilityButton.innerHTML = this.getVisibilityIcon(isEffectivelyVisible);
+                        visibilityButton.style.opacity = isEffectivelyVisible ? "1" : "0.5";
+                    }
+                    
+                    // label opacity 업데이트
+                    const label = row.querySelector("span");
+                    if (label) {
+                        label.style.opacity = newOpacity > 0 ? "1" : "0.5";
+                    }
+                    return;
+                }
+
+                // 일반 메시 처리 - material 업데이트
                 if (material) {
                     material.opacity = newOpacity;
                     material.transparent = newOpacity < 1;
@@ -1781,7 +1952,17 @@ export class ObjectListPanel {
 
     // MeshTooltip 설정 메서드 추가
     setMeshTooltip(meshTooltip) {
+        // 이전 MeshTooltip의 userDisabled 상태 저장
+        const wasUserDisabled = this.meshTooltip ? this.meshTooltip.userDisabled : false;
+        
         this.meshTooltip = meshTooltip;
+        
+        // 이전에 사용자가 비활성화한 상태였다면 새 인스턴스에도 적용
+        if (wasUserDisabled && this.meshTooltip) {
+            this.meshTooltip.userDisabled = true;
+            this.meshTooltip.isEnabled = false;
+        }
+        
         // 토글이 이미 생성되어 있다면 상태 업데이트
         if (this.meshTooltipToggle) {
             this.updateMeshTooltipToggleState();
@@ -1832,8 +2013,8 @@ export class ObjectListPanel {
             transition: "background-color 0.2s",
         });
 
-        // 초기 상태 설정 (기본값: 활성화)
-        const isEnabled = this.meshTooltip ? this.meshTooltip.isEnabled : true;
+        // 초기 상태 설정 (기본값: 비활성화)
+        const isEnabled = this.meshTooltip ? this.meshTooltip.isEnabled : false;
         this.updateMeshTooltipToggleState();
 
         // 토글 버튼 클릭 이벤트
@@ -1866,7 +2047,7 @@ export class ObjectListPanel {
 
         // userDisabled 상태를 확인하여 실제 활성화 상태 결정
         const isEnabled = this.meshTooltip ? 
-            (this.meshTooltip.isEnabled && !this.meshTooltip.userDisabled) : true;
+            (this.meshTooltip.isEnabled && !this.meshTooltip.userDisabled) : false;
         const iconColor = this.isDarkMode ? "white" : "black";
 
         // 체크박스 스타일 토글 아이콘

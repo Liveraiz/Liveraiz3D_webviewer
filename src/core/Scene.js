@@ -11,7 +11,7 @@ export default class Scene extends THREE.Scene {
      * @param {THREE.WebGLRenderer} renderer - Three.js 렌더러
      * @param {boolean} isDarkMode - 다크모드 여부
      */
-    constructor(renderer, isDarkMode = true) {
+    constructor(renderer, isDarkMode = false) {
         super();
         this.isDarkMode = isDarkMode;
         this.renderer = renderer;

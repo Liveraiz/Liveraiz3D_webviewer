@@ -4,7 +4,7 @@ import FOVController from "../functions/FOVController";
 export default class TopBar {
     constructor({
         isMobile = false,
-        isDarkMode = true,
+        isDarkMode = false,
         viewerState = null,
         textPanel = null,
         objectListPanel = null,
@@ -128,7 +128,9 @@ export default class TopBar {
         logoContainer.className = "logo-container";
 
         const logoImg = document.createElement("img");
-        logoImg.src = "./img/logo-dark.png";
+        logoImg.src = this.isDarkMode
+            ? "./img/logo-dark.png"
+            : "./img/logo-light.png";
         logoImg.alt = "Logo";
         logoImg.className = "logo";
 

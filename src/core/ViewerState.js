@@ -6,7 +6,7 @@ export default class ViewerState {
     constructor() {
         this.state = {
             isAnimating: false,
-            isDarkMode: true,
+            isDarkMode: false,
             isMobile: false,
             renderNeeded: false,
             fps: {
