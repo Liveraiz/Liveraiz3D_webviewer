@@ -2023,8 +2023,9 @@ export class ObjectListPanel {
                 // 현재 실제 활성화 상태 확인 (userDisabled 고려)
                 const currentState = this.meshTooltip.isEnabled && !this.meshTooltip.userDisabled;
                 const newState = !currentState;
-                // 사용자 액션임을 명시하여 설정
-                this.meshTooltip.setEnabled(newState, true);
+                // 사용자 액션임을 명시하여 설정, scene 전달하여 기존 메시들에 tooltip 생성
+                const scene = this.liverViewer ? this.liverViewer.scene : null;
+                this.meshTooltip.setEnabled(newState, true, scene);
                 this.updateMeshTooltipToggleState();
                 console.log(`[ObjectListPanel] 메시 이름 표시 ${newState ? '활성화' : '비활성화'}`);
             } else {

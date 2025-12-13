@@ -253,6 +253,15 @@ export default class ModelLoader {
             // 기존 모델과 메시들을 제거
             this.resetScene();
 
+            // ModelSelector가 열려있으면 닫기 (로딩 UI와 겹침 방지)
+            if (window.liverViewer && window.liverViewer.modelSelector) {
+                const modelSelector = window.liverViewer.modelSelector;
+                if (modelSelector.dialog && modelSelector.dialog.style.display !== 'none') {
+                    console.log('[ModelLoader] ModelSelector 닫기 - 로딩 UI와 겹침 방지');
+                    modelSelector.close();
+                }
+            }
+
             // 로딩 바 표시
             this.loadingBar.show();
             console.log('[LoadingBar] show()');
