@@ -163,22 +163,19 @@ class MeshTooltip {
 
     // 활성화/비활성화 설정 메서드
     setEnabled(enabled, isUserAction = false, scene = null) {
-        // 사용자가 명시적으로 비활성화한 경우 userDisabled 플래그 설정
+        // 오직 ObjectListPanel의 토글(사용자 액션)로만 활성/비활성화 허용
         if (isUserAction) {
             this.userDisabled = !enabled;
         }
-        
-        // 사용자가 비활성화한 상태이고 자동 활성화 요청인 경우 무시
-        if (this.userDisabled && enabled && !isUserAction) {
+        // 사용자가 비활성화한 경우, 어떤 자동 활성화 요청도 무시
+        if (this.userDisabled) {
+            this.isEnabled = false;
+            this.hideAllTooltips();
             return;
         }
-        
         const wasEnabled = this.isEnabled;
-        // console.log(`[MeshTooltip] 활성화 상태 변경: ${enabled}, 사용자 액션: ${isUserAction}`);
-        this.isEnabled = enabled && !this.userDisabled;
-        
+        this.isEnabled = enabled;
         if (!this.isEnabled) {
-            // console.log('[MeshTooltip] 모든 툴팁 숨김 처리');
             this.hideAllTooltips();
         } else if (!wasEnabled && this.isEnabled && scene) {
             // 활성화될 때 기존 메시들에 대해 tooltip 생성
