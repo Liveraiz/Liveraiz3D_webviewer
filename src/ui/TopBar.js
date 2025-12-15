@@ -708,7 +708,7 @@ export default class TopBar {
         window.addEventListener("resize", updateUploadButtonVisibility);
 
         // 모바일 상태 변경 감지 (터치 지원 여부 변경)
-        const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+        let hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
         const touchMediaQuery = window.matchMedia('(hover: none)');
 
         const updateTouchSupport = () => {

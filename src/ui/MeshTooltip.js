@@ -8,8 +8,8 @@ class MeshTooltip {
         this.activeTooltip = null; // 현재 활성화된 툴팁
         this.camera = null;
         this.isMobile = false;
-        this.isEnabled = false; // 활성화 상태 관리 (기본값: 비활성화)
-        this.userDisabled = false; // 사용자가 명시적으로 비활성화한 상태
+            this.isEnabled = false; // 활성화 상태 관리 (기본값: 비활성화)
+            this.userDisabled = true; // 사용자가 명시적으로 비활성화한 상태 (디폴트: 비활성화)
         
         // Tooltip 표시 지연 시간 (깜빡임 방지)
         this.showDelay = 200; // 200ms 지연
