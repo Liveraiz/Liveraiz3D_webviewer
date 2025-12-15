@@ -71,15 +71,7 @@ export default class TopBar {
         
         const result = isSmallScreen || isMobileUA || isMobileSimulation || isMobileViewport || isChromeMobileSim;
         
-        console.log('Mobile Detection:', {
-            isSmallScreen,
-            isMobileUA,
-            userAgent: userAgent.substring(0, 50),
-            isMobileSimulation,
-            isMobileViewport,
-            isChromeMobileSim,
-            result
-        });
+        // console.log('Mobile Detection:', { isSmallScreen, isMobileUA, userAgent: userAgent.substring(0, 50), isMobileSimulation, isMobileViewport, isChromeMobileSim, result });
         
         return result;
     }
