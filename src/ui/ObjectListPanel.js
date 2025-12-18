@@ -258,20 +258,28 @@ export class ObjectListPanel {
 
             // 색상 설정
             let color = "#FFFFFF";
-            if (mesh.material && mesh.material.color) {
-                color = "#" + mesh.material.color.getHexString();
+            let firstMaterial = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
+            if (firstMaterial && firstMaterial.color) {
+                color = "#" + firstMaterial.color.getHexString();
             }
 
             // objects Map에 메쉬 저장
             this.objects.set(mesh.name, mesh);
 
             // 컨트롤 로우 생성 및 추가
+            // opacity: material이 배열이면 첫 번째 material 기준
+            let opacity = 1.0;
+            if (Array.isArray(mesh.material)) {
+                opacity = mesh.material[0]?.opacity ?? 1.0;
+            } else if (mesh.material) {
+                opacity = mesh.material.opacity;
+            }
             const controlRow = this.createControlRow({
                 name: mesh.name,
                 id: mesh.name,
                 color: color,
                 visible: mesh.visible,
-                opacity: mesh.material ? mesh.material.opacity : 1.0,
+                opacity: opacity,
                 material: mesh.material,
                 level: level,
                 parent: info.parent,
@@ -660,24 +668,30 @@ export class ObjectListPanel {
 
             // Volumes 그룹인 경우 모든 vol 메시들을 함께 처리
             if (isVolumeGroup && volumeMeshes) {
-                const defaultOpacity = newVisibility ? 0.6 : 0;
-                
                 volumeMeshes.forEach((volMesh) => {
                     // 실제 메시의 visible 속성 업데이트
                     volMesh.visible = newVisibility;
-                    
                     // material의 opacity 업데이트
                     if (volMesh.material) {
-                        volMesh.material.opacity = defaultOpacity;
-                        volMesh.material.transparent = defaultOpacity < 1;
+                        if (!volMesh.material._originalOpacitySaved) {
+                            volMesh.material._originalOpacity = volMesh.material.opacity;
+                            volMesh.material._originalOpacitySaved = true;
+                        }
+                        if (!newVisibility) {
+                            volMesh.material.opacity = 0;
+                            volMesh.material.transparent = true;
+                        } else {
+                            // 복원
+                            volMesh.material.opacity = volMesh.material._originalOpacity !== undefined ? volMesh.material._originalOpacity : 1.0;
+                            volMesh.material.transparent = volMesh.material.opacity < 1;
+                        }
                         volMesh.material.needsUpdate = true;
                     }
-                    
                     // 콜백 호출
                     if (this.onToggleObject) {
-                        this.onToggleObject(volMesh.name, newVisibility, defaultOpacity);
+                        const restoreOpacity = (volMesh.material && volMesh.material._originalOpacity !== undefined) ? volMesh.material._originalOpacity : 1.0;
+                        this.onToggleObject(volMesh.name, newVisibility, newVisibility ? restoreOpacity : 0);
                     }
-                    
                     // UI 업데이트
                     this.updateObjectVisibility(volMesh.name, newVisibility);
                 });
@@ -729,29 +743,44 @@ export class ObjectListPanel {
                         this.isDarkMode
                     ).none;
                     if (material) {
-                        material.opacity = 0;
-                        material.transparent = true;
-                        material.needsUpdate = true;
+                        const materials = Array.isArray(material) ? material : [material];
+                        materials.forEach(mat => {
+                            if (!mat._originalOpacitySaved) {
+                                mat._originalOpacity = mat.opacity;
+                                mat._originalOpacitySaved = true;
+                            }
+                            mat.opacity = 0;
+                            mat.transparent = true;
+                            mat.needsUpdate = true;
+                        });
                     }
                 } else {
-                    // visibility가 true로 설정될 때 -> 기본 설정(medium)으로 복원
-                    row.opacityState = 1; // medium 상태로 설정
-                    const defaultOpacity = 0.6; // 기본 투명도
-                    opacityButton.innerHTML = this.getOpacityIcon(
-                        this.isDarkMode
-                    ).medium;
+                    // visibility가 true로 설정될 때 -> 원래 opacity로 복원
+                    let restoreOpacity = 1.0;
                     if (material) {
-                        material.opacity = defaultOpacity;
-                        material.transparent = defaultOpacity < 1;
-                        material.needsUpdate = true;
+                        const materials = Array.isArray(material) ? material : [material];
+                        restoreOpacity = materials[0]?._originalOpacity !== undefined ? materials[0]._originalOpacity : 1.0;
+                        materials.forEach(mat => {
+                            mat.opacity = mat._originalOpacity !== undefined ? mat._originalOpacity : 1.0;
+                            mat.transparent = mat.opacity < 1;
+                            mat.needsUpdate = true;
+                        });
                     }
+                    // opacityState도 복원값에 따라 조정 (1.0:0, 0.6:1, 0.3:2, 0:3)
+                    const opacityValues = [1.0, 0.6, 0.3, 0];
+                    let restoreState = opacityValues.indexOf(restoreOpacity);
+                    if (restoreState === -1) restoreState = 0;
+                    row.opacityState = restoreState;
+                    const icons = this.getOpacityIcon(this.isDarkMode);
+                    const iconKeys = ['full','medium','low','none'];
+                    opacityButton.innerHTML = icons[iconKeys[restoreState]];
                 }
             }
 
             if (this.onToggleObject) {
                 if (newVisibility) {
-                    const defaultOpacity = 0.6; // 기본 투명도
-                    this.onToggleObject(name, newVisibility, defaultOpacity); // visibility true일 때 기본 투명도로 설정
+                    const restoreOpacity = (material && material._originalOpacity !== undefined) ? material._originalOpacity : 1.0;
+                    this.onToggleObject(name, newVisibility, restoreOpacity); // visibility true일 때 원래 opacity로 복원
                 } else {
                     this.onToggleObject(name, newVisibility, 0); // visibility false일 때 opacity 0으로 설정
                 }
