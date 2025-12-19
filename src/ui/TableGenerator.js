@@ -422,6 +422,7 @@ export class TableGenerator {
             llsBg: "#FFE0A3",
             lmsBg: "#FFF9C4",
             spigelianBg: "#C8E6C9",
+            cancerBg: "#F8BBD0",
         };
 
         const style = `
@@ -462,6 +463,7 @@ export class TableGenerator {
             .lls { background-color: ${colors.llsBg}; }
             .lms { background-color: ${colors.lmsBg}; }
             .spigelian { background-color: ${colors.spigelianBg}; }
+            .cancer { background-color: ${colors.cancerBg}; }
             .value { background-color: ${theme.valueBg}; }
             
             .surgery-header {
@@ -571,20 +573,17 @@ export class TableGenerator {
         table += "</tr>";
 
         table += "<tr>";
-        table += "<td></td>";
+        table += "<th class='cancer'>Cancer</th>";
         table += "<th class='spigelian'>Spigelian</th>";
         table += "</tr>";
 
         table += "<tr>";
-        table += "<td></td>";
-        table +=
-            "<td class='value'>" +
-            this.formatVolume(volumeData["Spigelian"]) +
-            "</td>";
+        table += "<td class='value'>" + this.formatVolume(volumeData["Cancer"])  + "</td>";
+        table += "<td class='value'>" + this.formatVolume(volumeData["Spigelian"]) + "</td>";
         table += "</tr>";
 
         table += "<tr>";
-        table += "<td></td>";
+        table += "<td class='value'></td>";
         table +=
             "<td class='value'>" +
             this.formatPercent(percentData["Spigelian"]) +
