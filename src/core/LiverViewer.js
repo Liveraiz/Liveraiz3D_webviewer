@@ -408,7 +408,7 @@ export default class LiverViewer {
                     console.error("모델 로드 에러:", error);
                     this.handleLoadError(error);
                 },
-                modelPath: "./models/bagel.glb",
+                modelPath: "./models/251218-dangam.glb",
             });
 
             // MeshTransform에 ModelLoader 연결

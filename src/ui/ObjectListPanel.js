@@ -57,6 +57,9 @@ export class ObjectListPanel {
 
         // 드래그 스크롤 이벤트 리스너 참조 저장
         this.dragScrollHandlers = null;
+
+        // mesh별 이전 opacity 저장용 Map
+        this._meshOpacityMap = new Map();
     }
 
     initialize() {
@@ -726,6 +729,8 @@ export class ObjectListPanel {
             }
 
             // 일반 메시 처리
+            // mesh 객체 가져오기
+            const mesh = this.liverViewer.meshes.get(name) || this.getObject(name);
             // visibility 아이콘 업데이트
             toggleButton.innerHTML = this.getVisibilityIcon(newVisibility);
             toggleButton.style.opacity = newVisibility ? "1" : "0.5";
@@ -735,54 +740,53 @@ export class ObjectListPanel {
                 (button) => button.querySelector(".opacity-control-icon")
             );
 
-            if (opacityButton) {
+            if (mesh && mesh.material) {
+                const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
                 if (!newVisibility) {
-                    // visibility가 false로 설정될 때
-                    row.opacityState = 3; // none 상태(0)로 설정
-                    opacityButton.innerHTML = this.getOpacityIcon(
-                        this.isDarkMode
-                    ).none;
-                    if (material) {
-                        const materials = Array.isArray(material) ? material : [material];
-                        materials.forEach(mat => {
-                            if (!mat._originalOpacitySaved) {
-                                mat._originalOpacity = mat.opacity;
-                                mat._originalOpacitySaved = true;
-                            }
-                            mat.opacity = 0;
-                            mat.transparent = true;
-                            mat.needsUpdate = true;
-                        });
+                    // visible=false로 할 때 opacity 저장
+                    materials.forEach(mat => {
+                        this._meshOpacityMap.set(name, mat.opacity);
+                        mat.opacity = 0;
+                        mat.transparent = true;
+                        mat.needsUpdate = true;
+                    });
+                    if (opacityButton) {
+                        row.opacityState = 3;
+                        opacityButton.innerHTML = this.getOpacityIcon(this.isDarkMode).none;
                     }
                 } else {
-                    // visibility가 true로 설정될 때 -> 원래 opacity로 복원
-                    let restoreOpacity = 1.0;
-                    if (material) {
-                        const materials = Array.isArray(material) ? material : [material];
-                        restoreOpacity = materials[0]?._originalOpacity !== undefined ? materials[0]._originalOpacity : 1.0;
-                        materials.forEach(mat => {
-                            mat.opacity = mat._originalOpacity !== undefined ? mat._originalOpacity : 1.0;
-                            mat.transparent = mat.opacity < 1;
-                            mat.needsUpdate = true;
-                        });
-                    }
+                    // visible=true로 할 때 opacity 복원
+                    let restoreOpacity = this._meshOpacityMap.has(name) ? this._meshOpacityMap.get(name) : 1.0;
+                    materials.forEach(mat => {
+                        mat.opacity = restoreOpacity;
+                        mat.transparent = mat.opacity < 1;
+                        mat.needsUpdate = true;
+                    });
                     // opacityState도 복원값에 따라 조정 (1.0:0, 0.6:1, 0.3:2, 0:3)
                     const opacityValues = [1.0, 0.6, 0.3, 0];
                     let restoreState = opacityValues.indexOf(restoreOpacity);
                     if (restoreState === -1) restoreState = 0;
                     row.opacityState = restoreState;
-                    const icons = this.getOpacityIcon(this.isDarkMode);
-                    const iconKeys = ['full','medium','low','none'];
-                    opacityButton.innerHTML = icons[iconKeys[restoreState]];
+                    if (opacityButton) {
+                        const icons = this.getOpacityIcon(this.isDarkMode);
+                        const iconKeys = ['full','medium','low','none'];
+                        opacityButton.innerHTML = icons[iconKeys[restoreState]];
+                    }
                 }
             }
 
             if (this.onToggleObject) {
                 if (newVisibility) {
-                    const restoreOpacity = (material && material._originalOpacity !== undefined) ? material._originalOpacity : 1.0;
-                    this.onToggleObject(name, newVisibility, restoreOpacity); // visibility true일 때 원래 opacity로 복원
+                    let restoreOpacity = 1.0;
+                    if (this._meshOpacityMap.has(name)) {
+                        restoreOpacity = this._meshOpacityMap.get(name);
+                    } else if (mesh && mesh.material) {
+                        const mat = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
+                        restoreOpacity = mat.opacity;
+                    }
+                    this.onToggleObject(name, newVisibility, restoreOpacity);
                 } else {
-                    this.onToggleObject(name, newVisibility, 0); // visibility false일 때 opacity 0으로 설정
+                    this.onToggleObject(name, newVisibility, 0);
                 }
                 visible = newVisibility;
             }
@@ -795,16 +799,6 @@ export class ObjectListPanel {
             if (label) {
                 label.style.opacity = newVisibility ? "1" : "0.5";
             }
-
-            // MeshTooltip 업데이트
-            // if (this.meshTooltip) {
-            //     const currentOpacity = newVisibility ? 0.6 : 0;
-            //     this.meshTooltip.updateMeshVisibility(
-            //         name,
-            //         newVisibility,
-            //         currentOpacity
-            //     );
-            // }
         });
 
         // visibility 버튼에 클래스 추가
