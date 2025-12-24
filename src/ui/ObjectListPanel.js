@@ -1,3 +1,4 @@
+
 // ui/ObjectListPanel.js
 import {
     LIVER_KEYWORDS,
@@ -10,6 +11,22 @@ import {
 
 export class ObjectListPanel {
     constructor({ liverViewer, panelManager, isDarkMode }) {
+        // 전체 토글 시 직전 상태 저장용 Map
+        // key: meshId + '_' + materialIndex, value: { opacity, transparent, side, visible }
+        this._meshMaterialPrevStateMap = new Map();
+        // 개별 메쉬 opacity 저장용 Map (개별 토글에서 사용)
+        this._meshOpacityMap = new Map();
+        // 모든 mesh에 대해 material clone 및 opacity/visible 상태 저장
+        if (liverViewer && liverViewer.scene) {
+            liverViewer.scene.traverse(obj => {
+                if (obj.isMesh) {
+                    obj.material = obj.material.clone();
+                    obj.material.transparent = true;
+                    obj.userData.originalOpacity = obj.material.opacity;
+                    obj.userData.wasVisible = obj.visible;
+                }
+            });
+        }
         // 기존 패널 제거
         const existingPanels = document.querySelectorAll(".object-list-panel");
         existingPanels.forEach((panel) => panel.remove());
@@ -58,8 +75,9 @@ export class ObjectListPanel {
         // 드래그 스크롤 이벤트 리스너 참조 저장
         this.dragScrollHandlers = null;
 
-        // mesh별 이전 opacity 저장용 Map
-        this._meshOpacityMap = new Map();
+        // mesh별 material별 초기 렌더링 상태 저장용 Map
+        // key: meshId + '_' + materialIndex, value: { opacity, transparent, side, visible }
+        this._meshMaterialInitialStateMap = new Map();
     }
 
     initialize() {
@@ -81,6 +99,27 @@ export class ObjectListPanel {
 
     // 오브젝트 정렬 순서 정의
     getObjectSortOrder(name) {
+                // colectomy 수술 케이스 우선순위
+                const colectomyOrder = [
+                    "colon",
+                    "Mesorectum",
+                    "Urinary_Bladder",
+                    "Ureter",
+                    "Prostate",
+                    "Vas_Deferens",
+                    "Common_Iliiac_Artery",
+                    "Common_Illiac_Vein",
+                    "Superior_Rectal_Artery",
+                    "Superior_Rectal_Vein",
+                    "Levator_ani",
+                    "Obturator_Internus Muscle"
+                ];
+                // 언더바 제거 후 비교
+                const normalized = name.replace(/_/g, " ");
+                const idx = colectomyOrder.findIndex(
+                    (item) => normalized.toLowerCase() === item.replace(/_/g, " ").toLowerCase()
+                );
+                if (idx !== -1) return idx;
         const lowerName = name.toLowerCase();
 
         // vol이 포함된 메시는 가장 마지막으로
@@ -143,6 +182,20 @@ export class ObjectListPanel {
             )
             .forEach((mesh) => {
                 const lowerName = mesh.name.toLowerCase();
+                // 초기 렌더링 상태 저장 (최초 1회만)
+                const id = mesh.name;
+                const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+                materials.forEach((mat, idx) => {
+                    const key = id + '_' + idx;
+                    if (!this._meshMaterialInitialStateMap.has(key)) {
+                        this._meshMaterialInitialStateMap.set(key, {
+                            opacity: mat.opacity,
+                            transparent: mat.transparent,
+                            side: mat.side,
+                            visible: mesh.visible
+                        });
+                    }
+                });
                 // vol이 포함된 메시는 별도로 저장
                 if (lowerName.includes("vol")) {
                     volMeshes.push(mesh);
@@ -604,9 +657,15 @@ export class ObjectListPanel {
 
         // Label 스타일 수정
         const label = document.createElement("span");
-        label.textContent = name;
+        // Superior → Sup 약어 처리
+        let displayName = name.replace(/_/g, " ");
+        displayName = displayName.replace(/Superior/gi, "Sup");
+        label.textContent = displayName;
         // 툴팁 추가 - 전체 이름 표시
-        label.title = name;
+        // 툴팁도 동일하게 약어 처리
+        let displayTitle = name.replace(/_/g, " ");
+        displayTitle = displayTitle.replace(/Superior/gi, "Sup");
+        label.title = displayTitle;
         Object.assign(label.style, {
             fontSize: "13px",
             whiteSpace: "nowrap", // 한 줄로 표시
@@ -728,13 +787,14 @@ export class ObjectListPanel {
                 return;
             }
 
-            // 일반 메시 처리
-            // mesh 객체 가져오기
+            // wireframe/자식 메쉬만 독립적으로 visible 토글 (부모는 건드리지 않음)
             const mesh = this.liverViewer.meshes.get(name) || this.getObject(name);
-            // visibility 아이콘 업데이트
-            toggleButton.innerHTML = this.getVisibilityIcon(newVisibility);
-            toggleButton.style.opacity = newVisibility ? "1" : "0.5";
-
+            if (mesh) {
+                mesh.visible = !mesh.visible;
+                // UI 아이콘 업데이트
+                toggleButton.innerHTML = this.getVisibilityIcon(mesh.visible);
+                toggleButton.style.opacity = mesh.visible ? "1" : "0.5";
+            }
             // opacity 버튼 업데이트
             const opacityButton = Array.from(buttonContainer.children).find(
                 (button) => button.querySelector(".opacity-control-icon")
@@ -791,13 +851,12 @@ export class ObjectListPanel {
                 visible = newVisibility;
             }
 
-            // 자식 메쉬들의 UI도 함께 업데이트 (부모 visibility 변경으로 인한 영향 반영)
-            this.updateChildVisibilityUI(name, newVisibility);
+            // 자식 메쉬의 visible 상태는 부모와 독립적으로 유지
 
-            // label opacity 업데이트
-            const label = row.querySelector("span");
-            if (label) {
-                label.style.opacity = newVisibility ? "1" : "0.5";
+            // label opacity 업데이트 (중복 변수명 방지)
+            const labelEl = row.querySelector("span");
+            if (labelEl) {
+                labelEl.style.opacity = newVisibility ? "1" : "0.5";
             }
         });
 
@@ -1069,11 +1128,14 @@ export class ObjectListPanel {
     updateChildOpacityAndVisibility(parentName, parentOpacity) {
         // 모든 컨트롤 로우를 순회하며 자식 메쉬들을 찾아 UI 업데이트
         const controlRows = this.contentContainer.querySelectorAll('.control-row');
+        
         controlRows.forEach(row => {
             const meshId = row.getAttribute('data-mesh-id');
             if (!meshId) return;
+            
             const mesh = this.objects.get(meshId);
             if (!mesh) return;
+            
             // 해당 메쉬가 부모의 자식인지 확인
             let isChild = false;
             let currentParent = mesh.parent;
@@ -1084,31 +1146,39 @@ export class ObjectListPanel {
                 }
                 currentParent = currentParent.parent;
             }
+            
             if (isChild) {
-                // 자식 opacity는 부모와 무관하게 자식 자신의 값만 사용
-                const originalOpacity = mesh.material.userData.originalOpacity || 1.0;
-                const effectiveOpacity = originalOpacity;
+                // 자식 메쉬의 실제 투명도는 부모와 자식 중 더 큰 값으로 계산 (최대값 방식)
+                const originalOpacity = mesh.material.userData.originalOpacity || 0.6;
+                const effectiveOpacity = Math.max(originalOpacity, parentOpacity);
                 const isEffectivelyHidden = effectiveOpacity === 0;
+                
                 // UI 요소들 업데이트
                 const label = row.querySelector('span');
                 if (label) {
                     label.style.opacity = isEffectivelyHidden ? "0.5" : "1";
                 }
+                
                 // visibility 버튼 업데이트
                 const visibilityButton = Array.from(row.children)
                     .find(button => button.querySelector('.visibility-toggle-icon'));
+                
                 if (visibilityButton) {
                     visibilityButton.innerHTML = this.getVisibilityIcon(!isEffectivelyHidden);
                     visibilityButton.style.opacity = isEffectivelyHidden ? "0.5" : "1";
                 }
+                
                 // opacity 버튼 업데이트
                 const opacityButton = Array.from(row.children)
                     .find(button => button.querySelector('.opacity-control-icon'));
+                
                 if (opacityButton) {
                     if (isEffectivelyHidden) {
+                        // 부모가 완전히 투명하면 자식도 투명도 0으로 설정
                         row.opacityState = 3; // none 상태
                         opacityButton.innerHTML = this.getOpacityIcon(this.isDarkMode).none;
                     } else {
+                        // 부모가 보이면 자식의 원래 투명도 상태로 복원
                         if (effectiveOpacity >= 0.9) {
                             row.opacityState = 0; // full 상태
                             opacityButton.innerHTML = this.getOpacityIcon(this.isDarkMode).full;
@@ -1124,6 +1194,7 @@ export class ObjectListPanel {
                         }
                     }
                 }
+                
                 // 실제 메쉬 visibility와 opacity 업데이트
                 if (mesh.material) {
                     mesh.visible = !isEffectivelyHidden;
@@ -1131,11 +1202,13 @@ export class ObjectListPanel {
                     mesh.material.transparent = effectiveOpacity < 1;
                     mesh.material.needsUpdate = true;
                 }
+
                 // onToggleObject 콜백 호출 (자식 메쉬도 함께 처리)
                 if (this.onToggleObject) {
                     this.onToggleObject(meshId, !isEffectivelyHidden, effectiveOpacity);
                 }
-                console.log(`[Parenting Opacity] ${meshId}: parent=${parentName}, originalOpacity=${originalOpacity}, effectiveOpacity=${effectiveOpacity}, hidden=${isEffectivelyHidden}`);
+                
+                console.log(`[Parenting Opacity] ${meshId}: parent=${parentName}, parentOpacity=${parentOpacity}, originalOpacity=${originalOpacity}, effectiveOpacity=${effectiveOpacity}, hidden=${isEffectivelyHidden}`);
             }
         });
     }
@@ -1180,6 +1253,7 @@ export class ObjectListPanel {
 
         // 토글 버튼 클릭 이벤트
         toggleButton.addEventListener("click", () => {
+            console.log("[ObjectListPanel] 전체 메쉬 토글 버튼 클릭됨");
             this.toggleAllObjects();
             toggleButton.innerHTML = this.getVisibilityIcon(
                 this.allObjectsVisible
@@ -1202,87 +1276,74 @@ export class ObjectListPanel {
 
     // 모든 메쉬 토글 기능 구현
     toggleAllObjects() {
-        this.allObjectsVisible = !this.allObjectsVisible;
-        console.log(
-            `Toggling all objects to: ${
-                this.allObjectsVisible ? "visible" : "hidden"
-            }`
-        );
-
-        // 전체 토글 상태 업데이트
-        this.objects.forEach((mesh, id) => {
+        // 계층 구조 전체에서 mesh 수집
+        const meshes = [];
+        if (this.liverViewer && this.liverViewer.scene) {
+            this.liverViewer.scene.traverse(obj => {
+                if (obj.isMesh) meshes.push(obj);
+            });
+        }
+        console.log(`[ObjectListPanel] toggleAllObjects 호출: scene 내 mesh 개수 = ${meshes.length}, objects Map 개수 = ${this.objects.size}`);
+        const toHide = this.allObjectsVisible;
+        // objects Map을 최신 mesh 참조로 갱신
+        this.objects.clear();
+        meshes.forEach(mesh => {
+            this.objects.set(mesh.name, mesh);
+            if (toHide) {
+                mesh.userData.originalOpacity = mesh.material.opacity;
+                mesh.material.opacity = 0;
+                mesh.visible = false;
+                mesh.userData.wasVisible = false;
+            } else {
+                const prevOpacity = mesh.userData.originalOpacity ?? 1;
+                mesh.material.opacity = prevOpacity;
+                mesh.visible = true;
+                mesh.userData.wasVisible = true;
+                mesh.material.transparent = prevOpacity < 1;
+            }
+        });
+        this.allObjectsVisible = !toHide;
+        // UI 갱신: 실제 mesh 리스트 기준으로
+        meshes.forEach(mesh => {
+            const id = mesh.name;
             if (this.onToggleObject) {
-                // 상태 변경 및 콜백 호출
                 this.onToggleObject(
                     id,
-                    this.allObjectsVisible,
-                    this.allObjectsVisible ? 1.0 : 0
+                    !toHide,
+                    !toHide ? (mesh.userData.originalOpacity ?? 1) : 0
                 );
             }
-
-            // UI 업데이트 - 개별 버튼 상태도 함께 업데이트
-            this.updateObjectVisibility(id, this.allObjectsVisible);
-
-            // 각 개별 메시의 버튼 UI 업데이트
+            this.updateObjectVisibility(id, !toHide);
             const row = this.contentContainer.querySelector(
                 `[data-mesh-id="${id}"]`
             );
             if (row) {
-                // visibility 버튼 찾기
                 const buttons = row.querySelectorAll("button");
                 const visibilityButton = Array.from(buttons).find((button) =>
                     button.querySelector(".visibility-toggle-icon")
                 );
-
                 if (visibilityButton) {
-                    // visibility 아이콘 업데이트
-                    visibilityButton.innerHTML = this.getVisibilityIcon(
-                        this.allObjectsVisible
-                    );
-                    visibilityButton.style.opacity = this.allObjectsVisible
-                        ? "1"
-                        : "0.5";
+                    visibilityButton.innerHTML = this.getVisibilityIcon(!toHide);
+                    visibilityButton.style.opacity = !toHide ? "1" : "0.5";
                 }
-
-                // 레이블 투명도 업데이트
                 const label = row.querySelector("span");
                 if (label) {
-                    label.style.opacity = this.allObjectsVisible ? "1" : "0.5";
+                    label.style.opacity = !toHide ? "1" : "0.5";
                 }
-
-                // opacity 버튼이 있는 경우 opacity 버튼 업데이트
                 const opacityButton = Array.from(buttons).find((button) =>
                     button.querySelector(".opacity-control-icon")
                 );
-
                 if (opacityButton) {
-                    if (!this.allObjectsVisible) {
-                        // visibility가 false로 설정될 때
-                        row.opacityState = 3; // none 상태로 설정
-                        opacityButton.innerHTML = this.getOpacityIcon(
-                            this.isDarkMode
-                        ).none;
+                    if (toHide) {
+                        row.opacityState = 3;
+                        opacityButton.innerHTML = this.getOpacityIcon(this.isDarkMode).none;
                     } else {
-                        // visibility가 true로 설정될 때
-                        row.opacityState = 1; // medium 상태로 설정
-                        opacityButton.innerHTML = this.getOpacityIcon(
-                            this.isDarkMode
-                        ).medium;
+                        row.opacityState = 1;
+                        opacityButton.innerHTML = this.getOpacityIcon(this.isDarkMode).medium;
                     }
                 }
             }
         });
-
-        // MeshTooltip도 업데이트 (있는 경우)
-        // if (this.meshTooltip) {
-        //     this.objects.forEach((mesh, id) => {
-        //         this.meshTooltip.updateMeshVisibility(
-        //             id,
-        //             this.allObjectsVisible,
-        //             this.allObjectsVisible ? 1.0 : 0
-        //         );
-        //     });
-        // }
     }
 
     // 전체 메쉬 표시 상태 설정 메서드 추가 (외부에서 호출할 수 있는 API)
@@ -2275,4 +2336,3 @@ export class ObjectListPanel {
     }
 }
 
-export { ObjectListPanel as default };
