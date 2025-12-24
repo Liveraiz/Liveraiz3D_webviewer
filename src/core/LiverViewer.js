@@ -545,14 +545,23 @@ export default class LiverViewer {
         
         if (mesh) {
             mesh.visible = visible;
-            
+
             // opacity가 제공된 경우 material 업데이트
             if (opacity !== undefined && mesh.material) {
                 mesh.material.opacity = opacity;
                 mesh.material.transparent = opacity < 1;
                 mesh.material.needsUpdate = true;
+                // opacity가 1.0으로 바뀌면 originalOpacity도 1.0으로 갱신
+                if (mesh.material.userData) {
+                    if (opacity === 1) {
+                        mesh.material.userData.originalOpacity = 1.0;
+                    } else if (mesh.material.userData.originalOpacity === undefined) {
+                        // 최초 세팅이 없으면 현재 opacity로 기록
+                        mesh.material.userData.originalOpacity = opacity;
+                    }
+                }
             }
-            
+
             // ObjectListPanel에 등록된 오브젝트만 보이도록 설정 (vol 메시들은 objects Map에 있으므로 통과)
             if (this.objectListPanel && !this.objectListPanel.hasObject(objectId)) {
                 mesh.visible = false;

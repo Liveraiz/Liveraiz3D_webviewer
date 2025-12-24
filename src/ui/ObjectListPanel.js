@@ -837,6 +837,7 @@ export class ObjectListPanel {
                 this.isDarkMode
             ).medium;
 
+
             opacityButton.addEventListener("click", (e) => {
                 e.stopPropagation();
                 row.opacityState = (row.opacityState + 1) % 4; // 4단계로 변경
@@ -865,19 +866,18 @@ export class ObjectListPanel {
                         if (volMesh.material) {
                             volMesh.material.opacity = newOpacity;
                             volMesh.material.transparent = newOpacity < 1;
+                            if (newOpacity === 1) volMesh.material.transparent = false;
                             volMesh.material.needsUpdate = true;
                         }
                         // visibility도 opacity에 따라 업데이트
                         const isEffectivelyVisible = newOpacity > 0;
                         volMesh.visible = isEffectivelyVisible;
-                        
                         if (this.onToggleObject) {
                             this.onToggleObject(volMesh.name, isEffectivelyVisible, newOpacity);
                         }
                         // UI 업데이트
                         this.updateObjectVisibility(volMesh.name, isEffectivelyVisible);
                     });
-                    
                     // Volumes 그룹의 visibility 버튼도 업데이트
                     const visibilityButton = Array.from(buttonContainer.children).find(
                         (button) => button.querySelector(".visibility-toggle-icon")
@@ -887,7 +887,6 @@ export class ObjectListPanel {
                         visibilityButton.innerHTML = this.getVisibilityIcon(isEffectivelyVisible);
                         visibilityButton.style.opacity = isEffectivelyVisible ? "1" : "0.5";
                     }
-                    
                     // label opacity 업데이트
                     const label = row.querySelector("span");
                     if (label) {
@@ -900,6 +899,7 @@ export class ObjectListPanel {
                 if (material) {
                     material.opacity = newOpacity;
                     material.transparent = newOpacity < 1;
+                    if (newOpacity === 1) material.transparent = false;
                     material.needsUpdate = true;
                 }
 
