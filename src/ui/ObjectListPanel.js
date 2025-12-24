@@ -1069,14 +1069,11 @@ export class ObjectListPanel {
     updateChildOpacityAndVisibility(parentName, parentOpacity) {
         // 모든 컨트롤 로우를 순회하며 자식 메쉬들을 찾아 UI 업데이트
         const controlRows = this.contentContainer.querySelectorAll('.control-row');
-        
         controlRows.forEach(row => {
             const meshId = row.getAttribute('data-mesh-id');
             if (!meshId) return;
-            
             const mesh = this.objects.get(meshId);
             if (!mesh) return;
-            
             // 해당 메쉬가 부모의 자식인지 확인
             let isChild = false;
             let currentParent = mesh.parent;
@@ -1087,39 +1084,31 @@ export class ObjectListPanel {
                 }
                 currentParent = currentParent.parent;
             }
-            
             if (isChild) {
-                // 자식 메쉬의 실제 투명도는 부모와 자식 중 더 큰 값으로 계산 (최대값 방식)
-                const originalOpacity = mesh.material.userData.originalOpacity || 0.6;
-                const effectiveOpacity = Math.max(originalOpacity, parentOpacity);
+                // 자식 opacity는 부모와 무관하게 자식 자신의 값만 사용
+                const originalOpacity = mesh.material.userData.originalOpacity || 1.0;
+                const effectiveOpacity = originalOpacity;
                 const isEffectivelyHidden = effectiveOpacity === 0;
-                
                 // UI 요소들 업데이트
                 const label = row.querySelector('span');
                 if (label) {
                     label.style.opacity = isEffectivelyHidden ? "0.5" : "1";
                 }
-                
                 // visibility 버튼 업데이트
                 const visibilityButton = Array.from(row.children)
                     .find(button => button.querySelector('.visibility-toggle-icon'));
-                
                 if (visibilityButton) {
                     visibilityButton.innerHTML = this.getVisibilityIcon(!isEffectivelyHidden);
                     visibilityButton.style.opacity = isEffectivelyHidden ? "0.5" : "1";
                 }
-                
                 // opacity 버튼 업데이트
                 const opacityButton = Array.from(row.children)
                     .find(button => button.querySelector('.opacity-control-icon'));
-                
                 if (opacityButton) {
                     if (isEffectivelyHidden) {
-                        // 부모가 완전히 투명하면 자식도 투명도 0으로 설정
                         row.opacityState = 3; // none 상태
                         opacityButton.innerHTML = this.getOpacityIcon(this.isDarkMode).none;
                     } else {
-                        // 부모가 보이면 자식의 원래 투명도 상태로 복원
                         if (effectiveOpacity >= 0.9) {
                             row.opacityState = 0; // full 상태
                             opacityButton.innerHTML = this.getOpacityIcon(this.isDarkMode).full;
@@ -1135,7 +1124,6 @@ export class ObjectListPanel {
                         }
                     }
                 }
-                
                 // 실제 메쉬 visibility와 opacity 업데이트
                 if (mesh.material) {
                     mesh.visible = !isEffectivelyHidden;
@@ -1143,13 +1131,11 @@ export class ObjectListPanel {
                     mesh.material.transparent = effectiveOpacity < 1;
                     mesh.material.needsUpdate = true;
                 }
-
                 // onToggleObject 콜백 호출 (자식 메쉬도 함께 처리)
                 if (this.onToggleObject) {
                     this.onToggleObject(meshId, !isEffectivelyHidden, effectiveOpacity);
                 }
-                
-                console.log(`[Parenting Opacity] ${meshId}: parent=${parentName}, parentOpacity=${parentOpacity}, originalOpacity=${originalOpacity}, effectiveOpacity=${effectiveOpacity}, hidden=${isEffectivelyHidden}`);
+                console.log(`[Parenting Opacity] ${meshId}: parent=${parentName}, originalOpacity=${originalOpacity}, effectiveOpacity=${effectiveOpacity}, hidden=${isEffectivelyHidden}`);
             }
         });
     }
