@@ -84,8 +84,8 @@ export class TableGenerator {
         <style>
             .spleen-table { border-collapse: collapse; width: 100%; max-width: 350px; font-family: Arial, sans-serif; margin: 16px 0 0 0; box-shadow: ${theme.boxShadow}; color: ${theme.textColor}; table-layout: fixed; }
             .spleen-table th, .spleen-table td { border: 1px solid ${theme.tableBorder}; padding: 8px; text-align: center; }
-            .spleen-table th { background-color: #7ec6bc; color: #fff; font-weight: bold; }
-            .spleen-table td { background-color: #e6f7f4; font-size: 15px; }
+            .spleen-table th { background-color: #8e44ad; color: #fff; font-weight: bold; }
+            .spleen-table td { background-color: #fff; color: #222; font-size: 15px; }
         </style>
         `;
         let table = style + "<table class='spleen-table'>";
