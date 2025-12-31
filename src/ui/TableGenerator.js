@@ -58,22 +58,55 @@ export class TableGenerator {
         return value + "%";
     }
 
-    // HCC 테이블 생성 (기존 코드 그대로)
+
+    // Spleen Volume 별도 표 생성
+    createSpleenVolumeTable(csvData) {
+        var rows = csvData.replaceAll('"', "").split("\r\n");
+        rows = rows.filter((row) => row.trim() !== "");
+        if (rows.length === 0) return "";
+        var parsedRows = rows.map((row) => row.split(","));
+        var headers = parsedRows[0];
+        let spleenIdx = -1;
+        for (let i = 0; i < headers.length; i++) {
+            if (headers[i].toLowerCase().includes("spleen")) {
+                spleenIdx = i;
+                break;
+            }
+        }
+        if (spleenIdx === -1) return "";
+        // 볼륨값은 두 번째 row에 있다고 가정
+        let spleenVolume = parsedRows[1]?.[spleenIdx] || "";
+        if (!spleenVolume || spleenVolume === "0") return "";
+
+        // 별도 테이블 스타일 및 표 생성
+        const theme = this.isDarkMode ? this.getCommonStyles().dark : this.getCommonStyles().light;
+        const style = `
+        <style>
+            .spleen-table { border-collapse: collapse; width: 100%; max-width: 350px; font-family: Arial, sans-serif; margin: 16px 0 0 0; box-shadow: ${theme.boxShadow}; color: ${theme.textColor}; table-layout: fixed; }
+            .spleen-table th, .spleen-table td { border: 1px solid ${theme.tableBorder}; padding: 8px; text-align: center; }
+            .spleen-table th { background-color: #7ec6bc; color: #fff; font-weight: bold; }
+            .spleen-table td { background-color: #e6f7f4; font-size: 15px; }
+        </style>
+        `;
+        let table = style + "<table class='spleen-table'>";
+        table += "<thead><tr><th colspan='2'>Spleen Volume</th></tr></thead>";
+        table += "<tbody>";
+        table += `<tr><td>Volume</td><td>${this.formatVolume(spleenVolume)}</td></tr>`;
+        table += "</tbody></table>";
+        return table;
+    }
+
+    // HCC 테이블 생성 (기존 코드 + Spleen Volume 별도 표)
     createHCCTable(csvData, surgeryType = "HCC") {
         console.log("Creating HCC table with data:", csvData);
 
         var rows = csvData.replaceAll('"', "").split("\r\n");
-
         rows = rows.filter((row) => row.trim() !== "");
-
         if (rows.length === 0) return "<p>데이터가 없습니다.</p>";
-
         var parsedRows = rows.map((row) => row.split(","));
         var headers = parsedRows[0];
-
         var volumeData = {};
         var percentData = {};
-
         if (parsedRows.length > 1) {
             for (var i = 0; i < headers.length; i++) {
                 var key = headers[i];
@@ -81,7 +114,6 @@ export class TableGenerator {
                 volumeData[key] = value;
             }
         }
-
         if (parsedRows.length > 2) {
             for (var i = 0; i < headers.length; i++) {
                 var key = headers[i];
@@ -91,8 +123,10 @@ export class TableGenerator {
         } else {
             percentData = { ...volumeData };
         }
-
-        return this._generateHCCTableHTML(volumeData, percentData, surgeryType);
+        // Spleen Volume 표 생성
+        const spleenTable = this.createSpleenVolumeTable(csvData);
+        // 기존 HCC 표 + Spleen 표(있으면) 반환
+        return this._generateHCCTableHTML(volumeData, percentData, surgeryType) + (spleenTable ? `<div style='margin-top:12px;'>${spleenTable}</div>` : "");
     }
 
     // LDLT RL 테이블 생성
