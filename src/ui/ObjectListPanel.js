@@ -818,15 +818,40 @@ export class ObjectListPanel {
                 visible = newVisibility;
                 return;
             }
-            // ...existing code...
+            
+            // 일반 메시 처리
+            visible = !visible;
 
-            // 자식 메쉬의 visible 상태는 부모와 독립적으로 유지
+            // 버튼 아이콘 업데이트
+            toggleButton.innerHTML = this.getVisibilityIcon(visible);
+            toggleButton.style.opacity = visible ? "1" : "0.5";
 
-            // label opacity 업데이트 (중복 변수명 방지)
+            // opacity 버튼 업데이트
+            const opacityButton = Array.from(buttonContainer.children).find(
+                (button) => button.querySelector(".opacity-control-icon")
+            );
+            if (opacityButton) {
+                if (!visible) {
+                    row.opacityState = 3;
+                    opacityButton.innerHTML = this.getOpacityIcon(this.isDarkMode).none;
+                } else {
+                    row.opacityState = 1;
+                    opacityButton.innerHTML = this.getOpacityIcon(this.isDarkMode).medium;
+                }
+            }
+
+            // label opacity 업데이트
             const labelEl = row.querySelector("span");
             if (labelEl) {
-                labelEl.style.opacity = newVisibility ? "1" : "0.5";
+                labelEl.style.opacity = visible ? "1" : "0.5";
             }
+
+            // 콜백 호출 (실제 메시 visibility는 콜백에서 처리)
+            if (this.onToggleObject) {
+                this.onToggleObject(name, visible);
+            }
+
+            this.updateObjectVisibility(name, visible);
         });
 
         // visibility 버튼에 클래스 추가

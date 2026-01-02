@@ -632,6 +632,22 @@ export default class ModelLoader {
                         }
                     }
 
+                    // muscle 메시에 muscle 셰이더 자동 적용
+                    if (child.name.toLowerCase().includes('muscle')) {
+                        console.log(`[ModelLoader] Found muscle mesh: ${child.name}, applying muscle shader`);
+                        if (this.materialManager && this.materialManager.applyMuscleShader) {
+                            this.materialManager.applyMuscleShader(child);
+                        }
+                    }
+
+                    // prostate 메시에 prostate 셰이더 자동 적용
+                    if (child.name.toLowerCase().includes('prostate')) {
+                        console.log(`[ModelLoader] Found prostate mesh: ${child.name}, applying prostate shader`);
+                        if (this.materialManager && this.materialManager.applyProstateShader) {
+                            this.materialManager.applyProstateShader(child);
+                        }
+                    }
+
                     // pelvis 메시의 opacity 기본값을 0.2로 설정
                     if (child.name.toLowerCase().includes('pelvis')) {
                         console.log(`[ModelLoader] Found pelvis mesh: ${child.name}, setting opacity to 0.2`);
