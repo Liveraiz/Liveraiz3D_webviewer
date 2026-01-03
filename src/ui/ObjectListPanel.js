@@ -99,18 +99,24 @@ export class ObjectListPanel {
 
     // 오브젝트 정렬 순서 정의
     getObjectSortOrder(name) {
+                // 그룹들을 맨 위에 배치
+                if (name === "Right Group") return -3;
+                if (name === "Left Group") return -2;
+                if (name === "Superior Rectal") return -1;
+                
                 // colectomy 수술 케이스 우선순위
                 const colectomyOrder = [
                     "colon",
                     "Mesorectum",
+                    "TME plane_L",
+                    "TME plane_R",
                     "Urinary_Bladder",
                     "Ureter",
                     "Prostate",
                     "Vas_Deferens",
                     "Common_Iliiac_Artery",
                     "Common_Illiac_Vein",
-                    "Superior_Rectal_Artery",
-                    "Superior_Rectal_Vein",
+                    "Superior Rectal",
                     "Levator_ani",
                     "Obturator_Internus Muscle"
                 ];
@@ -160,7 +166,6 @@ export class ObjectListPanel {
             "START",
             "END",
             "EMPTY",
-            "Plane",
             "Camera",
             "Light",
             "Empty",
@@ -172,6 +177,7 @@ export class ObjectListPanel {
         const volMeshes = [];
         const rightMeshes = [];
         const leftMeshes = [];
+        const superiorRectalMeshes = [];
         const otherMeshes = [];
 
         meshes
@@ -202,12 +208,24 @@ export class ObjectListPanel {
                 // vol이 포함된 메시는 별도로 저장
                 if (lowerName.includes("vol")) {
                     volMeshes.push(mesh);
-                } else if (/_r(\b|_|$)/i.test(mesh.name)) {
+                    console.log(`[Vol] ${mesh.name}`);
+                } else if (mesh.name === "TME_plane_L" || mesh.name === "TME_plane_R") {
+                    // TME plane_L과 TME plane_R은 그룹 분류에서 제외
+                    otherMeshes.push(mesh);
+                    console.log(`[TME Plane] ${mesh.name}`);
+                } else if (lowerName.replace(/_/g, " ").includes("superior rectal")) {
+                    // Superior Rectal Artery와 Superior Rectal Vein을 그룹으로
+                    superiorRectalMeshes.push(mesh);
+                    console.log(`[Superior Rectal] ${mesh.name}`);
+                } else if (/_r\b/i.test(mesh.name)) {
                     rightMeshes.push(mesh);
-                } else if (/_l(\b|_|$)/i.test(mesh.name)) {
+                    console.log(`[Right Group] ${mesh.name}`);
+                } else if (/_l\b/i.test(mesh.name)) {
                     leftMeshes.push(mesh);
+                    console.log(`[Left Group] ${mesh.name}`);
                 } else {
                     otherMeshes.push(mesh);
+                    console.log(`[Other] ${mesh.name}`);
                 }
             });
 
@@ -220,6 +238,7 @@ export class ObjectListPanel {
                 level: 0,
                 isCustomGroup: true,
                 groupMeshes: rightMeshes,
+                groupType: "right",
             });
             rightMeshes.forEach((mesh) => {
                 this.objects.set(mesh.name, mesh);
@@ -234,8 +253,24 @@ export class ObjectListPanel {
                 level: 0,
                 isCustomGroup: true,
                 groupMeshes: leftMeshes,
+                groupType: "left",
             });
             leftMeshes.forEach((mesh) => {
+                this.objects.set(mesh.name, mesh);
+            });
+        }
+        // Superior Rectal 그룹 추가
+        if (superiorRectalMeshes.length > 0) {
+            hierarchyMap.set("Superior Rectal", {
+                mesh: null,
+                parent: null,
+                children: [],
+                level: 0,
+                isCustomGroup: true,
+                groupMeshes: superiorRectalMeshes,
+                groupType: "superiorRectal",
+            });
+            superiorRectalMeshes.forEach((mesh) => {
                 this.objects.set(mesh.name, mesh);
             });
         }
@@ -303,12 +338,23 @@ export class ObjectListPanel {
                 if (a.isVolumeGroup) return 1;
                 if (b.isVolumeGroup) return -1;
                 
-                const orderA = a.mesh ? this.getObjectSortOrder(a.mesh.name) : 1000;
-                const orderB = b.mesh ? this.getObjectSortOrder(b.mesh.name) : 1000;
+                // 커스텀 그룹들의 이름 결정
+                const getDisplayName = (info) => {
+                    if (info.groupType === "right") return "Right Group";
+                    if (info.groupType === "left") return "Left Group";
+                    if (info.groupType === "superiorRectal") return "Superior Rectal";
+                    if (info.mesh) return info.mesh.name;
+                    if (info.isVolumeGroup) return "Volumes";
+                    return "";
+                };
+                
+                const nameA = getDisplayName(a);
+                const nameB = getDisplayName(b);
+                const orderA = this.getObjectSortOrder(nameA);
+                const orderB = this.getObjectSortOrder(nameB);
+                
                 // 우선순위가 같으면 알파벳순으로 정렬
                 if (orderA === orderB) {
-                    const nameA = a.mesh ? a.mesh.name : a.isVolumeGroup ? "Volumes" : "";
-                    const nameB = b.mesh ? b.mesh.name : b.isVolumeGroup ? "Volumes" : "";
                     return nameA.localeCompare(nameB, 'en', { numeric: true, sensitivity: 'base' });
                 }
                 return orderA - orderB;
@@ -351,10 +397,24 @@ export class ObjectListPanel {
                 const avgOpacity = groupMeshes.reduce((sum, m) => {
                     return sum + (m.material ? m.material.opacity : 1.0);
                 }, 0) / groupMeshes.length;
+                // 그룹 이름과 색상 결정
+                let groupName = "Custom Group";
+                let groupColor = "#FFFFFF";
+                if (info.groupType === "right") {
+                    groupName = "Right Group";
+                    groupColor = "#6682ffff";
+                } else if (info.groupType === "left") {
+                    groupName = "Left Group";
+                    groupColor = "#ff6b66ff";
+                } else if (info.groupType === "superiorRectal") {
+                    groupName = "Superior Rectal";
+                    groupColor = "#c766ffff";
+                }
+                
                 const groupRow = this.createControlRow({
-                    name: info.mesh === null ? (info.groupMeshes === rightMeshes ? "Right Group" : "Left Group") : info.mesh.name,
-                    id: info.mesh === null ? (info.groupMeshes === rightMeshes ? "Right Group" : "Left Group") : info.mesh.name,
-                    color: info.mesh === null ? (info.groupMeshes === rightMeshes ? "#6682ffff" : "#ff6b66ff") : "#FFFFFF",
+                    name: groupName,
+                    id: groupName,
+                    color: groupColor,
                     visible: groupVisible,
                     opacity: avgOpacity,
                     material: null,
@@ -755,7 +815,7 @@ export class ObjectListPanel {
 
         toggleButton.addEventListener("click", (e) => {
             e.stopPropagation();
-            // 그룹 컨트롤: Volumes, Right Group, Left Group
+            // 그룹 컨트롤: Volumes, Right Group, Left Group, Superior Rectal
             let currentVisibility = visible;
             let isGroup = false;
             let groupMeshes = null;

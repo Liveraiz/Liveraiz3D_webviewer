@@ -212,7 +212,8 @@ export const LIVER_KEYWORDS = [
 // 투명도 조절 가능한 mesh 이름 키워드 (통합 관리)
 export const OPACITY_CONTROLLABLE_KEYWORDS = [
     ...LIVER_KEYWORDS,
-    "myometrium","uterus", "recipient_cavity", "pancreas", "Pancreas"
+    "myometrium","uterus", "recipient_cavity", "pancreas", "Pancreas",
+    "bladder"
 ];
 
 export const VESSEL_KEYWORDS = [
