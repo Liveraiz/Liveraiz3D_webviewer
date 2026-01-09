@@ -3,6 +3,7 @@
 import { DropboxService } from "../services/DropboxService";
 import { DeviceDetector } from "../utils/DeviceDetector";
 import { TableGenerator } from "./TableGenerator";
+import { createLeftPanelTable } from "./TableGenerator";
 
 export default class ModelSelector {
     constructor(liverViewer) {
@@ -140,8 +141,15 @@ export default class ModelSelector {
                         model.case
                     );
                 } else if (normalizedCase === "LDLT" || normalizedCase === "LDLT RL" || normalizedCase.includes("LDLT")) {
-                    // LDLT인 경우 모델 이름을 확인하여 HVT 또는 RL 테이블 선택
-                    if (modelName.includes("HVT") || modelName.includes("HVt") || modelName.includes("HVT")) {
+                    // LDLT인 경우 모델 이름을 확인하여 left/HVT/RL 테이블 선택
+                    if (modelName.includes("LEFT")) {
+                        // left 모델 표 생성
+                        console.log("LDLT left 테이블 사용 (모델 이름 기반):", model.name);
+                        tableHTML = createLeftPanelTable(
+                            tableText,
+                            model.case || "LDLT"
+                        );
+                    } else if (modelName.includes("HVT") || modelName.includes("HVt") || modelName.includes("HVT")) {
                         // HVT 테이블 (HTML 형식)
                         console.log("HVT 테이블 사용 (모델 이름 기반):", model.name);
                         tableHTML = this.tableGenerator.createHVTTable(
