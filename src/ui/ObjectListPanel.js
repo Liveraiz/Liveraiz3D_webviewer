@@ -936,21 +936,63 @@ export class ObjectListPanel {
             name.toLowerCase().includes(keyword.toLowerCase())
         );
 
+        // Right/Left 그룹은 제외 (isCustomGroup이고 groupMeshes가 있는 경우)
+        const isRightLeftGroup = arguments[0]?.isCustomGroup && Array.isArray(arguments[0]?.groupMeshes);
+
         // Volumes 그룹이거나 투명도 조절 가능한 객체이면서 제외되지 않은 경우 투명도 버튼 추가
-        if ((isVolumeGroup && volumeMeshes) || (isOpacityControllable && material && !isExcluded) || (arguments[0]?.isCustomGroup && Array.isArray(arguments[0]?.groupMeshes))) {
-            // 투명도 버튼 생성 및 이벤트 전체 주석처리 (Right/Left 그룹은 비활성화)
-            // const opacityButton = document.createElement("button");
-            // Object.assign(opacityButton.style, buttonStyle);
-            // row.opacityState = 1; // 초기값: medium (0.6)
-            // const opacityValues = [1.0, 0.6, 0.3, 0]; // 4단계 투명도 값
-            // opacityButton.innerHTML = this.getOpacityIcon(this.isDarkMode).medium;
-            // opacityButton.addEventListener("click", (e) => { ... });
+        if ((isVolumeGroup && volumeMeshes) || (isOpacityControllable && material && !isExcluded && !isRightLeftGroup)) {
+            // 투명도 버튼 생성
+            const opacityButton = document.createElement("button");
+            Object.assign(opacityButton.style, buttonStyle);
+            row.opacityState = 1; // 초기값: medium (0.6)
+            const opacityValues = [1.0, 0.6, 0.3, 0]; // 4단계 투명도 값
+            opacityButton.innerHTML = this.getOpacityIcon(this.isDarkMode).medium;
+            
+            opacityButton.addEventListener("click", (e) => {
+                e.stopPropagation();
+                row.opacityState = (row.opacityState + 1) % opacityValues.length;
+                const newOpacity = opacityValues[row.opacityState];
+
+                // 그룹 컨트롤
+                if (isVolumeGroup && volumeMeshes) {
+                    volumeMeshes.forEach((mesh) => {
+                        if (mesh.material) {
+                            mesh.material.opacity = newOpacity;
+                            mesh.material.transparent = newOpacity < 1;
+                            mesh.material.needsUpdate = true;
+                        }
+                        if (this.onToggleObject) {
+                            this.onToggleObject(mesh.name, mesh.visible, newOpacity);
+                        }
+                    });
+                } else {
+                    // 단일 메시 처리
+                    if (material) {
+                        if (Array.isArray(material)) {
+                            material.forEach((mat) => {
+                                mat.opacity = newOpacity;
+                                mat.transparent = newOpacity < 1;
+                                mat.needsUpdate = true;
+                            });
+                        } else {
+                            material.opacity = newOpacity;
+                            material.transparent = newOpacity < 1;
+                            material.needsUpdate = true;
+                        }
+                    }
+                    if (this.onToggleObject) {
+                        this.onToggleObject(name, visible, newOpacity);
+                    }
+                }
+
+                // 투명도 아이콘 업데이트
+                opacityButton.innerHTML = this.getOpacityIcon(this.isDarkMode)[
+                    ["full", "medium", "low", "none"][row.opacityState]
+                ];
+            });
 
             buttonContainer.appendChild(toggleButton);
-            // Right/Left 그룹은 투명도 버튼 비활성화
-            // if (!(arguments[0]?.isCustomGroup && Array.isArray(arguments[0]?.groupMeshes))) {
-            //     buttonContainer.appendChild(opacityButton);
-            // }
+            buttonContainer.appendChild(opacityButton);
         } else {
             buttonContainer.appendChild(toggleButton);
         }
