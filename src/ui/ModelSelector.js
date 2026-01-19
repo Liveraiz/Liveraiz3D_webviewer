@@ -130,10 +130,11 @@ export default class ModelSelector {
                 const modelName = model.name ? model.name.trim().toUpperCase() : "";
                 console.log("Table display - model.case:", model.case, "normalized:", normalizedCase, "model.name:", model.name);
 
-                if (normalizedCase === "HCC") {
+                if (normalizedCase === "HCC" || normalizedCase === "CCC" || normalizedCase.includes("CCC")) {
+                    // CCC도 HCC 표 형식으로, surgeryType에 CCC 전달
                     tableHTML = this.tableGenerator.createHCCTable(
                         tableText,
-                        model.case
+                        normalizedCase === "CCC" || normalizedCase.includes("CCC") ? "CCC" : model.case
                     );
                 } else if (normalizedCase === "KT" || normalizedCase === "LDKT") {
                     tableHTML = this.tableGenerator.createKTTable(
