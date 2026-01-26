@@ -267,7 +267,7 @@ export class TableGenerator {
             "RIHVat",
             "MHVt",
             "V5t",
-            "V58",
+            "V58t",
             "V8t",
         ];
 
