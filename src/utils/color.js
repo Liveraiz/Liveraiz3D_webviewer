@@ -37,6 +37,7 @@ const COLOR = {
     "MHVt": "#FFDFC1", // 오렌지색
     "V5t": "#FFCCCC", // 연한 빨간색/핑크색
     "V58": "#E6CCEF", // 연한 보라색
+    "V58t": "#E6CCEF", // 연한 보라색 (V58t 전용)
     "V8t": "#B3D9FF", // 연한 파란색
     "Recip BW": "#ffd1e4", // (다른 항목과 겹치지 않도록)
   },
