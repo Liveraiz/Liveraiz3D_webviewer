@@ -26,6 +26,7 @@ import MeshTooltip from "../ui/MeshTooltip";
 import LoadingBar from "../ui/LoadingBar";
 import LogoManager from "../ui/LogoManager";
 import CameraPlayer from "../functions/CameraPlayer";
+import ZoomControl from "../ui/ZoomControl";
 
 export default class LiverViewer {
     constructor(containerId) {
@@ -368,6 +369,15 @@ export default class LiverViewer {
             measurementTool: this.measurementTool,
             objectListPanel: this.objectListPanel, // ObjectListPanel 전달
             isDarkMode: this.isDarkMode,
+        });
+
+        this.zoomControl = new ZoomControl({
+            camera: this.camera,
+            controlManager: this.controlManager,
+            textPanel: this.textPanel,
+            isDarkMode: this.isDarkMode,
+            isMobile: this.isMobile,
+            onRequestRender: () => this.requestRender(),
         });
     }
 
@@ -785,6 +795,10 @@ export default class LiverViewer {
         // LoadingBar 테마 업데이트
         if (this.loadingBar) {
             this.loadingBar.updateTheme(this.isDarkMode);
+        }
+
+        if (this.zoomControl) {
+            this.zoomControl.updateTheme(this.isDarkMode);
         }
 
     }
