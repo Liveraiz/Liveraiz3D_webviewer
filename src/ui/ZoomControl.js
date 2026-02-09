@@ -93,13 +93,13 @@ export default class ZoomControl {
             }
 
             .zoom-control__button {
-                width: 64px;
-                height: 64px;
+                width: 32px;
+                height: 38px;
                 border-radius: 999px;
                 border: 1px solid rgba(255, 255, 255, 0.15);
                 background: rgba(255, 255, 255, 0.4);
                 color: #0b0f1a;
-                font-size: 32px;
+                font-size: 22px;
                 font-weight: 600;
                 line-height: 1;
                 cursor: pointer;
