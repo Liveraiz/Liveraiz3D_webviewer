@@ -40,8 +40,8 @@ export class DeviceDetector {
       // 최신 태블릿 모델
       const modernTabletRegex = /iPad Pro|Galaxy Tab|MatePad|Mi Pad|Surface|iPad Air|iPad mini|Galaxy Z Fold/i;
       
-      // 화면 크기 기반 감지 (768px 이상 1024px 미만)
-      const isTabletViewport = window.innerWidth >= 768 && window.innerWidth < 1024;
+      // 화면 크기 기반 감지 (768px 이상 1024px 미만) >> 900px 미만으로 수정(Great portable monitor 세로 대응)
+      const isTabletViewport = window.innerWidth >= 768 && window.innerWidth < 900;
       
       return tabletRegex.test(this.userAgent) || 
              modernTabletRegex.test(this.userAgent) || 
