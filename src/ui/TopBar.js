@@ -1,5 +1,6 @@
 import { Constants } from "../utils/Constants";
 import FOVController from "../functions/FOVController";
+import { DeviceDetector } from "../utils/DeviceDetector";
 
 export default class TopBar {
     constructor({
@@ -49,31 +50,7 @@ export default class TopBar {
 
     // 모바일 감지 메서드 추가 (태블릿은 PC로 분류)
     detectMobile() {
-        // 1. 화면 크기 기반 감지 (768px 미만만 모바일로 분류)
-        const isSmallScreen = window.innerWidth < 768;
-        
-        // 2. User Agent 기반 감지 (태블릿 제외)
-        const userAgent = navigator.userAgent.toLowerCase();
-        // iPad는 태블릿이므로 모바일에서 제외, iPhone만 모바일로 분류
-        const isMobileUA = /android.*mobile|webos|iphone|ipod|blackberry|iemobile|opera mini/i.test(userAgent);
-        
-        // 3. 터치 지원 여부는 태블릿도 지원하므로 제외
-        
-        // 4. 크롬 개발자 도구 모바일 시뮬레이션 감지 (화면 크기만 고려)
-        const isChromeDevTools = window.chrome && window.chrome.webstore === undefined;
-        const isMobileSimulation = isChromeDevTools && isSmallScreen;
-        
-        // 5. 추가 모바일 감지 방법들 (화면 크기만 고려)
-        const isMobileViewport = window.matchMedia && window.matchMedia('(max-width: 767px)').matches;
-        
-        // 6. 크롬 개발자 도구에서 모바일 시뮬레이션 중인지 확인 (화면 크기만 고려)
-        const isChromeMobileSim = window.chrome && isSmallScreen;
-        
-        const result = isSmallScreen || isMobileUA || isMobileSimulation || isMobileViewport || isChromeMobileSim;
-        
-        // console.log('Mobile Detection:', { isSmallScreen, isMobileUA, userAgent: userAgent.substring(0, 50), isMobileSimulation, isMobileViewport, isChromeMobileSim, result });
-        
-        return result;
+        return new DeviceDetector().isMobile();
     }
 
     /**
