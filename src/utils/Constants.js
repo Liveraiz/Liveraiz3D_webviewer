@@ -213,7 +213,7 @@ export const LIVER_KEYWORDS = [
 export const OPACITY_CONTROLLABLE_KEYWORDS = [
     ...LIVER_KEYWORDS,
     "myometrium","uterus", "recipient_cavity", "pancreas", "Pancreas",
-    "bladder", "tumor", "cancer"
+    "bladder", "tumor", "cancer", "glissonean pedicle", "glissonean_pedicle"
 ];
 
 export const VESSEL_KEYWORDS = [
@@ -222,6 +222,13 @@ export const VESSEL_KEYWORDS = [
     "bd",     // bile duct
     "hv",     // hepatic vein
 ];
+
+// Parent mesh 하위의 혈관들도 투명도 조정 대상으로 포함
+// Parent mesh가 있을 때만 해당 혈관들의 투명도 조정이 가능함
+// (대소문자 구분 없이 처리됨)
+export const PARENT_CHILD_OPACITY_MAP = {
+    "glissonean pedicle": ["ha", "pv", "bd"]
+};
 
 // 오브젝트 리스트에서 우선 체크할 제외 키워드
 export const PRIMARY_EXCLUDE_KEYWORDS = [
