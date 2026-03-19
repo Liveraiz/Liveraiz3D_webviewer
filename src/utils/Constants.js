@@ -213,7 +213,7 @@ export const LIVER_KEYWORDS = [
 export const OPACITY_CONTROLLABLE_KEYWORDS = [
     ...LIVER_KEYWORDS,
     "myometrium","uterus", "recipient_cavity", "pancreas", "Pancreas",
-    "bladder", "tumor", "cancer"
+    "bladder", "tumor", "cancer", "glissonean_pedicle"
 ];
 
 export const VESSEL_KEYWORDS = [

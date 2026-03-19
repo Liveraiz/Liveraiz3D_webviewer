@@ -142,8 +142,15 @@ export default class ModelSelector {
                         model.case
                     );
                 } else if (normalizedCase === "LDLT" || normalizedCase === "LDLT RL" || normalizedCase.includes("LDLT")) {
-                    // LDLT인 경우 모델 이름을 확인하여 left/HVT/RL 테이블 선택
-                    if (modelName.includes("LEFT")) {
+                    // LDLT인 경우 모델 이름을 확인하여 left/HVT/RL/5-Section 테이블 선택
+                    if (modelName.includes("SECTION") || modelName.includes("5-SECTION")) {
+                        // Liver 5-Section 테이블
+                        console.log("Liver 5-Section 테이블 사용 (모델 이름 기반):", model.name);
+                        tableHTML = this.tableGenerator.createLiver5SectionTable(
+                            tableText,
+                            model.case || "Liver 5-Section"
+                        );
+                    } else if (modelName.includes("LEFT")) {
                         // left 모델 표 생성
                         console.log("LDLT left 테이블 사용 (모델 이름 기반):", model.name);
                         tableHTML = createLeftPanelTable(
@@ -1059,6 +1066,16 @@ export default class ModelSelector {
 
         inputContainer.appendChild(input);
         inputContainer.appendChild(loadButton);
+        
+        // 공유 모드 감지 - URL 매개변수 또는 JSON이 이미 로드된 경우
+        const urlParams = new URLSearchParams(window.location.search);
+        const isShared = urlParams.get("shared") === "true" || urlParams.get("readonly") === "true" || this.lastJsonUrl;
+        
+        // 공유 모드이면 input container 숨기기
+        if (isShared) {
+            inputContainer.style.display = "none";
+        }
+        
         this.dialog.appendChild(inputContainer);
 
         // 구분선

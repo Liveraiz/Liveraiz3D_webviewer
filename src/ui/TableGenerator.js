@@ -962,6 +962,181 @@ export class TableGenerator {
         return table;
     }
 
+    // Liver 5-Section Volume 테이블 생성
+    createLiver5SectionTable(csvData, surgeryType = "Liver 5-Section") {
+        console.log("Creating Liver 5-Section table with data:", csvData);
+
+        var rows = csvData.replaceAll('"', "").split("\r\n");
+        rows = rows.filter((row) => row.trim() !== "");
+
+        if (rows.length === 0) return "<p>데이터가 없습니다.</p>";
+
+        var parsedRows = rows.map((row) => row.split(","));
+        var headers = parsedRows[0];
+
+        // CSV 헤더 분석: Segment, Volume (cm³), Percentage (%), GRWR (%)
+        const segIdx = headers.findIndex(h => h.toLowerCase().includes("segment"));
+        const volIdx = headers.findIndex(h => h.toLowerCase().includes("volume"));
+        const pctIdx = headers.findIndex(h => h.toLowerCase().includes("percent") && !h.toLowerCase().includes("grwr"));
+        const grwrIdx = headers.findIndex(h => h.toLowerCase().includes("grwr"));
+
+        var volumeData = {};
+        var percentData = {};
+        var grwrData = {};
+
+        // 데이터 추출
+        for (let i = 1; i < parsedRows.length; i++) {
+            const row = parsedRows[i];
+            const segment = row[segIdx]?.trim();
+            if (segment) {
+                volumeData[segment] = row[volIdx]?.trim() || "0";
+                percentData[segment] = row[pctIdx]?.trim() || "0";
+                grwrData[segment] = row[grwrIdx]?.trim() || "0";
+            }
+        }
+
+        return this._generateLiver5SectionTableHTML(volumeData, percentData, grwrData, surgeryType);
+    }
+
+    // Liver 5-Section 테이블 HTML 생성
+    _generateLiver5SectionTableHTML(volumeData, percentData, grwrData, surgeryType) {
+        const theme = this.isDarkMode
+            ? this.getCommonStyles().dark
+            : this.getCommonStyles().light;
+
+        // HCC 색상 참조
+        const colors = COLOR.HCC || {
+            wholeLiverBg: "#FFE5E5",
+            rtlobeBg: "#FFE0E0",
+            ltlobeBg: "#FFFFD5",
+            rasBg: "#FFB3BA",
+            rpsBg: "#F0E6FF",      // 연한 보라
+            llsBg: "#FFD9B3",      // 연한 주황
+            lmsBg: "#FFFACD",      // 연한 노랑 (레몬 쉬폰)
+            spigelianBg: "#B3F0FF", // 연한 네온 하늘색
+            cancerBg: "#FFB6C6"
+        };
+
+        const style = `
+        <style>
+            .liver-5section-table {
+                border-collapse: collapse;
+                width: 100%;
+                max-width: 600px;
+                font-family: Arial, sans-serif;
+                margin: 20px 0;
+                box-shadow: ${theme.boxShadow};
+                color: ${theme.textColor};
+                table-layout: fixed;
+            }
+            
+            .liver-5section-table th, 
+            .liver-5section-table td {
+                border: 1px solid ${theme.tableBorder};
+                padding: 8px;
+                text-align: center;
+                width: 50%;
+            }
+            
+            .liver-5section-table th {
+                font-weight: bold;
+            }
+            
+            .liver-5section-table thead th {
+                background-color: ${theme.header};
+                color: ${theme.headerText};
+            }
+            
+            .ras { background-color: ${colors.rasBg}; }
+            .rps { background-color: ${colors.rpsBg}; }
+            .lls { background-color: ${colors.llsBg}; }
+            .lms { background-color: ${colors.lmsBg}; }
+            .spigelian { background-color: ${colors.spigelianBg}; }
+            .value { background-color: ${theme.valueBg}; }
+            
+            .surgery-header {
+                background-color: ${theme.header};
+                color: ${theme.headerText};
+                text-align: center;
+                font-weight: bold;
+                padding: 10px;
+            }
+        </style>
+        `;
+
+        let table = style + "<table class='liver-5section-table'>";
+
+        // 헤더
+        table += "<thead><tr>";
+        table += "<th colspan='2' class='surgery-header'>" + surgeryType + "</th>";
+        table += "</tr></thead>";
+
+        table += "<tbody>";
+
+        // Segment 1 (RAS / RPS) - 첫 쌍
+        table += "<tr>";
+        table += "<th class='ras'>RAS</th>";
+        table += "<th class='rps'>RPS</th>";
+        table += "</tr>";
+
+        table += "<tr>";
+        table += "<td class='value'>" + this.formatVolume(volumeData["RAS"]) + "</td>";
+        table += "<td class='value'>" + this.formatVolume(volumeData["RPS"]) + "</td>";
+        table += "</tr>";
+
+        table += "<tr>";
+        table += "<td class='value'>" + this.formatPercent(percentData["RAS"]) + "</td>";
+        table += "<td class='value'>" + this.formatPercent(percentData["RPS"]) + "</td>";
+        table += "</tr>";
+
+        table += "<tr>";
+        table += "<td class='value'>" + this.formatPercent(grwrData["RAS"]) + "</td>";
+        table += "<td class='value'>" + this.formatPercent(grwrData["RPS"]) + "</td>";
+        table += "</tr>";
+
+        // Segment 2 (LMS / LLS) - 두번째 쌍
+        table += "<tr>";
+        table += "<th class='lms'>LMS</th>";
+        table += "<th class='lls'>LLS</th>";
+        table += "</tr>";
+
+        table += "<tr>";
+        table += "<td class='value'>" + this.formatVolume(volumeData["LMS"]) + "</td>";
+        table += "<td class='value'>" + this.formatVolume(volumeData["LLS"]) + "</td>";
+        table += "</tr>";
+
+        table += "<tr>";
+        table += "<td class='value'>" + this.formatPercent(percentData["LMS"]) + "</td>";
+        table += "<td class='value'>" + this.formatPercent(percentData["LLS"]) + "</td>";
+        table += "</tr>";
+
+        table += "<tr>";
+        table += "<td class='value'>" + this.formatPercent(grwrData["LMS"]) + "</td>";
+        table += "<td class='value'>" + this.formatPercent(grwrData["LLS"]) + "</td>";
+        table += "</tr>";
+
+        // Spigelian - 마지막 (별도행)
+        table += "<tr>";
+        table += "<th class='spigelian' colspan='2'>Spigelian</th>";
+        table += "</tr>";
+
+        table += "<tr>";
+        table += "<td class='value' colspan='2'>" + this.formatVolume(volumeData["Spigelian"]) + "</td>";
+        table += "</tr>";
+
+        table += "<tr>";
+        table += "<td class='value' colspan='2'>" + this.formatPercent(percentData["Spigelian"]) + "</td>";
+        table += "</tr>";
+
+        table += "<tr>";
+        table += "<td class='value' colspan='2'>" + this.formatPercent(grwrData["Spigelian"]) + "</td>";
+        table += "</tr>";
+
+        table += "</tbody></table>";
+
+        return table;
+    }
+
     // HVT 테이블을 이미지로 변환 (Canvas 사용)
     async createHVTTableImage(csvData, surgeryType = "LDLT") {
         // 먼저 HTML 테이블 생성
@@ -1149,42 +1324,74 @@ export function createLeftPanelTable(csvData, surgeryType = "LDLT") {
     };
 
     const leftColors = {
-        "Lt.lobe": "#FFFFD5",
-        "LHVt": "#B3E5FC",
-        "V4t": "#FFECB3",
-        "V4at": "#FFE0B2",
-        "V4bt": "#FFCCBC"
+        "Lt.lobe": "#ffe6b1",
+        "LHVt": "#fff2aa",
+        "V4t": "#c9ffb3",
+        "V4at": "#92cd93",
+        "V4bt": "#8eb09a"
     };
 
     const style = `
     <style>
-        .left-table { border-collapse: collapse; width: 100%; max-width: 600px; font-family: Arial, sans-serif; margin: 20px 0; box-shadow: ${theme.boxShadow}; color: ${theme.textColor}; table-layout: fixed; }
-        .left-table th, .left-table td { border: 1px solid ${theme.tableBorder}; padding: 8px; text-align: center; width: 50%; }
-        .left-table th { font-weight: bold; }
-        .left-table thead th { background-color: ${theme.header}; color: ${theme.headerText}; }
-        .value { background-color: ${theme.valueBg}; }
-        .percent-row { background-color: #E5E5E5; }
+        .left-table { 
+            border-collapse: collapse !important; 
+            width: 100% !important; 
+            max-width: 600px !important; 
+            font-family: Arial, sans-serif !important; 
+            margin: 20px 0 !important; 
+            box-shadow: ${theme.boxShadow} !important; 
+            color: ${theme.textColor} !important; 
+            table-layout: fixed !important; 
+        }
+        .left-table th, 
+        .left-table td { 
+            border: 1px solid ${theme.tableBorder} !important; 
+            padding: 8px !important; 
+            text-align: center !important; 
+            width: 50% !important; 
+        }
+        .left-table th { 
+            font-weight: bold !important; 
+        }
+        .left-table thead th { 
+            background-color: ${theme.header} !important; 
+            color: ${theme.headerText} !important; 
+        }
+        .left-table .value { 
+            background-color: ${theme.valueBg} !important; 
+        }
+        .left-table .percent-row { 
+            background-color: #E5E5E5 !important; 
+        }
     </style>
     `;
 
     let table = style + "<table class='left-table'>";
-    table += "<thead><tr>";
+    
+    // 헤더
+    table += "<thead>";
+    table += "<tr>";
     table += "<th>" + surgeryType + "</th>";
     table += "<th>" + patientName + "</th>";
-    table += "</tr></thead>";
+    table += "</tr>";
+    table += "</thead>";
+    
     table += "<tbody>";
 
+    // 각 left 항목
     leftItems.forEach((item) => {
         const volume = volumeData[item];
         const percent = percentData[item];
         const grwr = percentData[item + "_grwr"];
         const bgColor = leftColors[item] || "#FFFFFF";
-        // 항목 이름 행 (색상 배경 유지)
+        
+        // 항목 이름 행
         table += "<tr>";
         table += `<th style='background-color: ${bgColor};'>${item}</th>`;
         table += `<td class='value'>${volume || ""}</td>`;
         table += "</tr>";
-        // 퍼센트 행 (첫 번째 컬럼은 회색, 두 번째 컬럼은 GRWR)
+        
+        // 퍼센트/GRWR 행
         table += "<tr class='percent-row'>";
         table += `<td class='percent-row'>${percent ? percent + "%" : ""}</td>`;
         table += `<td class='percent-row'>${grwr ? grwr : ""}</td>`;

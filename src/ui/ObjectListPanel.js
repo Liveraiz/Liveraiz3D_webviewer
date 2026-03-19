@@ -20,9 +20,16 @@ export class ObjectListPanel {
         if (liverViewer && liverViewer.scene) {
             liverViewer.scene.traverse(obj => {
                 if (obj.isMesh) {
-                    obj.material = obj.material.clone();
-                    obj.material.transparent = true;
-                    obj.userData.originalOpacity = obj.material.opacity;
+                    const materials = Array.isArray(obj.material)
+                        ? obj.material.map((mat) => mat.clone())
+                        : [obj.material.clone()];
+                    obj.material = Array.isArray(obj.material) ? materials : materials[0];
+
+                    materials.forEach((mat) => {
+                        this._ensureMaterialRenderBase(mat);
+                    });
+
+                    obj.userData.originalOpacity = materials[0]?.opacity ?? 1;
                     obj.userData.wasVisible = obj.visible;
                 }
             });
@@ -78,6 +85,39 @@ export class ObjectListPanel {
         // mesh별 material별 초기 렌더링 상태 저장용 Map
         // key: meshId + '_' + materialIndex, value: { opacity, transparent, side, visible }
         this._meshMaterialInitialStateMap = new Map();
+    }
+
+    _ensureMaterialRenderBase(material) {
+        if (!material) return;
+        material.userData = material.userData || {};
+        if (material.userData._baseTransparent === undefined) {
+            material.userData._baseTransparent = material.transparent;
+        }
+        if (material.userData._baseDepthWrite === undefined) {
+            material.userData._baseDepthWrite = material.depthWrite;
+        }
+        if (material.userData.originalOpacity === undefined) {
+            material.userData.originalOpacity = material.opacity;
+        }
+    }
+
+    _applyOpacityPreservingRenderMode(material, opacity) {
+        if (!material) return;
+        this._ensureMaterialRenderBase(material);
+
+        material.opacity = opacity;
+
+        if (opacity < 1) {
+            material.transparent = true;
+            if (material.userData._baseTransparent === false) {
+                material.depthWrite = false;
+            }
+        } else {
+            material.transparent = material.userData._baseTransparent;
+            material.depthWrite = material.userData._baseDepthWrite;
+        }
+
+        material.needsUpdate = true;
     }
 
     initialize() {
@@ -835,21 +875,20 @@ export class ObjectListPanel {
                 groupMeshes.forEach((mesh) => {
                     mesh.visible = newVisibility;
                     if (mesh.material) {
-                        if (!mesh.material._originalOpacitySaved) {
-                            mesh.material._originalOpacity = mesh.material.opacity;
-                            mesh.material._originalOpacitySaved = true;
+                        const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+                        if (!mesh.userData._originalOpacitySaved) {
+                            mesh.userData._originalOpacity = mats[0]?.opacity ?? 1;
+                            mesh.userData._originalOpacitySaved = true;
                         }
                         if (!newVisibility) {
-                            mesh.material.opacity = 0;
-                            mesh.material.transparent = true;
+                            mats.forEach((mat) => this._applyOpacityPreservingRenderMode(mat, 0));
                         } else {
-                            mesh.material.opacity = mesh.material._originalOpacity !== undefined ? mesh.material._originalOpacity : 1.0;
-                            mesh.material.transparent = mesh.material.opacity < 1;
+                            const restoredOpacity = mesh.userData._originalOpacity !== undefined ? mesh.userData._originalOpacity : 1.0;
+                            mats.forEach((mat) => this._applyOpacityPreservingRenderMode(mat, restoredOpacity));
                         }
-                        mesh.material.needsUpdate = true;
                     }
                     if (this.onToggleObject) {
-                        const restoreOpacity = (mesh.material && mesh.material._originalOpacity !== undefined) ? mesh.material._originalOpacity : 1.0;
+                        const restoreOpacity = mesh.userData._originalOpacity !== undefined ? mesh.userData._originalOpacity : 1.0;
                         this.onToggleObject(mesh.name, newVisibility, newVisibility ? restoreOpacity : 0);
                     }
                     this.updateObjectVisibility(mesh.name, newVisibility);
@@ -957,9 +996,8 @@ export class ObjectListPanel {
                 if (isVolumeGroup && volumeMeshes) {
                     volumeMeshes.forEach((mesh) => {
                         if (mesh.material) {
-                            mesh.material.opacity = newOpacity;
-                            mesh.material.transparent = newOpacity < 1;
-                            mesh.material.needsUpdate = true;
+                            const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+                            mats.forEach((mat) => this._applyOpacityPreservingRenderMode(mat, newOpacity));
                         }
                         if (this.onToggleObject) {
                             this.onToggleObject(mesh.name, mesh.visible, newOpacity);
@@ -970,18 +1008,31 @@ export class ObjectListPanel {
                     if (material) {
                         if (Array.isArray(material)) {
                             material.forEach((mat) => {
-                                mat.opacity = newOpacity;
-                                mat.transparent = newOpacity < 1;
-                                mat.needsUpdate = true;
+                                this._applyOpacityPreservingRenderMode(mat, newOpacity);
                             });
                         } else {
-                            material.opacity = newOpacity;
-                            material.transparent = newOpacity < 1;
-                            material.needsUpdate = true;
+                            this._applyOpacityPreservingRenderMode(material, newOpacity);
                         }
                     }
                     if (this.onToggleObject) {
                         this.onToggleObject(name, visible, newOpacity);
+                    }
+
+                    // 자식 메시들도 동일한 투명도 적용 (투명도 조절 불가 자식 포함)
+                    if (this.liverViewer && this.liverViewer.scene) {
+                        const parentMesh = this.liverViewer.scene.getObjectByName(name);
+                        if (parentMesh) {
+                            parentMesh.traverse((child) => {
+                                if (child === parentMesh || !child.isMesh || !child.material) return;
+                                const mats = Array.isArray(child.material) ? child.material : [child.material];
+                                mats.forEach((mat) => {
+                                    this._applyOpacityPreservingRenderMode(mat, newOpacity);
+                                });
+                                if (this.onToggleObject) {
+                                    this.onToggleObject(child.name, child.visible, newOpacity);
+                                }
+                            });
+                        }
                     }
                 }
 
@@ -1090,16 +1141,13 @@ export class ObjectListPanel {
                 // 실제 메쉬 visibility와 opacity 업데이트
                 if (mesh.material) {
                     mesh.visible = effectiveVisibility;
+                    const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
                     if (!effectiveVisibility) {
-                        mesh.material.opacity = 0;
-                        mesh.material.transparent = true;
-                        mesh.material.needsUpdate = true;
+                        mats.forEach((mat) => this._applyOpacityPreservingRenderMode(mat, 0));
                     } else {
                         // 부모가 보이면 자식의 원래 투명도로 복원
-                        const originalOpacity = mesh.material.userData.originalOpacity || 0.6;
-                        mesh.material.opacity = originalOpacity;
-                        mesh.material.transparent = originalOpacity < 1;
-                        mesh.material.needsUpdate = true;
+                        const originalOpacity = mats[0]?.userData?.originalOpacity ?? 0.6;
+                        mats.forEach((mat) => this._applyOpacityPreservingRenderMode(mat, originalOpacity));
                     }
                 }
 
@@ -1192,9 +1240,8 @@ export class ObjectListPanel {
                 // 실제 메쉬 visibility와 opacity 업데이트
                 if (mesh.material) {
                     mesh.visible = !isEffectivelyHidden;
-                    mesh.material.opacity = effectiveOpacity;
-                    mesh.material.transparent = effectiveOpacity < 1;
-                    mesh.material.needsUpdate = true;
+                    const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+                    mats.forEach((mat) => this._applyOpacityPreservingRenderMode(mat, effectiveOpacity));
                 }
 
                 // onToggleObject 콜백 호출 (자식 메쉬도 함께 처리)
@@ -1283,17 +1330,17 @@ export class ObjectListPanel {
         this.objects.clear();
         meshes.forEach(mesh => {
             this.objects.set(mesh.name, mesh);
+            const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
             if (toHide) {
-                mesh.userData.originalOpacity = mesh.material.opacity;
-                mesh.material.opacity = 0;
+                mesh.userData.originalOpacity = mats[0]?.opacity ?? 1;
+                mats.forEach((mat) => this._applyOpacityPreservingRenderMode(mat, 0));
                 mesh.visible = false;
                 mesh.userData.wasVisible = false;
             } else {
                 const prevOpacity = mesh.userData.originalOpacity ?? 1;
-                mesh.material.opacity = prevOpacity;
+                mats.forEach((mat) => this._applyOpacityPreservingRenderMode(mat, prevOpacity));
                 mesh.visible = true;
                 mesh.userData.wasVisible = true;
-                mesh.material.transparent = prevOpacity < 1;
             }
         });
         this.allObjectsVisible = !toHide;
