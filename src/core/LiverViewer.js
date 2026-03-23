@@ -28,6 +28,9 @@ import LoadingBar from "../ui/LoadingBar";
 import LogoManager from "../ui/LogoManager";
 import CameraPlayer from "../functions/CameraPlayer";
 import ZoomControl from "../ui/ZoomControl";
+import FloatingModeButtons from "../ui/FloatingModeButtons";
+import XRHandler from "../functions/XRHandler";
+import StereoscopicRenderer from "../functions/StereoscopicRenderer";
 
 export default class LiverViewer {
     constructor(containerId) {
@@ -53,6 +56,12 @@ export default class LiverViewer {
 
             this.toggleDarkMode = this.toggleDarkMode.bind(this);
             this.renderNeeded = false;
+
+            // Render mode 관련 초기화
+            this.renderMode = 'standard'; // 'standard' | 'stereoscopic' | 'xr'
+            this.xrHandler = null;
+            this.stereoscopicRenderer = null;
+            this.floatingModeButtons = null;
 
             // URL 파라미터 처리 추가
             const urlParams = new URLSearchParams(window.location.search);
@@ -216,6 +225,9 @@ export default class LiverViewer {
             this.setupModelLoader();
             this.setupRemainingUIWithoutObjectList();
             this.setupTopBar();
+
+            // Floating Mode Buttons 초기화
+            this.setupFloatingModeButtons();
 
             // Event listeners
             this.setupEventListeners();
@@ -840,6 +852,11 @@ export default class LiverViewer {
             this.zoomControl.updateTheme(this.isDarkMode);
         }
 
+        // FloatingModeButtons 테마 업데이트
+        if (this.floatingModeButtons) {
+            this.floatingModeButtons.setDarkMode(this.isDarkMode);
+        }
+
     }
 
     startAnimation() {
@@ -920,12 +937,21 @@ export default class LiverViewer {
                     this.labelManager.updateAllLabelsPosition();
                 }
 
-                // Standard rendering (background is already set in the scene)
-                this.renderer.render(this.scene, this.camera);
+                // Stereoscopic 모드 렌더링
+                if (this.renderMode === 'stereoscopic' && this.stereoscopicRenderer) {
+                    this.stereoscopicRenderer.render(() => {
+                        if (this.renderer.labelRenderer) {
+                            this.renderer.labelRenderer.render(this.scene, this.camera.camera);
+                        }
+                    });
+                } else {
+                    // Standard rendering (background is already set in the scene)
+                    this.renderer.render(this.scene, this.camera);
 
-                // Render labels on top
-                if (this.renderer.labelRenderer) {
-                    this.renderer.labelRenderer.render(this.scene, this.camera);
+                    // Render labels on top
+                    if (this.renderer.labelRenderer) {
+                        this.renderer.labelRenderer.render(this.scene, this.camera);
+                    }
                 }
 
                 this.renderNeeded = false;
@@ -976,6 +1002,131 @@ export default class LiverViewer {
     showModelSelector() {
         if (this.modelSelector) {
             this.modelSelector.show();
+        }
+    }
+
+    /**
+     * Floating Mode Buttons 초기화
+     */
+    setupFloatingModeButtons() {
+        try {
+            this.floatingModeButtons = new FloatingModeButtons({
+                onXRModeRequested: () => this.onXRModeRequested(),
+                on3DGlassModeRequested: () => this.on3DGlassModeRequested(),
+                isDarkMode: this.isDarkMode,
+                isMobile: this.isMobile,
+                liverViewer: this
+            });
+
+            // XRHandler 초기화
+            this.xrHandler = new XRHandler(this);
+
+            console.log('[LiverViewer] FloatingModeButtons and XRHandler initialized');
+        } catch (error) {
+            console.error('Error setting up floating mode buttons:', error);
+            ErrorHandler.handle(error, 'FloatingModeButtons Setup');
+        }
+    }
+
+    /**
+     * XR Mode 요청 시 호출
+     */
+    onXRModeRequested() {
+        console.log('[LiverViewer] XR Mode requested');
+        
+        if (this.xrHandler) {
+            this.xrHandler.openXRMode();
+        } else {
+            alert('XR Handler is not initialized');
+        }
+    }
+
+    /**
+     * 3D Glass Mode 요청 시 호출
+     */
+    on3DGlassModeRequested() {
+        console.log('[LiverViewer] 3D Glass Mode requested');
+        
+        if (this.renderMode === 'stereoscopic') {
+            this.disableStereoscopic();
+        } else {
+            this.enableStereoscopic();
+        }
+    }
+
+    /**
+     * Stereoscopic 렌더링 활성화
+     */
+    enableStereoscopic() {
+        try {
+            if (this.renderMode === 'stereoscopic') {
+                console.warn('Stereoscopic mode is already enabled');
+                return;
+            }
+
+            this.renderMode = 'stereoscopic';
+
+            // StereoscopicRenderer 초기화
+            if (!this.stereoscopicRenderer) {
+                this.stereoscopicRenderer = new StereoscopicRenderer(
+                    this.renderer,
+                    this.camera.camera,
+                    this.scene
+                );
+            }
+
+            // Stereoscopic 모드 활성화
+            this.stereoscopicRenderer.enableStereoscopic();
+            this.renderer.enableStereoscopicMode();
+
+            console.log('[LiverViewer] Stereoscopic rendering enabled');
+        } catch (error) {
+            console.error('Error enabling stereoscopic rendering:', error);
+            ErrorHandler.handle(error, 'Stereoscopic Enable');
+        }
+    }
+
+    /**
+     * Stereoscopic 렌더링 비활성화
+     */
+    disableStereoscopic() {
+        try {
+            if (this.renderMode !== 'stereoscopic') {
+                console.warn('Stereoscopic mode is not active');
+                return;
+            }
+
+            this.renderMode = 'standard';
+
+            // Stereoscopic 모드 비활성화
+            if (this.stereoscopicRenderer) {
+                this.stereoscopicRenderer.disableStereoscopic();
+            }
+
+            this.renderer.disableStereoscopicMode();
+
+            console.log('[LiverViewer] Stereoscopic rendering disabled');
+        } catch (error) {
+            console.error('Error disabling stereoscopic rendering:', error);
+            ErrorHandler.handle(error, 'Stereoscopic Disable');
+        }
+    }
+
+    /**
+     * 렌더링 모드 토글
+     */
+    toggleRenderMode(newMode) {
+        if (newMode === this.renderMode) {
+            console.warn(`Already in ${newMode} mode`);
+            return;
+        }
+
+        if (newMode === 'stereoscopic') {
+            this.enableStereoscopic();
+        } else if (newMode === 'standard') {
+            this.disableStereoscopic();
+        } else {
+            console.error(`Unknown render mode: ${newMode}`);
         }
     }
 }

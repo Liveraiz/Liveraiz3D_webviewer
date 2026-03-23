@@ -193,6 +193,59 @@ export const Constants = {
             ENVIRONMENT: '/studio_small_03_2k.hdr'
         }
     },
+
+    /**
+     * Floating Button 관련 상수
+     */
+    FLOATING_BUTTONS: {
+        CONTAINER: {
+            BOTTOM: '20px',
+            RIGHT: '20px',
+            GAP: '8px',
+            Z_INDEX: 900,
+            SAFE_AREA_BOTTOM: 'env(safe-area-inset-bottom, 20px)'
+        },
+        BUTTON: {
+            SIZE: 48,
+            BORDER_RADIUS: 24,
+            PADDING: 0,
+            FONT_SIZE: '11px',
+            ICON_SIZE: 20
+        },
+        DARK_MODE: {
+            BACKGROUND: 'rgba(50, 50, 50, 0.95)',
+            TEXT: '#ffffff',
+            BORDER: '#666666',
+            HOVER: 'rgba(70, 70, 70, 0.95)',
+            SHADOW: '0 4px 12px rgba(0, 0, 0, 0.5)'
+        },
+        LIGHT_MODE: {
+            BACKGROUND: 'rgba(240, 240, 240, 0.95)',
+            TEXT: '#000000',
+            BORDER: '#cccccc',
+            HOVER: 'rgba(220, 220, 220, 0.95)',
+            SHADOW: '0 4px 12px rgba(0, 0, 0, 0.15)'
+        }
+    },
+
+    /**
+     * XR 모드 관련 상수
+     */
+    XR_MODE: {
+        SESSION_TYPE: 'immersive-ar',
+        FEATURES: ['local-floor'],
+        REFERENCE_SPACE: 'local-floor'
+    },
+
+    /**
+     * Stereoscopic 렌더링 관련 상수
+     */
+    STEREOSCOPIC: {
+        ENABLED: false,
+        EYE_SEPARATION: 65,
+        CONVERGENCE_DISTANCE: 2000,
+        IOD_ADJUSTMENT_RANGE: [30, 100]
+    }
     
 };
   
