@@ -3,7 +3,6 @@
 import { DropboxService } from "../services/DropboxService";
 import { DeviceDetector } from "../utils/DeviceDetector";
 import { TableGenerator } from "./TableGenerator";
-import { createLeftPanelTable } from "./TableGenerator";
 import { Constants } from "../utils/Constants";
 
 export default class ModelSelector {
@@ -158,7 +157,7 @@ export default class ModelSelector {
                     } else if (modelName.includes("LEFT")) {
                         // left 모델 표 생성
                         console.log("LDLT left 테이블 사용 (모델 이름 기반):", model.name);
-                        tableHTML = createLeftPanelTable(
+                        tableHTML = this.tableGenerator.createLeftTable(
                             tableText,
                             model.case || "LDLT"
                         );
