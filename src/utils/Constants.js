@@ -216,6 +216,12 @@ export const OPACITY_CONTROLLABLE_KEYWORDS = [
     "bladder", "tumor", "cancer", "glissonean_pedicle", "fibroid"
 ];
 
+// Fibroid 관련 메시를 위한 키워드들
+export const FIBROID_KEYWORDS = [
+    "fibroid",
+    "fibroids",
+];
+
 export const VESSEL_KEYWORDS = [
     "ha",     // hepatic artery
     "pv",     // portal vein

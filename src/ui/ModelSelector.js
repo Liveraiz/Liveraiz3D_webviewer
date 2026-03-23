@@ -1163,7 +1163,10 @@ export default class ModelSelector {
             if (this.dialog && document.body.contains(this.dialog)) {
                 // carousel 스크롤 위치 보존을 위한 지연
                 setTimeout(() => {
-                    document.body.removeChild(this.dialog);
+                    // 🔴 제거 전에 다시 한 번 존재 여부 확인
+                    if (this.dialog && this.dialog.parentNode) {
+                        this.dialog.parentNode.removeChild(this.dialog);
+                    }
                     this.dialog = null;
                     
                     // carousel 스크롤 위치 복원

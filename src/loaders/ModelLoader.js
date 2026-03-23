@@ -546,11 +546,29 @@ export default class ModelLoader {
                 }
             }
 
-            // 모든 메시 수집
+            // 모든 메시 수집 (그룹 객체도 포함하여 계층 구조 보존)
             const allMeshes = [];
             model.traverse((child) => {
+                // 메시뿐만 아니라 하위 메시를 가진 그룹 객체도 수집
                 if (child.isMesh) {
                     allMeshes.push(child);
+                } else if (child.children && child.children.length > 0 && child !== model) {
+                    // 자식 메시를 가진 그룹 객체 수집 (루트 모델 제외)
+                    const hasAnyMesh = child.children.some(c => c.isMesh);
+                    if (hasAnyMesh) {
+                        // 그룹 객체를 메시처럼 취급하기 위해 임시 메시로 생성
+                        const groupProxy = {
+                            name: child.name,
+                            isMesh: false,
+                            isGroup: true,
+                            visible: child.visible,
+                            parent: child.parent,
+                            material: null,
+                            children: child.children,
+                            _threeObject: child // 원본 Three.js 객체 참조
+                        };
+                        allMeshes.push(groupProxy);
+                    }
                 }
             });
 
@@ -560,16 +578,23 @@ export default class ModelLoader {
 
             // 가시성 업데이트 적용
             visibilityUpdates.forEach((isVisible, meshName) => {
-                const mesh = allMeshes.find((m) => m.name === meshName);
-                if (mesh) {
+                const item = allMeshes.find((m) => m.name === meshName);
+                if (item) {
                     console.log(
-                        `Applying visibility ${isVisible} to mesh ${meshName}`
+                        `Applying visibility ${isVisible} to ${item.isGroup ? 'group' : 'mesh'} ${meshName}`
                     );
-                    mesh.visible = isVisible;
+                    
+                    // Group 객체인 경우 원본 Three.js 객체에 적용
+                    if (item.isGroup && item._threeObject) {
+                        item._threeObject.visible = isVisible;
+                        item.visible = isVisible;
+                    } else if (item.isMesh) {
+                        item.visible = isVisible;
+                    }
 
                     // meshes Map 업데이트
                     if (isVisible) {
-                        this.meshes.set(meshName, mesh);
+                        this.meshes.set(meshName, item);
                     } else {
                         this.meshes.delete(meshName);
                         console.log(

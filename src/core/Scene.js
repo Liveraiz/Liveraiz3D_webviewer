@@ -1,6 +1,7 @@
 // core/Scene.js
 import * as THREE from 'three';
 import { CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer';
+import { CSS2DRenderer } from 'three/examples/jsm/renderers/CSS2DRenderer';
 import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader';
 import { Constants } from '../utils/Constants';
 
@@ -15,9 +16,30 @@ export default class Scene extends THREE.Scene {
         super();
         this.isDarkMode = isDarkMode;
         this.renderer = renderer;
+        
+        // CSS2DRenderer 설정 (메시 라벨 렌더링용)
+        this.setupCSS2DRenderer();
+        
         this.updateBackground(isDarkMode);
         this.setupHelpers();
         this.setupLights();
+    }
+
+    /**
+     * CSS2DRenderer 설정
+     * 2D 라벨과 텍스트를 렌더링하기 위한 렌더러 초기화
+     */
+    setupCSS2DRenderer() {
+        this.css2dRenderer = new CSS2DRenderer();
+        this.css2dRenderer.setSize(window.innerWidth, window.innerHeight);
+        this.css2dRenderer.domElement.style.position = 'absolute';
+        this.css2dRenderer.domElement.style.top = '0';
+        this.css2dRenderer.domElement.style.left = '0';
+        this.css2dRenderer.domElement.style.pointerEvents = 'none';
+        this.css2dRenderer.domElement.style.zIndex = '100';
+        document.body.appendChild(this.css2dRenderer.domElement);
+
+        console.log('[Scene] CSS2DRenderer initialized');
     }
 
     /**

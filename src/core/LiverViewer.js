@@ -8,6 +8,7 @@ import ControlManager from "../controls/ControlManager";
 import TopBar from "../ui/TopBar";
 import Toolbar from "../ui/Toolbar";
 import { ObjectListPanel } from "../ui/ObjectListPanel";
+import { MeshLabelManager } from "../ui/MeshLabelManager";
 import ModelLoader from "../loaders/ModelLoader";
 import { DeviceDetector } from "../utils/DeviceDetector";
 import { ResizeHandler } from "../utils/ResizeHandler";
@@ -103,6 +104,7 @@ export default class LiverViewer {
                 liverViewer: this,
                 panelManager: this.panelManager,
                 isDarkMode: this.isDarkMode,
+                labelManager: this.labelManager,
                 volumeTextBox: this.volumeTextBox,
             });
 
@@ -166,6 +168,12 @@ export default class LiverViewer {
 
             // 나머지 매니저들 설정
             this.setupManagers();
+
+            // ObjectListPanel에 labelManager 연결
+            if (this.objectListPanel && this.labelManager) {
+                this.objectListPanel.labelManager = this.labelManager;
+                console.log('[LiverViewer] labelManager connected to ObjectListPanel');
+            }
 
             // CameraPlayer 초기화
             this.setupCameraPlayer();
@@ -291,6 +299,10 @@ export default class LiverViewer {
         // Material manager
         this.materialManager = new MaterialManager(this.renderer.renderer);
 
+        // Mesh Label Manager - 메시 숫자 라벨 관리
+        this.labelManager = new MeshLabelManager(this.scene, this.camera);
+        console.log('[LiverViewer] MeshLabelManager initialized');
+
         // Control manager
         this.controlManager = new ControlManager(
             this.camera,
@@ -397,6 +409,12 @@ export default class LiverViewer {
                 toolbar: this.toolbar,
                 onLoadComplete: (hasAnimation) => {
                     console.log("모델 로드 완료, 애니메이션 여부:", hasAnimation);
+
+                    // 메시 라벨 초기화 (숫자가 붙은 메시들)
+                    if (this.labelManager) {
+                        this.labelManager.initializeLabelsFromScene();
+                        console.log(`[LiverViewer] ${this.labelManager.getLabelCount()} mesh labels initialized`);
+                    }
 
                     // 측정값 초기화
                     if (this.measurementTool) {
@@ -897,6 +915,11 @@ export default class LiverViewer {
 
             // Render only when needed - single pass rendering
             if (renderNeeded && this.renderer && this.scene && this.camera) {
+                // Update mesh label positions before rendering
+                if (this.labelManager) {
+                    this.labelManager.updateAllLabelsPosition();
+                }
+
                 // Standard rendering (background is already set in the scene)
                 this.renderer.render(this.scene, this.camera);
 
