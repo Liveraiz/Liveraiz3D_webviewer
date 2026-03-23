@@ -9,6 +9,10 @@ export const Constants = {
      * 다크/라이트 모드의 배경색과 UI 요소 색상 정의
      */
     COLORS: {
+        // 메인 브랜드 색상
+        PRIMARY_ACCENT: '#3A98B9',
+        SECONDARY_ACCENT: '#9333EA',  // 보라색
+        
         DARK_BACKGROUND: '#1a1a1a',
         LIGHT_BACKGROUND: '#ffffff',
         DARK_TEXT: '#ffffff',
@@ -42,6 +46,49 @@ export const Constants = {
         TRANSLATE: 'translate',
         ROTATE: 'rotate',
         SCALE: 'scale',
+    },
+
+    /**
+     * 테이블 타입 매핑
+     * 파일명의 키워드에 따라 적용할 테이블 타입과 메서드
+     * 더 구체적인 것(CCC, LDKT)을 먼저 배치
+     */
+    TABLE_TYPES: {
+        CCC: {
+            keywords: ['CCC'],
+            method: 'createHCCTable',
+            displayName: 'CCC Surgery'
+        },
+        HCC: {
+            keywords: ['HCC'],
+            method: 'createHCCTable',
+            displayName: 'HCC Surgery'
+        },
+        LDKT: {
+            keywords: ['LDKT'],
+            method: 'createKTTable',
+            displayName: 'LDKT Surgery'
+        },
+        KT: {
+            keywords: ['KT'],
+            method: 'createKTTable',
+            displayName: 'KT Surgery'
+        },
+        LDLT: {
+            keywords: ['LDLT', '5-SECTION', 'RL'],
+            method: 'createLDLTTable',
+            displayName: 'LDLT Surgery'
+        },
+        HVT: {
+            keywords: ['HVT'],
+            method: 'createHVTTable',
+            displayName: 'HVT Surgery'
+        },
+        FUSION: {
+            keywords: ['FUSION'],
+            method: null,  // 표 필요 없음 - 기본 텍스트로 표시
+            displayName: 'FUSION Surgery'
+        }
     },
 
     /**

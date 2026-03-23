@@ -3,6 +3,7 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
 import { RGBELoader } from "three/examples/jsm/loaders/RGBELoader";
 import { EXCLUDE_KEYWORDS } from "../utils/Constants";
+import { LocalFileManager } from "../utils/LocalFileManager";
 
 export default class ModelLoader {
     constructor({
@@ -89,11 +90,47 @@ export default class ModelLoader {
         this.fileInput.style.display = 'none';
         document.body.appendChild(this.fileInput);
 
+        // 다중 파일 선택 input 엘리먼트 생성 (GLB + CSV)
+        this.multiFileInput = document.createElement('input');
+        this.multiFileInput.type = 'file';
+        this.multiFileInput.accept = '.glb,.gltf,.csv';
+        this.multiFileInput.multiple = true;
+        this.multiFileInput.style.display = 'none';
+        document.body.appendChild(this.multiFileInput);
+
+        // 폴더 선택 input 엘리먼트 생성 (webkitdirectory 속성으로 폴더 선택 가능)
+        this.folderInput = document.createElement('input');
+        this.folderInput.type = 'file';
+        this.folderInput.webkitdirectory = true;
+        this.folderInput.mozdirectory = true;
+        this.folderInput.msdirectory = true;
+        this.folderInput.odirectory = true;
+        this.folderInput.directory = true;
+        this.folderInput.style.display = 'none';
+        document.body.appendChild(this.folderInput);
+
         // 파일 선택 이벤트 리스너
         this.fileInput.addEventListener('change', (event) => {
             const file = event.target.files[0];
             if (file) {
                 this.loadLocalFile(file);
+            }
+        });
+
+        // 다중 파일 선택 이벤트 리스너
+        this.multiFileInput.addEventListener('change', (event) => {
+            if (event.target.files.length > 0) {
+                this.loadLocalFiles(event.target.files);
+            }
+        });
+
+        // 폴더 선택 이벤트 리스너
+        this.folderInput.addEventListener('change', (event) => {
+            console.log('[ModelLoader] Folder change event triggered', event.target.files.length, 'files');
+            if (event.target.files.length > 0) {
+                this.loadFromFolder(event.target.files);
+            } else {
+                console.warn('[ModelLoader] No files selected from folder');
             }
         });
 
@@ -110,6 +147,9 @@ export default class ModelLoader {
         this.hdriLoaded = false;
         this.modelLoaded = false;
         this.hdriTexture = null;
+
+        // LocalFileManager 초기화
+        this.localFileManager = new LocalFileManager();
         this._pendingGltf = null;
         this._pendingLoadingElem = null;
         this._pendingModel = null;
@@ -1261,6 +1301,109 @@ export default class ModelLoader {
         this.fileInput.click();
     }
 
+    // 다중 파일 선택 다이얼로그 열기 메서드
+    openMultiFileDialog() {
+        this.multiFileInput.click();
+    }
+
+    /**
+     * 다중 로컬 파일 로드 및 모델 셀렉터에 추가
+     * @param {FileList} files - 선택된 파일 목록
+     */
+    async loadLocalFiles(files) {
+        try {
+            console.log('[LocalFileLoader] 파일 처리 시작:', files.length, '개 파일');
+            
+            // LocalFileManager로 파일 처리
+            const models = this.localFileManager.processFiles(files);
+            
+            if (models.length === 0) {
+                alert('로드할 GLB 모델을 찾을 수 없습니다. (.glb 또는 .gltf 파일이 필요합니다)');
+                return;
+            }
+
+            console.log('[LocalFileLoader] 처리된 모델:', models);
+
+            // ModelSelector에 전달할 데이터 구성
+            const modelData = {
+                isLocalFiles: true,
+                models: await Promise.all(models.map(async (model) => {
+                    const data = await this.localFileManager.getModelData(model.name);
+                    return {
+                        name: model.name,
+                        isCaseFile: false, // 로컬 파일이므로 case 파일 아님
+                        case: null,
+                        tableUrl: null, // 로컬 파일이므로 테이블이 로드되지 않음
+                        glbFile: data.glbFile,
+                        csvFile: data.csvFile,
+                        csvData: data.csvData, // CSV 데이터
+                        hasData: data.hasData
+                    };
+                }))
+            };
+
+            console.log('[LocalFileLoader] ModelSelector에 전달할 데이터:', modelData);
+
+            // ModelSelector 업데이트
+            if (window.liverViewer && window.liverViewer.modelSelector) {
+                window.liverViewer.modelSelector.updateLocalModels(modelData);
+                window.liverViewer.modelSelector.show();
+            } else {
+                console.error('ModelSelector를 찾을 수 없습니다.');
+            }
+        } catch (error) {
+            console.error('[LocalFileLoader] 오류:', error);
+            alert('파일 로드 중 오류가 발생했습니다: ' + error.message);
+        }
+    }
+
+    /**
+     * 로컬 파일의 GLB 모델 로드
+     * @param {File} glbFile - GLB 파일
+     * @param {string} csvData - CSV 데이터 (선택사항)
+     */
+    async loadLocalGLBModel(glbFile, csvData = null) {
+        try {
+            this.resetScene();
+            this.loadingBar.show();
+            this.loadingBar.setTitle(`Loading ${glbFile.name}...`);
+            this.loadingBar.setProgress(0);
+
+            const reader = new FileReader();
+            
+            reader.onload = (e) => {
+                const arrayBuffer = e.target.result;
+                
+                // GLTFLoader로 로컬 파일 로드
+                this.loader.parse(arrayBuffer, '', (gltf) => {
+                    console.log('[LocalFileLoader] GLB 파일 로드 완료:', glbFile.name);
+                    
+                    // CSV 데이터를 gltf에 첨부 (나중에 접근할 수 있도록)
+                    if (csvData) {
+                        gltf.userData = gltf.userData || {};
+                        gltf.userData.csvData = csvData;
+                        gltf.userData.fileName = glbFile.name.replace(/\.(glb|gltf)$/i, '');
+                    }
+                    
+                    this.handleLoadSuccess(gltf, null);
+                }, (error) => {
+                    console.error('[LocalFileLoader] GLB 파일 파싱 오류:', error);
+                    this.handleLoadError(error, null);
+                });
+            };
+
+            reader.onerror = (error) => {
+                console.error('[LocalFileLoader] 파일 읽기 오류:', error);
+                this.handleLoadError(error, null);
+            };
+
+            reader.readAsArrayBuffer(glbFile);
+        } catch (error) {
+            console.error('[LocalFileLoader] loadLocalGLBModel 오류:', error);
+            this.handleLoadError(error, null);
+        }
+    }
+
     setupMeshDeform(model) {
         // Empty 오브젝트 찾기
         const emptyObjects = [];
@@ -1571,5 +1714,142 @@ export default class ModelLoader {
         
         // 또는 자동재생이 활성화되어 있는지 확인
         return this.isPlaying;
+    }
+
+    /**
+     * 폴더 선택 다이얼로그 열기
+     * webkitdirectory 지원하는 브라우저에서만 동작
+     */
+    openFolderDialog() {
+        console.log('[ModelLoader] openFolderDialog called');
+        console.log('[ModelLoader] this.folderInput:', this.folderInput);
+        if (this.folderInput) {
+            console.log('[ModelLoader] Clicking folderInput');
+            this.folderInput.click();
+        } else {
+            console.warn('[ModelLoader] folderInput is not available');
+        }
+    }
+
+    /**
+     * 다중 파일 선택 다이얼로그 열기
+     */
+    openMultiFileDialog() {
+        this.multiFileInput.click();
+    }
+
+    /**
+     * 폴더 내의 모든 파일을 그룹핑해서 로드
+     * @param {FileList} fileList - 폴더 내 파일들
+     */
+    async loadFromFolder(fileList) {
+        try {
+            console.log('[ModelLoader] 폴더에서 파일 로드 시작:', fileList.length, '개 파일');
+
+            // 로딩 바 표시
+            this.loadingBar.show();
+            this.loadingBar.setTitle("Loading folder files...");
+            this.loadingBar.setProgress(0);
+
+            // LocalFileManager로 파일 그룹핑
+            const models = this.localFileManager.groupFilesByName(fileList);
+            console.log('[ModelLoader] 그룹핑된 모델 수:', models.length);
+
+            // 모델 데이터 준비 (Blob URL, CSV 읽기)
+            const preparedModels = await this.localFileManager.prepareModels(models);
+            console.log('[ModelLoader] 준비된 모델 수:', preparedModels.length);
+
+            // ModelSelector에 콜백으로 전달
+            if (window.liverViewer && window.liverViewer.modelSelector) {
+                window.liverViewer.modelSelector.loadLocalModels(preparedModels);
+            }
+
+            this.loadingBar.hide();
+        } catch (error) {
+            console.error('[ModelLoader] 폴더 로드 오류:', error);
+            this.loadingBar.hide();
+            alert('폴더 로드 중 오류 발생: ' + error.message);
+        }
+    }
+
+    /**
+     * 다중 파일 로드 (옵션 B: 여러 파일 선택)
+     * @param {FileList} fileList - 선택된 파일들
+     */
+    async loadLocalFiles(fileList) {
+        try {
+            console.log('[ModelLoader] 다중 파일 로드 시작:', fileList.length, '개 파일');
+
+            // 로딩 바 표시
+            this.loadingBar.show();
+            this.loadingBar.setTitle("Loading multiple files...");
+            this.loadingBar.setProgress(0);
+
+            // LocalFileManager로 파일 그룹핑
+            const models = this.localFileManager.groupFilesByName(fileList);
+            console.log('[ModelLoader] 그룹핑된 모델 수:', models.length);
+
+            // 모델 데이터 준비
+            const preparedModels = await this.localFileManager.prepareModels(models);
+            console.log('[ModelLoader] 준비된 모델 수:', preparedModels.length);
+
+            // ModelSelector에 콜백으로 전달
+            if (window.liverViewer && window.liverViewer.modelSelector) {
+                window.liverViewer.modelSelector.loadLocalModels(preparedModels);
+            }
+
+            this.loadingBar.hide();
+        } catch (error) {
+            console.error('[ModelLoader] 다중 파일 로드 오류:', error);
+            this.loadingBar.hide();
+            alert('파일 로드 중 오류 발생: ' + error.message);
+        }
+    }
+
+    /**
+     * 로컬 모델 로드 (ModelSelector에서 선택된 모델)
+     * @param {Object} model - 모델 정보
+     */
+    async loadModelFromLocal(model) {
+        try {
+            // 기존 모델과 메시들을 제거
+            this.resetScene();
+
+            // 로딩 바 표시
+            this.loadingBar.show();
+            this.loadingBar.setTitle(`Loading ${model.name}...`);
+            this.loadingBar.setProgress(0);
+
+            // GLB 파일 ArrayBuffer로 읽기
+            const arrayBuffer = await this.localFileManager.readGlbFile(model.glbFile);
+
+            // GLTFLoader로 파싱
+            this.loader.parse(arrayBuffer, '', (gltf) => {
+                console.log('[ModelLoader] 로컬 모델 로드 성공:', model.name);
+                
+                // CSV 데이터와 함께 핸들러 호출
+                const modelData = {
+                    ...model,
+                    gltf: gltf
+                };
+                this.handleLoadSuccess(gltf, modelData);
+            }, undefined, (error) => {
+                console.error('[ModelLoader] 로컬 모델 파싱 오류:', error);
+                this.handleLoadError(error, null);
+            });
+        } catch (error) {
+            console.error('[ModelLoader] 로컬 모델 로드 오류:', error);
+            this.handleLoadError(error, null);
+        }
+    }
+
+    /**
+     * 특별 처리: 로컬 모델 로드 후 CSV 테이블 표시
+     */
+    onLocalModelLoadComplete(modelData) {
+        if (modelData && modelData.csvData && window.liverViewer && window.liverViewer.modelSelector) {
+            // CSV 데이터를 ModelSelector로 전달
+            window.liverViewer.modelSelector.displayLocalModelTable(modelData);
+        }
     }
 }

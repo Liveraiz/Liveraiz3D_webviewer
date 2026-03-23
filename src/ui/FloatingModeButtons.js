@@ -49,27 +49,27 @@ export default class FloatingModeButtons {
     createButtons() {
         const config = Constants.FLOATING_BUTTONS;
 
-        // Enter XR Mode 버튼
-        this.xrButton = this.createButton({
-            id: 'enter-xr-button',
-            label: 'Enter XR',
-            icon: '🥽',
-            onClick: () => this.handleXRModeClick()
-        });
+        // // Enter XR Mode 버튼
+        // this.xrButton = this.createButton({
+        //     id: 'enter-xr-button',
+        //     label: 'Enter XR',
+        //     icon: '🥽',
+        //     onClick: () => this.handleXRModeClick()
+        // });
 
-        // 3D Glass Mode 버튼
-        this.glassButton = this.createButton({
-            id: '3d-glass-button',
-            label: '3D Glass',
-            icon: '👓',
-            onClick: () => this.handle3DGlassModeClick()
-        });
+        // // 3D Glass Mode 버튼
+        // this.glassButton = this.createButton({
+        //     id: '3d-glass-button',
+        //     label: '3D Glass',
+        //     icon: '👓',
+        //     onClick: () => this.handle3DGlassModeClick()
+        // });
 
-        this.container.appendChild(this.xrButton);
-        this.container.appendChild(this.glassButton);
+        // this.container.appendChild(this.xrButton);
+        // this.container.appendChild(this.glassButton);
 
-        this.applyButtonStyles(this.xrButton);
-        this.applyButtonStyles(this.glassButton);
+        // this.applyButtonStyles(this.xrButton);
+        // this.applyButtonStyles(this.glassButton);
     }
 
     createButton(options) {

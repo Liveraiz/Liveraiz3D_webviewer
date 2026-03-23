@@ -257,6 +257,7 @@ export default class LiverViewer {
             controlManager: this.controlManager,
             cameraPlayer: this.cameraPlayer,
             modelLoader: this.modelLoader,
+            modelSelector: this.modelSelector,
         });
 
         // 추가: 명시적으로 cameraPlayer 설정
@@ -458,6 +459,12 @@ export default class LiverViewer {
 
             // ModelSelector 초기화
             this.modelSelector = new ModelSelector(this);
+
+            // ModelSelector에 ModelLoader 설정
+            if (this.modelSelector && this.modelLoader) {
+                this.modelSelector.setModelLoader(this.modelLoader);
+                console.log("[LiverViewer] ModelLoader 설정 완료");
+            }
 
             // ModelSelector에서 JSON 파일을 로드한 후 로고 데이터 처리를 위한 콜백 추가
             this.modelSelector.onJsonLoaded = (jsonData) => {

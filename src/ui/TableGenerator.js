@@ -1,6 +1,7 @@
 // utils/TableGenerator.js
 
 import { COLOR, tableColor } from "../utils/color.js";
+import { Constants } from "../utils/Constants";
 
 export class TableGenerator {
     constructor(isDarkMode = false) {
@@ -23,7 +24,7 @@ export class TableGenerator {
                 valueBg: "#ffffff",
             },
             dark: {
-                header: "#3A98B9",
+                header: Constants.COLORS.PRIMARY_ACCENT,
                 headerText: "#e6e6e6",
                 tableBorder: "#4a5568",
                 textColor: "#000000",
@@ -58,6 +59,62 @@ export class TableGenerator {
         return value + "%";
     }
 
+    /**
+     * 파일명 기반으로 Surgery Type 감지
+     * Constants.TABLE_TYPES에 정의된 매핑을 사용
+     * @param {string} fileName - 파일명
+     * @returns {string} Surgery Type (HCC, CCC, KT, LDKT, LDLT 등)
+     */
+    detectSurgeryType(fileName) {
+        if (!fileName) return null;
+        
+        const name = fileName.toUpperCase();
+        
+        // Constants.TABLE_TYPES에서 정의한 순서대로 탐색
+        // (객체 반복 순서가 정의된 순서대로 유지됨)
+        for (const [typeKey, typeConfig] of Object.entries(Constants.TABLE_TYPES)) {
+            for (const keyword of typeConfig.keywords) {
+                if (name.includes(keyword)) {
+                    console.log(`[TableGenerator] 감지된 타입: ${typeKey} (키워드: ${keyword})`);
+                    return typeKey;
+                }
+            }
+        }
+        
+        return null;
+    }
+
+    /**
+     * 파일명과 CSV 데이터를 기반으로 자동 테이블 생성
+     * @param {string} csvData - CSV 데이터
+     * @param {string} fileName - 파일명
+     * @returns {Object} { html: string, surgeryType: string }
+     */
+    autoCreateTable(csvData, fileName) {
+        const surgeryType = this.detectSurgeryType(fileName);
+        let tableHTML = '';
+
+        if (surgeryType && Constants.TABLE_TYPES[surgeryType]) {
+            const typeConfig = Constants.TABLE_TYPES[surgeryType];
+            const methodName = typeConfig.method;
+            
+            // 메서드가 존재하는지 확인 후 호출
+            if (typeof this[methodName] === 'function') {
+                tableHTML = this[methodName](csvData, surgeryType);
+            } else {
+                console.warn(`[TableGenerator] 메서드를 찾을 수 없음: ${methodName}`);
+                tableHTML = `<pre style="white-space: pre-wrap; word-wrap: break-word; font-family: monospace;">${csvData}</pre>`;
+            }
+        } else {
+            // 기본 표시
+            tableHTML = `<pre style="white-space: pre-wrap; word-wrap: break-word; font-family: monospace;">${csvData}</pre>`;
+        }
+
+        return {
+            html: tableHTML,
+            surgeryType: surgeryType
+        };
+    }
 
     // Spleen Volume 별도 표 생성
     createSpleenVolumeTable(csvData) {
@@ -1315,7 +1372,7 @@ export function createLeftPanelTable(csvData, surgeryType = "LDLT") {
 
     // 스타일
     const theme = {
-        header: "#3A98B9",
+        header: Constants.COLORS.PRIMARY_ACCENT,
         headerText: "#e6e6e6",
         tableBorder: "#4a5568",
         textColor: "#000000",

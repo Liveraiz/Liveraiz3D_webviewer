@@ -4,6 +4,7 @@ import { DropboxService } from "../services/DropboxService";
 import { DeviceDetector } from "../utils/DeviceDetector";
 import { TableGenerator } from "./TableGenerator";
 import { createLeftPanelTable } from "./TableGenerator";
+import { Constants } from "../utils/Constants";
 
 export default class ModelSelector {
     constructor(liverViewer) {
@@ -20,6 +21,10 @@ export default class ModelSelector {
         this.isLoading = false; // 로딩 상태 추적
         this.currentModelIndex = 0; // 현재 선택된 모델의 인덱스
         this.lastScrollPosition = 0; // 마지막 carousel 스크롤 위치
+
+        // 로컬 파일 모델 관련 속성 (옵션 B)
+        this.localModels = []; // 로컬 파일로드된 모델 배열
+        this.isLocalFilesMode = false; // 로컬 파일 모드 여부
 
         // UI 컨테이너 초기화
         this.container = document.createElement("div");
@@ -1552,5 +1557,320 @@ export default class ModelSelector {
                 dialog.remove();
             }
         });
+    }
+
+    /**
+     * 폴더 또는 다중 파일 선택 다이얼로그 열기
+     * 로컬 모델이 이미 있으면 폴더 선택 없이 모델 리스트를 다시 표시
+     */
+    openFolderDialog() {
+        console.log('[ModelSelector] openFolderDialog called');
+        console.log('[ModelSelector] this.localModels.length:', this.localModels.length);
+        
+        // 로컬 모델이 이미 로드되어 있으면 모델 리스트를 다시 표시
+        if (this.localModels && this.localModels.length > 0) {
+            console.log('[ModelSelector] 기존 로컬 모델 리스트 재표시');
+            this.displayLocalModelList();
+            return;
+        }
+        
+        // 로컬 모델이 없으면 폴더 선택 다이얼로그 열기
+        console.log('[ModelSelector] this.modelLoader:', this.modelLoader);
+        if (this.modelLoader) {
+            console.log('[ModelSelector] Calling modelLoader.openFolderDialog');
+            this.modelLoader.openFolderDialog();
+        } else {
+            console.warn('[ModelSelector] modelLoader is not available');
+        }
+    }
+
+    openMultiFileDialog() {
+        if (this.modelLoader) {
+            this.modelLoader.openMultiFileDialog();
+        }
+    }
+
+    /**
+     * 로컬 폴더/파일로부터 로드된 모델들 처리
+     * @param {Array} preparedModels - LocalFileManager에서 준비된 모델 배열
+     */
+    async loadLocalModels(preparedModels) {
+        console.log('[ModelSelector] 로컬 모델 로드:', preparedModels.length, '개');
+        this.localModels = preparedModels;
+        this.isLocalFilesMode = true;
+
+        // 모델 리스트 업데이트
+        await this.displayLocalModelList();
+    }
+
+    /**
+     * 로컬 모델 리스트를 UI에 표시
+     */
+    async displayLocalModelList() {
+        try {
+            // 기존 다이얼로그 닫기
+            if (this.dialog) {
+                this.close();
+            }
+
+            // 새 다이얼로그 생성
+            this.dialog = document.createElement("div");
+            this.dialog.className = "model-selector-dialog local-folder-mode";
+            this.dialog.style.cssText = `
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                background: ${this.isDarkMode ? '#2a2a2a' : '#ffffff'};
+                border: 1px solid ${this.isDarkMode ? '#444444' : '#cccccc'};
+                border-radius: 12px;
+                padding: 30px;
+                max-width: 600px;
+                max-height: 600px;
+                overflow-y: auto;
+                z-index: 10000;
+                box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            `;
+
+            // 헤더
+            const header = document.createElement('div');
+            header.style.cssText = `
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 20px;
+                padding-bottom: 15px;
+                border-bottom: 2px solid ${this.isDarkMode ? '#444444' : '#eeeeee'};
+            `;
+            header.innerHTML = `
+                <h2 style="margin: 0; color: ${this.isDarkMode ? '#e6e6e6' : '#2c3e50'};font-size: 20px;">로컬 모델 리스트</h2>
+                <button onclick="this.closest('.model-selector-dialog').remove()" style="
+                    background: transparent;
+                    border: none;
+                    color: ${this.isDarkMode ? '#999' : '#666'};
+                    font-size: 24px;
+                    cursor: pointer;
+                    padding: 0;
+                    width: 30px;
+                    height: 30px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                ">×</button>
+            `;
+            this.dialog.appendChild(header);
+
+            // 정보 텍스트
+            const info = document.createElement('div');
+            info.style.cssText = `
+                font-size: 14px;
+                color: ${this.isDarkMode ? '#aaa' : '#666'};
+                margin-bottom: 20px;
+            `;
+            info.textContent = `총 ${this.localModels.length}개의 모델이 로드되었습니다. (파일명 기준으로 자동 그룹핑)`;
+            this.dialog.appendChild(info);
+
+            // 모델 리스트 컨테이너
+            const modelListContainer = document.createElement('div');
+            modelListContainer.style.cssText = `
+                display: grid;
+                grid-template-columns: 1fr;
+                gap: 12px;
+            `;
+
+            // 각 모델을 버튼으로 표시
+            for (const model of this.localModels) {
+                const modelButton = document.createElement('div');
+                modelButton.className = 'local-model-button';
+                modelButton.dataset.modelId = model.id;
+                modelButton.style.cssText = `
+                    padding: 15px;
+                    background: ${this.isDarkMode ? '#3a3a3a' : '#f5f5f5'};
+                    border: 2px solid transparent;
+                    border-radius: 8px;
+                    cursor: pointer;
+                    transition: all 0.3s ease;
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                `;
+
+                modelButton.onmouseover = () => {
+                    modelButton.style.background = this.isDarkMode ? '#4a4a4a' : '#efefef';
+                    modelButton.style.borderColor = Constants.COLORS.PRIMARY_ACCENT;
+                };
+
+                modelButton.onmouseout = () => {
+                    modelButton.style.background = this.isDarkMode ? '#3a3a3a' : '#f5f5f5';
+                    modelButton.style.borderColor = 'transparent';
+                };
+
+                // 모델 정보 (왼쪽)
+                const modelInfo = document.createElement('div');
+                modelInfo.style.cssText = `
+                    flex: 1;
+                `;
+
+                const modelName = document.createElement('div');
+                modelName.style.cssText = `
+                    font-weight: 600;
+                    color: ${this.isDarkMode ? '#e6e6e6' : '#2c3e50'};
+                    font-size: 15px;
+                    margin-bottom: 5px;
+                `;
+                modelName.textContent = model.name;
+                modelInfo.appendChild(modelName);
+
+                const modelMeta = document.createElement('div');
+                modelMeta.style.cssText = `
+                    font-size: 12px;
+                    color: ${this.isDarkMode ? '#999' : '#999'};
+                `;
+                modelMeta.textContent = `${model.csvFile ? '📊 CSV' : ''}${model.imageFile ? ' 📷 Image' : ''}`.trim() || '3D Model';
+                modelInfo.appendChild(modelMeta);
+
+                // 모델 썸네일 (오른쪽)
+                const modelThumbnail = document.createElement('div');
+                modelThumbnail.style.cssText = `
+                    width: 60px;
+                    height: 60px;
+                    background: ${this.isDarkMode ? '#2a2a2a' : '#e0e0e0'};
+                    border-radius: 6px;
+                    margin-left: 15px;
+                    overflow: hidden;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                `;
+
+                if (model.imageUrl) {
+                    modelThumbnail.style.backgroundImage = `url(${model.imageUrl})`;
+                    modelThumbnail.style.backgroundSize = 'cover';
+                    modelThumbnail.style.backgroundPosition = 'center';
+                } else {
+                    modelThumbnail.innerHTML = '📦';
+                    modelThumbnail.style.fontSize = '24px';
+                }
+
+                modelButton.appendChild(modelInfo);
+                modelButton.appendChild(modelThumbnail);
+
+                // 클릭 이벤트
+                modelButton.onclick = () => this.selectLocalModel(model);
+
+                modelListContainer.appendChild(modelButton);
+            }
+
+            this.dialog.appendChild(modelListContainer);
+
+            // 액션 버튼 (하단)
+            const actions = document.createElement('div');
+            actions.style.cssText = `
+                display: flex;
+                gap: 10px;
+                margin-top: 20px;
+                padding-top: 15px;
+                border-top: 1px solid ${this.isDarkMode ? '#444444' : '#e0e0e0'};
+            `;
+
+            const moreFilesBtn = document.createElement('button');
+            moreFilesBtn.textContent = '+ 더 추가';
+            moreFilesBtn.style.cssText = `
+                flex: 1;
+                padding: 10px;
+                background: ${Constants.COLORS.SECONDARY_ACCENT};
+                color: white;
+                border: none;
+                border-radius: 6px;
+                cursor: pointer;
+                font-size: 14px;
+                font-weight: 600;
+                transition: opacity 0.3s ease;
+            `;
+            moreFilesBtn.onmouseover = () => moreFilesBtn.style.opacity = '0.8';
+            moreFilesBtn.onmouseout = () => moreFilesBtn.style.opacity = '1';
+            moreFilesBtn.onclick = () => {
+                // 다이얼로그 닫고 새로운 폴더 선택 시작
+                if (this.dialog) {
+                    this.dialog.remove();
+                    this.dialog = null;
+                }
+                // 새로운 폴더 선택 다이얼로그 열기
+                if (this.modelLoader) {
+                    this.modelLoader.openFolderDialog();
+                }
+            };
+
+            actions.appendChild(moreFilesBtn);
+            this.dialog.appendChild(actions);
+
+            document.body.appendChild(this.dialog);
+
+            // 배경 클릭시 닫기 이벤트
+            this.dialog.addEventListener('click', (e) => {
+                if (e.target === this.dialog) {
+                    this.close();
+                }
+            });
+
+        } catch (error) {
+            console.error('[ModelSelector] 로컬 모델 리스트 표시 오류:', error);
+        }
+    }
+
+    /**
+     * 로컬 모델 선택 및 로드
+     * @param {Object} model - 선택된 모델 정보
+     */
+    async selectLocalModel(model) {
+        try {
+            console.log('[ModelSelector] 로컬 모델 선택:', model.name);
+
+            // 다이얼로그 닫기
+            if (this.dialog) {
+                this.dialog.remove();
+                this.dialog = null;
+            }
+
+            // ModelLoader에서 모델 로드
+            if (this.modelLoader) {
+                await this.modelLoader.loadModelFromLocal(model);
+            }
+
+            // CSV 테이블 표시 (있으면)
+            if (model.csvData) {
+                this.displayLocalModelTable(model);
+            }
+
+        } catch (error) {
+            console.error('[ModelSelector] 로컬 모델 선택 오류:', error);
+            alert('모델 로드 중 오류 발생: ' + error.message);
+        }
+    }
+
+    /**
+     * 로컬 모델의 CSV 테이블 표시
+     * @param {Object} model - 모델 정보 (csvData, surgeryType 포함)
+     */
+    displayLocalModelTable(model) {
+        try {
+            if (!model.csvData || !window.liverViewer || !window.liverViewer.textPanel) {
+                console.warn('[ModelSelector] TextPanel 또는 CSV 데이터가 없습니다');
+                return;
+            }
+
+            // TableGenerator의 autoCreateTable 메서드 사용 - 파일명 기반으로 자동 감지
+            const result = this.tableGenerator.autoCreateTable(model.csvData, model.name);
+            const tableHTML = result.html;
+            const surgeryType = result.surgeryType;
+
+            console.log(`[ModelSelector] CSV 테이블 생성: ${model.name} (Type: ${surgeryType})`);
+
+            // TextPanel에 표시 (updateContent가 자동으로 패널을 열어줌)
+            window.liverViewer.textPanel.updateContent(tableHTML);
+
+        } catch (error) {
+            console.error('[ModelSelector] 로컬 모델 테이블 표시 오류:', error);
+        }
     }
 }
