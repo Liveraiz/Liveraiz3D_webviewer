@@ -80,7 +80,7 @@ export const Constants = {
             displayName: 'LDLT Surgery'
         },
         HVT: {
-            keywords: ['HVT'],
+            keywords: ['HVT', 'left'],
             method: 'createHVTTable',
             displayName: 'HVT Surgery'
         },
