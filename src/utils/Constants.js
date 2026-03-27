@@ -1,17 +1,17 @@
 /**
- * 뷰어 관련 상수 정의
- * 색상, 크기, 모드 등 뷰어에서 사용되는 기본 값들을 정의
+ * Define viewer-related constants
+ * Define default values used in the viewer such as colors, sizes, and modes
  */
-// 각 상수값을 관리하는 클래스
+// Class that manages each constant value
 export const Constants = {
     /**
-     * 색상 상수
-     * 다크/라이트 모드의 배경색과 UI 요소 색상 정의
+     * Color constants
+     * Define background colors and UI element colors for dark/light modes
      */
     COLORS: {
-        // 메인 브랜드 색상
+        // Main brand color
         PRIMARY_ACCENT: '#3A98B9',
-        SECONDARY_ACCENT: '#9333EA',  // 보라색
+        SECONDARY_ACCENT: '#9333EA',  // Purple
         
         DARK_BACKGROUND: '#1a1a1a',
         LIGHT_BACKGROUND: '#ffffff',
@@ -27,7 +27,7 @@ export const Constants = {
     },
 
     /**
-     * 크기 상수
+     * Size constants
      * UI 요소의 크기와 여백 정의
      */
     SIZES: {

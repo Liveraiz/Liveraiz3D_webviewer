@@ -18,7 +18,7 @@ export default class ModelLoader {
         loadingBar,
         renderer,
         toolbar,
-        hdriPath, // 추가: 조명용 HDRI 경로
+        hdriPath, // ADDED: Path for lighting HDRI
     }) {
         this.scene = scene;
         this.camera = camera;
@@ -36,11 +36,11 @@ export default class ModelLoader {
         this.loadingBar = loadingBar;
         this.renderer = renderer;
         
-        // Toolbar 초기화
+        // Initialize Toolbar
         if (toolbar) {
             console.log("Initializing Toolbar in ModelLoader");
             this.toolbar = toolbar;
-            // Toolbar가 이미 초기화되어 있는지 확인
+            // Check if Toolbar is already initialized
             if (!this.toolbar.container) {
                 console.warn("Toolbar container not found, creating new container");
                 const container = document.createElement('div');
@@ -52,7 +52,7 @@ export default class ModelLoader {
             console.warn("No Toolbar provided to ModelLoader");
         }
 
-        // 디버깅
+        // Debugging
         console.log("ModelLoader initialized with:", {
             hasScene: !!scene,
             hasCamera: !!camera,
@@ -83,14 +83,14 @@ export default class ModelLoader {
         ];
         this.currentModelIndex = this.modelPaths.indexOf(modelPath) || 0;
 
-        // 파일 업로드 input 엘리먼트 생성
+        // Create file upload input element
         this.fileInput = document.createElement('input');
         this.fileInput.type = 'file';
         this.fileInput.accept = '.glb,.gltf';
         this.fileInput.style.display = 'none';
         document.body.appendChild(this.fileInput);
 
-        // 다중 파일 선택 input 엘리먼트 생성 (GLB + CSV)
+        // Create multiple file selection input element (GLB + CSV)
         this.multiFileInput = document.createElement('input');
         this.multiFileInput.type = 'file';
         this.multiFileInput.accept = '.glb,.gltf,.csv';
@@ -98,7 +98,7 @@ export default class ModelLoader {
         this.multiFileInput.style.display = 'none';
         document.body.appendChild(this.multiFileInput);
 
-        // 폴더 선택 input 엘리먼트 생성 (webkitdirectory 속성으로 폴더 선택 가능)
+        // Create folder selection input element (folder selection possible with webkitdirectory attribute)
         this.folderInput = document.createElement('input');
         this.folderInput.type = 'file';
         this.folderInput.webkitdirectory = true;
@@ -109,7 +109,7 @@ export default class ModelLoader {
         this.folderInput.style.display = 'none';
         document.body.appendChild(this.folderInput);
 
-        // 파일 선택 이벤트 리스너
+        // File selection event listener
         this.fileInput.addEventListener('change', (event) => {
             const file = event.target.files[0];
             if (file) {
@@ -117,14 +117,14 @@ export default class ModelLoader {
             }
         });
 
-        // 다중 파일 선택 이벤트 리스너
+        // Multiple file selection event listener
         this.multiFileInput.addEventListener('change', (event) => {
             if (event.target.files.length > 0) {
                 this.loadLocalFiles(event.target.files);
             }
         });
 
-        // 폴더 선택 이벤트 리스너
+        // Folder selection event listener
         this.folderInput.addEventListener('change', (event) => {
             console.log('[ModelLoader] Folder change event triggered', event.target.files.length, 'files');
             if (event.target.files.length > 0) {
@@ -134,21 +134,21 @@ export default class ModelLoader {
             }
         });
 
-        // 애니메이션 컨트롤 관련 변수 추가
+        // ADDED: Animation control related variables
         this.animationSlider = null;
         this.animationTimeDisplay = null;
         this.animationPlayButton = null;
         this.currentAnimationTime = 0;
         this.maxAnimationDuration = 0;
 
-        // HDRI 관련 상태
+        // HDRI related state
         this.hdriPath = hdriPath || './studio_country_hall_1k.hdr';
         this.hdriLoader = new RGBELoader();
         this.hdriLoaded = false;
         this.modelLoaded = false;
         this.hdriTexture = null;
 
-        // LocalFileManager 초기화
+        // Initialize LocalFileManager
         this.localFileManager = new LocalFileManager();
         this._pendingGltf = null;
         this._pendingLoadingElem = null;
@@ -297,7 +297,7 @@ export default class ModelLoader {
             if (window.liverViewer && window.liverViewer.modelSelector) {
                 const modelSelector = window.liverViewer.modelSelector;
                 if (modelSelector.dialog && modelSelector.dialog.style.display !== 'none') {
-                    console.log('[ModelLoader] ModelSelector 닫기 - 로딩 UI와 겹침 방지');
+                    console.log('[ModelLoader] Closing ModelSelector - prevent overlap with loading UI');
                     modelSelector.close();
                 }
             }
@@ -1739,70 +1739,70 @@ export default class ModelLoader {
     }
 
     /**
-     * 폴더 내의 모든 파일을 그룹핑해서 로드
-     * @param {FileList} fileList - 폴더 내 파일들
+     * Group and load all files in folder
+     * @param {FileList} fileList - Files in folder
      */
     async loadFromFolder(fileList) {
         try {
-            console.log('[ModelLoader] 폴더에서 파일 로드 시작:', fileList.length, '개 파일');
+            console.log('[ModelLoader] Started loading files from folder:', fileList.length, 'files');
 
-            // 로딩 바 표시
+            // Show loading bar
             this.loadingBar.show();
             this.loadingBar.setTitle("Loading folder files...");
             this.loadingBar.setProgress(0);
 
-            // LocalFileManager로 파일 그룹핑
+            // Group files with LocalFileManager
             const models = this.localFileManager.groupFilesByName(fileList);
-            console.log('[ModelLoader] 그룹핑된 모델 수:', models.length);
+            console.log('[ModelLoader] Grouped model count:', models.length);
 
-            // 모델 데이터 준비 (Blob URL, CSV 읽기)
+            // Prepare model data (Blob URL, CSV reading)
             const preparedModels = await this.localFileManager.prepareModels(models);
-            console.log('[ModelLoader] 준비된 모델 수:', preparedModels.length);
+            console.log('[ModelLoader] Prepared model count:', preparedModels.length);
 
-            // ModelSelector에 콜백으로 전달
+            // Pass to ModelSelector via callback
             if (window.liverViewer && window.liverViewer.modelSelector) {
                 window.liverViewer.modelSelector.loadLocalModels(preparedModels);
             }
 
             this.loadingBar.hide();
         } catch (error) {
-            console.error('[ModelLoader] 폴더 로드 오류:', error);
+            console.error('[ModelLoader] Folder loading error:', error);
             this.loadingBar.hide();
-            alert('폴더 로드 중 오류 발생: ' + error.message);
+            alert('Error occurred while loading folder: ' + error.message);
         }
     }
 
     /**
-     * 다중 파일 로드 (옵션 B: 여러 파일 선택)
-     * @param {FileList} fileList - 선택된 파일들
+     * Load multiple files (Option B: select multiple files)
+     * @param {FileList} fileList - Selected files
      */
     async loadLocalFiles(fileList) {
         try {
-            console.log('[ModelLoader] 다중 파일 로드 시작:', fileList.length, '개 파일');
+            console.log('[ModelLoader] Started loading multiple files:', fileList.length, 'files');
 
-            // 로딩 바 표시
+            // Show loading bar
             this.loadingBar.show();
             this.loadingBar.setTitle("Loading multiple files...");
             this.loadingBar.setProgress(0);
 
-            // LocalFileManager로 파일 그룹핑
+            // Group files with LocalFileManager
             const models = this.localFileManager.groupFilesByName(fileList);
-            console.log('[ModelLoader] 그룹핑된 모델 수:', models.length);
+            console.log('[ModelLoader] Grouped model count:', models.length);
 
-            // 모델 데이터 준비
+            // Prepare model data
             const preparedModels = await this.localFileManager.prepareModels(models);
-            console.log('[ModelLoader] 준비된 모델 수:', preparedModels.length);
+            console.log('[ModelLoader] Prepared model count:', preparedModels.length);
 
-            // ModelSelector에 콜백으로 전달
+            // Pass to ModelSelector via callback
             if (window.liverViewer && window.liverViewer.modelSelector) {
                 window.liverViewer.modelSelector.loadLocalModels(preparedModels);
             }
 
             this.loadingBar.hide();
         } catch (error) {
-            console.error('[ModelLoader] 다중 파일 로드 오류:', error);
+            console.error('[ModelLoader] Multiple files loading error:', error);
             this.loadingBar.hide();
-            alert('파일 로드 중 오류 발생: ' + error.message);
+            alert('Error occurred while loading file: ' + error.message);
         }
     }
 

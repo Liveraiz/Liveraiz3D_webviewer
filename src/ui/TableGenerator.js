@@ -12,7 +12,7 @@ export class TableGenerator {
         this.isDarkMode = isDarkMode;
     }
 
-    // 공통 스타일 정의
+    // Common style definition
     getCommonStyles() {
         return {
             light: {
@@ -70,12 +70,12 @@ export class TableGenerator {
         
         const name = fileName.toUpperCase();
         
-        // Constants.TABLE_TYPES에서 정의한 순서대로 탐색
-        // (객체 반복 순서가 정의된 순서대로 유지됨)
+        // Search in the order defined in Constants.TABLE_TYPES
+        // (object iteration order maintained as defined)
         for (const [typeKey, typeConfig] of Object.entries(Constants.TABLE_TYPES)) {
             for (const keyword of typeConfig.keywords) {
                 if (name.includes(keyword)) {
-                    console.log(`[TableGenerator] 감지된 타입: ${typeKey} (키워드: ${keyword})`);
+                    console.log(`[TableGenerator] Detected type: ${typeKey} (keyword: ${keyword})`);
                     return typeKey;
                 }
             }
@@ -98,15 +98,15 @@ export class TableGenerator {
             const typeConfig = Constants.TABLE_TYPES[surgeryType];
             const methodName = typeConfig.method;
             
-            // 메서드가 존재하는지 확인 후 호출
+            // Check if method exists and call it
             if (typeof this[methodName] === 'function') {
                 tableHTML = this[methodName](csvData, surgeryType);
             } else {
-                console.warn(`[TableGenerator] 메서드를 찾을 수 없음: ${methodName}`);
+                console.warn(`[TableGenerator] Method not found: ${methodName}`);
                 tableHTML = `<pre style="white-space: pre-wrap; word-wrap: break-word; font-family: monospace;">${csvData}</pre>`;
             }
         } else {
-            // 기본 표시
+            // Default display
             tableHTML = `<pre style="white-space: pre-wrap; word-wrap: break-word; font-family: monospace;">${csvData}</pre>`;
         }
 
@@ -153,7 +153,7 @@ export class TableGenerator {
         return table;
     }
 
-    // HCC 테이블 생성 (기존 코드 + Spleen Volume 별도 표)
+    // Create HCC table (existing code + separate Spleen Volume table)
     createHCCTable(csvData, surgeryType = "HCC") {
         console.log("Creating HCC table with data:", csvData);
 
