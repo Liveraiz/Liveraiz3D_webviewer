@@ -12,6 +12,7 @@ export default class FloatingModeButtons {
         this.container = null;
         this.xrButton = null;
         this.glassButton = null;
+        this.isStereoscopicActive = false;
 
         this.initialize();
     }
@@ -47,29 +48,27 @@ export default class FloatingModeButtons {
     }
 
     createButtons() {
-        const config = Constants.FLOATING_BUTTONS;
-
-        // // Enter XR Mode 버튼
+        // Enter XR Mode 버튼
         // this.xrButton = this.createButton({
         //     id: 'enter-xr-button',
         //     label: 'Enter XR',
-        //     icon: '🥽',
+        //     icon: 'XR',
         //     onClick: () => this.handleXRModeClick()
         // });
 
-        // // 3D Glass Mode 버튼
-        // this.glassButton = this.createButton({
-        //     id: '3d-glass-button',
-        //     label: '3D Glass',
-        //     icon: '👓',
-        //     onClick: () => this.handle3DGlassModeClick()
-        // });
+        // 3D Glass Mode 버튼 (SBS)
+        this.glassButton = this.createButton({
+            id: '3d-glass-button',
+            label: '3D SBS',
+            icon: '3D',
+            onClick: () => this.handle3DGlassModeClick()
+        });
 
         // this.container.appendChild(this.xrButton);
-        // this.container.appendChild(this.glassButton);
+        this.container.appendChild(this.glassButton);
 
         // this.applyButtonStyles(this.xrButton);
-        // this.applyButtonStyles(this.glassButton);
+        this.applyButtonStyles(this.glassButton);
     }
 
     createButton(options) {
@@ -111,12 +110,36 @@ export default class FloatingModeButtons {
         button.appendChild(iconSpan);
         button.appendChild(labelSpan);
 
+        button.addEventListener('mouseenter', () => {
+            const config = Constants.FLOATING_BUTTONS;
+            const theme = this.isDarkMode ? config.DARK_MODE : config.LIGHT_MODE;
+            button.style.backgroundColor = theme.HOVER;
+            button.style.transform = this.isStereoscopicActive && button === this.glassButton ? 'scale(1.08)' : 'scale(1.04)';
+        });
+
+        button.addEventListener('mouseleave', () => {
+            const config = Constants.FLOATING_BUTTONS;
+            const theme = this.isDarkMode ? config.DARK_MODE : config.LIGHT_MODE;
+            button.style.backgroundColor = theme.BACKGROUND;
+            button.style.transform = this.isStereoscopicActive && button === this.glassButton ? 'scale(1.06)' : 'scale(1)';
+        });
+
+        button.addEventListener('mousedown', () => {
+            button.style.transform = 'scale(0.96)';
+        });
+
+        button.addEventListener('mouseup', () => {
+            button.style.transform = this.isStereoscopicActive && button === this.glassButton ? 'scale(1.06)' : 'scale(1)';
+        });
+
         button.addEventListener('click', options.onClick);
 
         return button;
     }
 
     applyButtonStyles(button) {
+        if (!button) return;
+
         const config = Constants.FLOATING_BUTTONS;
         const theme = this.isDarkMode ? config.DARK_MODE : config.LIGHT_MODE;
 
@@ -127,25 +150,11 @@ export default class FloatingModeButtons {
             border: `1px solid ${theme.BORDER}`
         });
 
-        // Hover 효과
-        button.addEventListener('mouseenter', () => {
-            button.style.backgroundColor = theme.HOVER;
-            button.style.transform = 'scale(1.1)';
-        });
-
-        button.addEventListener('mouseleave', () => {
-            button.style.backgroundColor = theme.BACKGROUND;
-            button.style.transform = 'scale(1)';
-        });
-
-        // Active 효과
-        button.addEventListener('mousedown', () => {
-            button.style.transform = 'scale(0.95)';
-        });
-
-        button.addEventListener('mouseup', () => {
-            button.style.transform = 'scale(1)';
-        });
+        // 3D 버튼 활성 상태를 시각적으로 표시
+        if (button === this.glassButton && this.isStereoscopicActive) {
+            button.style.boxShadow = '0 0 0 2px rgba(0, 180, 255, 0.9), 0 8px 16px rgba(0, 0, 0, 0.25)';
+            button.style.transform = 'scale(1.06)';
+        }
     }
 
     setupEventListeners() {
@@ -173,6 +182,11 @@ export default class FloatingModeButtons {
     updateTheme() {
         this.applyButtonStyles(this.xrButton);
         this.applyButtonStyles(this.glassButton);
+    }
+
+    setStereoscopicActive(isActive) {
+        this.isStereoscopicActive = Boolean(isActive);
+        this.updateTheme();
     }
 
     setDarkMode(isDarkMode) {

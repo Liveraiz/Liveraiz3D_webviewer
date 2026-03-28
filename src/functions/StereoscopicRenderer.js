@@ -16,15 +16,19 @@ export default class StereoscopicRenderer {
         this.canvasHeight = 0;
         this.originalViewport = null;
 
-        this.leftCamera = null;
-        this.rightCamera = null;
+        // anamorphic SBS: 카메라 종횡비를 압축하지 않고 half viewport에 렌더링
+        this.stereoCamera = new THREE.StereoCamera();
+        this.stereoCamera.aspect = 1;
+        this.leftCamera = this.stereoCamera.cameraL;
+        this.rightCamera = this.stereoCamera.cameraR;
 
         this.initialize();
     }
 
     initialize() {
-        this.canvasWidth = this.renderer.domElement.clientWidth;
-        this.canvasHeight = this.renderer.domElement.clientHeight;
+        this.canvasWidth = this.renderer.domElement.clientWidth || this.renderer.domElement.width || window.innerWidth;
+        this.canvasHeight = this.renderer.domElement.clientHeight || this.renderer.domElement.height || window.innerHeight;
+        this.syncStereoParameters();
     }
 
     enableStereoscopic() {
@@ -37,8 +41,7 @@ export default class StereoscopicRenderer {
         this.originalFOV = this.camera.fov;
         this.originalZoom = this.camera.zoom;
 
-        // 좌안/우안 카메라 생성
-        this.createStereoscopicCameras();
+        this.syncStereoParameters();
 
         console.log('Stereoscopic rendering enabled');
         console.log('Eye separation:', this.eyeSeparation, 'mm');
@@ -61,72 +64,16 @@ export default class StereoscopicRenderer {
             this.originalCamera.zoom = this.originalZoom;
         }
 
-        this.leftCamera = null;
-        this.rightCamera = null;
-
         console.log('Stereoscopic rendering disabled');
     }
 
-    createStereoscopicCameras() {
-        const originalCam = this.camera;
+    syncStereoParameters() {
+        // THREE.StereoCamera 단위는 world unit 기준으로 meters를 가정
+        this.stereoCamera.eyeSep = this.eyeSeparation / 1000;
+        this.stereoCamera.focus = Math.max(this.convergenceDistance / 1000, 0.1);
 
-        // 좌안 카메라
-        this.leftCamera = new THREE.PerspectiveCamera(
-            originalCam.fov,
-            this.canvasWidth / this.canvasHeight,
-            originalCam.near,
-            originalCam.far
-        );
-
-        // 우안 카메라
-        this.rightCamera = new THREE.PerspectiveCamera(
-            originalCam.fov,
-            this.canvasWidth / this.canvasHeight,
-            originalCam.near,
-            originalCam.far
-        );
-
-        // 원본 카메라의 위치와 방향 복사
-        this.leftCamera.position.copy(originalCam.position);
-        this.leftCamera.quaternion.copy(originalCam.quaternion);
-        this.leftCamera.up.copy(originalCam.up);
-
-        this.rightCamera.position.copy(originalCam.position);
-        this.rightCamera.quaternion.copy(originalCam.quaternion);
-        this.rightCamera.up.copy(originalCam.up);
-
-        // 눈 분리 적용 (좌우 시프트)
-        const eyeShift = this.getEyeShift();
-        const rightVector = new THREE.Vector3();
-        this.leftCamera.getWorldDirection(rightVector);
-        // 올바른 오른쪽 벡터 계산
-        const upVector = this.leftCamera.up;
-        rightVector.crossVectors(upVector, rightVector).normalize();
-
-        this.leftCamera.position.addScaledVector(rightVector, -eyeShift);
-        this.rightCamera.position.addScaledVector(rightVector, eyeShift);
-
-        // 수렴(convergence) 적용
-        this.applyConvergence();
-    }
-
-    getEyeShift() {
-        // eye_separation (mm) -> 카메라 좌표계 단위로 변환
-        // 일반적으로 1 unit = 100mm로 가정
-        return (this.eyeSeparation / 100) * 0.5;
-    }
-
-    applyConvergence() {
-        // 수렴거리에 따른 카메라 회전
-        const convergenceAngle = Math.atan(
-            this.getEyeShift() / (this.convergenceDistance / 1000)
-        );
-
-        // 좌안: 오른쪽으로 회전
-        this.leftCamera.rotateOnWorldAxis(new THREE.Vector3(0, 1, 0), convergenceAngle);
-
-        // 우안: 왼쪽으로 회전
-        this.rightCamera.rotateOnWorldAxis(new THREE.Vector3(0, 1, 0), -convergenceAngle);
+        // anamorphic SBS 유지
+        this.stereoCamera.aspect = 1;
     }
 
     /**
@@ -134,31 +81,60 @@ export default class StereoscopicRenderer {
      * @param {function} renderCallback - 각 안마다 호출될 렌더 콜백
      */
     render(renderCallback) {
-        if (!this.isStereoscopic || !this.leftCamera || !this.rightCamera) {
-            console.warn('Stereoscopic mode is not enabled');
+        if (!this.isStereoscopic || !this.camera) {
             return;
         }
 
-        const halfWidth = this.canvasWidth / 2;
+        const width = this.renderer.domElement.clientWidth;
+        const height = this.renderer.domElement.clientHeight;
+        if (width <= 0 || height <= 0) return;
+
+        if (width !== this.canvasWidth || height !== this.canvasHeight) {
+            this.updateCanvasSize(width, height);
+        }
+
+        this.syncStereoParameters();
+
+        this.scene.updateMatrixWorld();
+        if (this.camera.parent === null) {
+            this.camera.updateMatrixWorld();
+        }
+
+        this.stereoCamera.update(this.camera);
+
+        const halfWidth = Math.floor(width / 2);
+        const rightWidth = width - halfWidth;
+        const prevScissorTest = this.renderer.getScissorTest();
+        const prevAutoClear = this.renderer.autoClear;
+
+        this.renderer.setScissorTest(true);
+        this.renderer.autoClear = false;
+        this.renderer.clear(true, true, true);
 
         // 좌안 렌더링
-        this.renderer.setViewport(0, 0, halfWidth, this.canvasHeight);
+        this.renderer.setViewport(0, 0, halfWidth, height);
+        this.renderer.setScissor(0, 0, halfWidth, height);
         if (renderCallback) {
-            renderCallback(this.leftCamera);
+            renderCallback(this.leftCamera, 'left');
         } else {
             this.renderer.render(this.scene, this.leftCamera);
         }
 
+        this.renderer.clearDepth();
+
         // 우안 렌더링
-        this.renderer.setViewport(halfWidth, 0, halfWidth, this.canvasHeight);
+        this.renderer.setViewport(halfWidth, 0, rightWidth, height);
+        this.renderer.setScissor(halfWidth, 0, rightWidth, height);
         if (renderCallback) {
-            renderCallback(this.rightCamera);
+            renderCallback(this.rightCamera, 'right');
         } else {
             this.renderer.render(this.scene, this.rightCamera);
         }
 
-        // 뷰포트 복구
-        this.renderer.setViewport(0, 0, this.canvasWidth, this.canvasHeight);
+        // 상태 복구
+        this.renderer.setScissorTest(prevScissorTest);
+        this.renderer.autoClear = prevAutoClear;
+        this.renderer.setViewport(0, 0, width, height);
     }
 
     /**
@@ -173,7 +149,7 @@ export default class StereoscopicRenderer {
         console.log('Eye separation updated:', this.eyeSeparation, 'mm');
 
         if (this.isStereoscopic) {
-            this.createStereoscopicCameras();
+            this.syncStereoParameters();
         }
     }
 
@@ -186,7 +162,7 @@ export default class StereoscopicRenderer {
         console.log('Convergence distance updated:', this.convergenceDistance, 'mm');
 
         if (this.isStereoscopic) {
-            this.createStereoscopicCameras();
+            this.syncStereoParameters();
         }
     }
 
@@ -210,13 +186,6 @@ export default class StereoscopicRenderer {
     updateCanvasSize(width, height) {
         this.canvasWidth = width;
         this.canvasHeight = height;
-
-        if (this.isStereoscopic && this.leftCamera && this.rightCamera) {
-            this.leftCamera.aspect = this.canvasWidth / this.canvasHeight;
-            this.rightCamera.aspect = this.canvasWidth / this.canvasHeight;
-            this.leftCamera.updateProjectionMatrix();
-            this.rightCamera.updateProjectionMatrix();
-        }
     }
 
     destroy() {

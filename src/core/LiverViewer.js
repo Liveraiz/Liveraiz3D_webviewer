@@ -572,6 +572,10 @@ export default class LiverViewer {
                 window.innerWidth,
                 window.innerHeight
             );
+
+            if (this.stereoscopicRenderer) {
+                this.stereoscopicRenderer.updateCanvasSize(window.innerWidth, window.innerHeight);
+            }
         });
 
         // Transform 컨트롤의 이벤트 리스너는 MeshTransform 클래스 내부에서 처리
@@ -946,9 +950,10 @@ export default class LiverViewer {
 
                 // Stereoscopic 모드 렌더링
                 if (this.renderMode === 'stereoscopic' && this.stereoscopicRenderer) {
-                    this.stereoscopicRenderer.render(() => {
+                    this.stereoscopicRenderer.render((eyeCamera) => {
+                        this.renderer.renderer.render(this.scene, eyeCamera);
                         if (this.renderer.labelRenderer) {
-                            this.renderer.labelRenderer.render(this.scene, this.camera.camera);
+                            this.renderer.labelRenderer.render(this.scene, eyeCamera);
                         }
                     });
                 } else {
@@ -1076,8 +1081,8 @@ export default class LiverViewer {
             // StereoscopicRenderer 초기화
             if (!this.stereoscopicRenderer) {
                 this.stereoscopicRenderer = new StereoscopicRenderer(
-                    this.renderer,
-                    this.camera.camera,
+                    this.renderer.renderer,
+                    this.camera,
                     this.scene
                 );
             }
@@ -1085,6 +1090,12 @@ export default class LiverViewer {
             // Stereoscopic 모드 활성화
             this.stereoscopicRenderer.enableStereoscopic();
             this.renderer.enableStereoscopicMode();
+
+            if (this.floatingModeButtons) {
+                this.floatingModeButtons.setStereoscopicActive(true);
+            }
+
+            this.requestRender();
 
             console.log('[LiverViewer] Stereoscopic rendering enabled');
         } catch (error) {
@@ -1111,6 +1122,12 @@ export default class LiverViewer {
             }
 
             this.renderer.disableStereoscopicMode();
+
+            if (this.floatingModeButtons) {
+                this.floatingModeButtons.setStereoscopicActive(false);
+            }
+
+            this.requestRender();
 
             console.log('[LiverViewer] Stereoscopic rendering disabled');
         } catch (error) {
