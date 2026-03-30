@@ -4,15 +4,17 @@ import { Constants } from '../utils/Constants';
 export default class FloatingModeButtons {
     constructor(options) {
         this.onXRModeRequested = options.onXRModeRequested || (() => {});
-        this.on3DGlassModeRequested = options.on3DGlassModeRequested || (() => {});
+        this.onStereoModeRequested = options.onStereoModeRequested || (() => {});
         this.isDarkMode = options.isDarkMode || false;
         this.isMobile = options.isMobile || false;
         this.liverViewer = options.liverViewer || null;
 
         this.container = null;
         this.xrButton = null;
-        this.glassButton = null;
+        this.sbsButton = null;
+        this.lineByLineButton = null;
         this.isStereoscopicActive = false;
+        this.activeStereoMode = null;
 
         this.initialize();
     }
@@ -56,19 +58,29 @@ export default class FloatingModeButtons {
         //     onClick: () => this.handleXRModeClick()
         // });
 
-        // 3D Glass Mode 버튼 (SBS)
-        this.glassButton = this.createButton({
-            id: '3d-glass-button',
+        // 3D SBS 버튼
+        this.sbsButton = this.createButton({
+            id: '3d-sbs-button',
             label: '3D SBS',
             icon: '3D',
-            onClick: () => this.handle3DGlassModeClick()
+            onClick: () => this.handleStereoModeClick('sbs')
         });
 
+        // // 3D Line-by-Line 버튼 (비활성화)
+        // this.lineByLineButton = this.createButton({
+        //     id: '3d-line-button',
+        //     label: '3D LBL',
+        //     icon: '3D',
+        //     onClick: () => this.handleStereoModeClick('line-by-line')
+        // });
+
         // this.container.appendChild(this.xrButton);
-        this.container.appendChild(this.glassButton);
+        this.container.appendChild(this.sbsButton);
+        // this.container.appendChild(this.lineByLineButton);
 
         // this.applyButtonStyles(this.xrButton);
-        this.applyButtonStyles(this.glassButton);
+        this.applyButtonStyles(this.sbsButton);
+        // this.applyButtonStyles(this.lineByLineButton);
     }
 
     createButton(options) {
@@ -114,14 +126,14 @@ export default class FloatingModeButtons {
             const config = Constants.FLOATING_BUTTONS;
             const theme = this.isDarkMode ? config.DARK_MODE : config.LIGHT_MODE;
             button.style.backgroundColor = theme.HOVER;
-            button.style.transform = this.isStereoscopicActive && button === this.glassButton ? 'scale(1.08)' : 'scale(1.04)';
+            button.style.transform = this.isStereoscopicActive && button === this.sbsButton ? 'scale(1.08)' : 'scale(1.04)';
         });
 
         button.addEventListener('mouseleave', () => {
             const config = Constants.FLOATING_BUTTONS;
             const theme = this.isDarkMode ? config.DARK_MODE : config.LIGHT_MODE;
             button.style.backgroundColor = theme.BACKGROUND;
-            button.style.transform = this.isStereoscopicActive && button === this.glassButton ? 'scale(1.06)' : 'scale(1)';
+            button.style.transform = this.isStereoscopicActive && button === this.sbsButton ? 'scale(1.06)' : 'scale(1)';
         });
 
         button.addEventListener('mousedown', () => {
@@ -129,7 +141,7 @@ export default class FloatingModeButtons {
         });
 
         button.addEventListener('mouseup', () => {
-            button.style.transform = this.isStereoscopicActive && button === this.glassButton ? 'scale(1.06)' : 'scale(1)';
+            button.style.transform = this.isStereoscopicActive && button === this.sbsButton ? 'scale(1.06)' : 'scale(1)';
         });
 
         button.addEventListener('click', options.onClick);
@@ -151,7 +163,7 @@ export default class FloatingModeButtons {
         });
 
         // 3D 버튼 활성 상태를 시각적으로 표시
-        if (button === this.glassButton && this.isStereoscopicActive) {
+        if (button === this.sbsButton && this.isStereoscopicActive) {
             button.style.boxShadow = '0 0 0 2px rgba(0, 180, 255, 0.9), 0 8px 16px rgba(0, 0, 0, 0.25)';
             button.style.transform = 'scale(1.06)';
         }
@@ -174,14 +186,15 @@ export default class FloatingModeButtons {
         this.onXRModeRequested();
     }
 
-    handle3DGlassModeClick() {
-        console.log('3D Glass Mode requested');
-        this.on3DGlassModeRequested();
+    handleStereoModeClick(mode) {
+        console.log('3D mode requested:', mode);
+        this.onStereoModeRequested(mode);
     }
 
     updateTheme() {
         this.applyButtonStyles(this.xrButton);
-        this.applyButtonStyles(this.glassButton);
+        this.applyButtonStyles(this.sbsButton);
+        // this.applyButtonStyles(this.lineByLineButton);
     }
 
     setStereoscopicActive(isActive) {

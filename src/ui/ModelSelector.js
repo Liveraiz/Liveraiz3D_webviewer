@@ -889,8 +889,8 @@ export default class ModelSelector {
             const shareButton = document.createElement("button");
             Object.assign(shareButton.style, {
                 position: "absolute",
-                bottom: "20px", // 20px from bottom
-                right: "20px", // 20px from right
+                bottom: "20px",
+                right: "20px",
                 background: "rgba(255, 149, 0, 0.8)",
                 border: "none",
                 borderRadius: "5px",
@@ -901,7 +901,8 @@ export default class ModelSelector {
                 gap: "5px",
                 color: "white",
                 fontSize: "12px",
-                zIndex: "10", // Display above other elements
+                zIndex: "10",
+                transition: "all 0.2s ease",
             });
 
             // Share icon and text
@@ -918,10 +919,12 @@ export default class ModelSelector {
 
             // Add hover effect
             shareButton.onmouseover = () => {
-                shareButton.style.background = "rgba(0, 0, 0, 0.85)";
+                shareButton.style.background = "rgba(255, 149, 0, 1)";
+                shareButton.style.transform = "scale(1.05)";
             };
             shareButton.onmouseleave = () => {
-                shareButton.style.background = "rgba(0, 0, 0, 0.7)";
+                shareButton.style.background = "rgba(255, 149, 0, 0.8)";
+                shareButton.style.transform = "scale(1)";
             };
 
             // Click event
@@ -1241,6 +1244,7 @@ export default class ModelSelector {
                 // }
 
                 console.log("Model and patient info load completed");
+                
                 this.close();
             } else {
                 console.error("ModelLoader not available:", {

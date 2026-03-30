@@ -16,7 +16,7 @@ export default class StereoscopicRenderer {
         this.canvasHeight = 0;
         this.originalViewport = null;
 
-        // anamorphic SBS: 카메라 종횡비를 압축하지 않고 half viewport에 렌더링
+        // SBS: 카메라 종횡비를 압축하지 않고 half viewport에 렌더링
         this.stereoCamera = new THREE.StereoCamera();
         this.stereoCamera.aspect = 1;
         this.leftCamera = this.stereoCamera.cameraL;
@@ -67,14 +67,23 @@ export default class StereoscopicRenderer {
         console.log('Stereoscopic rendering disabled');
     }
 
+
+
     syncStereoParameters() {
         // THREE.StereoCamera 단위는 world unit 기준으로 meters를 가정
         this.stereoCamera.eyeSep = this.eyeSeparation / 1000;
         this.stereoCamera.focus = Math.max(this.convergenceDistance / 1000, 0.1);
 
-        // anamorphic SBS 유지
-        this.stereoCamera.aspect = 1;
+        // 원본 카메라의 aspect ratio 유지 (SBS에서 이미지 압축 방지)
+        // 절반 viewport에서도 원래 aspect를 유지해야 화면이 정상 비율로 보임
+        if (this.camera) {
+            this.stereoCamera.aspect = this.camera.aspect;
+        } else {
+            this.stereoCamera.aspect = window.innerWidth / window.innerHeight;
+        }
     }
+
+
 
     /**
      * Stereoscopic 렌더링 수행
@@ -101,6 +110,10 @@ export default class StereoscopicRenderer {
         }
 
         this.stereoCamera.update(this.camera);
+        this.renderSideBySide(width, height, renderCallback);
+    }
+
+    renderSideBySide(width, height, renderCallback) {
 
         const halfWidth = Math.floor(width / 2);
         const rightWidth = width - halfWidth;
@@ -136,6 +149,8 @@ export default class StereoscopicRenderer {
         this.renderer.autoClear = prevAutoClear;
         this.renderer.setViewport(0, 0, width, height);
     }
+
+
 
     /**
      * Eye separation 설정
