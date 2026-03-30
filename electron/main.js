@@ -1,6 +1,9 @@
 const { app, BrowserWindow } = require('electron');
 const path = require('path');
 
+// Set userData path to avoid cache permission issues on Windows
+app.setPath('userData', path.join(app.getPath('userData'), 'cache'));
+
 function createWindow() {
     const win = new BrowserWindow({
         width: 1400,
