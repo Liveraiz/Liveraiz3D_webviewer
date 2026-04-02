@@ -1052,6 +1052,7 @@ export class ObjectListPanel {
             if (!meshId) return;
             
             const mesh = this.objects.get(meshId);
+            
             if (!mesh) return;
             
             // 해당 메쉬가 부모의 자식인지 확인
@@ -1059,6 +1060,7 @@ export class ObjectListPanel {
             let currentParent = mesh.parent;
             while (currentParent && currentParent !== this.scene) {
                 if (currentParent.name === parentName) {
+
                     isChild = true;
                     break;
                 }
@@ -1066,9 +1068,9 @@ export class ObjectListPanel {
             }
             
             if (isChild) {
-                // 자식 메쉬의 실제 투명도는 부모 투명도와 곱하여 계산
+                // 자식 메쉬의 실제 투명도는 자신의 originalOpacity만 적용 (부모 opacity 무시)
                 const originalOpacity = mesh.material.userData.originalOpacity || 0.6;
-                const effectiveOpacity = originalOpacity * parentOpacity;
+                const effectiveOpacity = originalOpacity;
                 const isEffectivelyHidden = effectiveOpacity === 0;
                 
                 // UI 요소들 업데이트
