@@ -8,6 +8,7 @@ import ControlManager from "../controls/ControlManager";
 import TopBar from "../ui/TopBar";
 import Toolbar from "../ui/Toolbar";
 import { ObjectListPanel } from "../ui/ObjectListPanel";
+import { MeshLabelManager } from "../ui/MeshLabelManager";
 import ModelLoader from "../loaders/ModelLoader";
 import { DeviceDetector } from "../utils/DeviceDetector";
 import { ResizeHandler } from "../utils/ResizeHandler";
@@ -26,6 +27,10 @@ import MeshTooltip from "../ui/MeshTooltip";
 import LoadingBar from "../ui/LoadingBar";
 import LogoManager from "../ui/LogoManager";
 import CameraPlayer from "../functions/CameraPlayer";
+import ZoomControl from "../ui/ZoomControl";
+import FloatingModeButtons from "../ui/FloatingModeButtons";
+import XRHandler from "../functions/XRHandler";
+import StereoscopicRenderer from "../functions/StereoscopicRenderer";
 
 export default class LiverViewer {
     constructor(containerId) {
@@ -51,6 +56,12 @@ export default class LiverViewer {
 
             this.toggleDarkMode = this.toggleDarkMode.bind(this);
             this.renderNeeded = false;
+
+            // Render mode 관련 초기화
+            this.renderMode = 'standard'; // 'standard' | 'stereoscopic' | 'xr'
+            this.xrHandler = null;
+            this.stereoscopicRenderer = null;
+            this.floatingModeButtons = null;
 
             // URL 파라미터 처리 추가
             const urlParams = new URLSearchParams(window.location.search);
@@ -102,6 +113,7 @@ export default class LiverViewer {
                 liverViewer: this,
                 panelManager: this.panelManager,
                 isDarkMode: this.isDarkMode,
+                labelManager: this.labelManager,
                 volumeTextBox: this.volumeTextBox,
             });
 
@@ -166,6 +178,12 @@ export default class LiverViewer {
             // 나머지 매니저들 설정
             this.setupManagers();
 
+            // ObjectListPanel에 labelManager 연결
+            if (this.objectListPanel && this.labelManager) {
+                this.objectListPanel.labelManager = this.labelManager;
+                console.log('[LiverViewer] labelManager connected to ObjectListPanel');
+            }
+
             // CameraPlayer 초기화
             this.setupCameraPlayer();
 
@@ -208,6 +226,9 @@ export default class LiverViewer {
             this.setupRemainingUIWithoutObjectList();
             this.setupTopBar();
 
+            // Floating Mode Buttons 초기화
+            this.setupFloatingModeButtons();
+
             // Event listeners
             this.setupEventListeners();
 
@@ -236,6 +257,7 @@ export default class LiverViewer {
             controlManager: this.controlManager,
             cameraPlayer: this.cameraPlayer,
             modelLoader: this.modelLoader,
+            modelSelector: this.modelSelector,
         });
 
         // 추가: 명시적으로 cameraPlayer 설정
@@ -289,6 +311,10 @@ export default class LiverViewer {
     setupManagers() {
         // Material manager
         this.materialManager = new MaterialManager(this.renderer.renderer);
+
+        // Mesh Label Manager - 메시 숫자 라벨 관리
+        this.labelManager = new MeshLabelManager(this.scene, this.camera);
+        console.log('[LiverViewer] MeshLabelManager initialized');
 
         // Control manager
         this.controlManager = new ControlManager(
@@ -369,6 +395,15 @@ export default class LiverViewer {
             objectListPanel: this.objectListPanel, // ObjectListPanel 전달
             isDarkMode: this.isDarkMode,
         });
+
+        this.zoomControl = new ZoomControl({
+            camera: this.camera,
+            controlManager: this.controlManager,
+            textPanel: this.textPanel,
+            isDarkMode: this.isDarkMode,
+            isMobile: this.isMobile,
+            onRequestRender: () => this.requestRender(),
+        });
     }
 
     setupModelLoader() {
@@ -387,6 +422,12 @@ export default class LiverViewer {
                 toolbar: this.toolbar,
                 onLoadComplete: (hasAnimation) => {
                     console.log("모델 로드 완료, 애니메이션 여부:", hasAnimation);
+
+                    // 메시 라벨 초기화 (숫자가 붙은 메시들)
+                    if (this.labelManager) {
+                        this.labelManager.initializeLabelsFromScene();
+                        console.log(`[LiverViewer] ${this.labelManager.getLabelCount()} mesh labels initialized`);
+                    }
 
                     // 측정값 초기화
                     if (this.measurementTool) {
@@ -408,7 +449,7 @@ export default class LiverViewer {
                     console.error("모델 로드 에러:", error);
                     this.handleLoadError(error);
                 },
-                modelPath: "./models/bagel.glb",
+                modelPath: "./models/251218-dangam.glb",
             });
 
             // MeshTransform에 ModelLoader 연결
@@ -418,6 +459,12 @@ export default class LiverViewer {
 
             // ModelSelector 초기화
             this.modelSelector = new ModelSelector(this);
+
+            // ModelSelector에 ModelLoader 설정
+            if (this.modelSelector && this.modelLoader) {
+                this.modelSelector.setModelLoader(this.modelLoader);
+                console.log("[LiverViewer] ModelLoader 설정 완료");
+            }
 
             // ModelSelector에서 JSON 파일을 로드한 후 로고 데이터 처리를 위한 콜백 추가
             this.modelSelector.onJsonLoaded = (jsonData) => {
@@ -525,6 +572,10 @@ export default class LiverViewer {
                 window.innerWidth,
                 window.innerHeight
             );
+
+            if (this.stereoscopicRenderer) {
+                this.stereoscopicRenderer.updateCanvasSize(window.innerWidth, window.innerHeight);
+            }
         });
 
         // Transform 컨트롤의 이벤트 리스너는 MeshTransform 클래스 내부에서 처리
@@ -545,14 +596,44 @@ export default class LiverViewer {
         
         if (mesh) {
             mesh.visible = visible;
-            
+
             // opacity가 제공된 경우 material 업데이트
             if (opacity !== undefined && mesh.material) {
-                mesh.material.opacity = opacity;
-                mesh.material.transparent = opacity < 1;
-                mesh.material.needsUpdate = true;
+                const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+                materials.forEach((mat) => {
+                    mat.userData = mat.userData || {};
+                    if (mat.userData._baseTransparent === undefined) {
+                        mat.userData._baseTransparent = mat.transparent;
+                    }
+                    if (mat.userData._baseDepthWrite === undefined) {
+                        mat.userData._baseDepthWrite = mat.depthWrite;
+                    }
+                    if (mat.userData.originalOpacity === undefined) {
+                        mat.userData.originalOpacity = mat.opacity;
+                    }
+
+                    mat.opacity = opacity;
+                    if (opacity < 1) {
+                        mat.transparent = true;
+                        if (mat.userData._baseTransparent === false) {
+                            mat.depthWrite = false;
+                        }
+                    } else {
+                        mat.transparent = mat.userData._baseTransparent;
+                        mat.depthWrite = mat.userData._baseDepthWrite;
+                    }
+                    mat.needsUpdate = true;
+
+                    // opacity가 1.0으로 바뀌면 originalOpacity도 1.0으로 갱신
+                    if (opacity === 1) {
+                        mat.userData.originalOpacity = 1.0;
+                    } else if (mat.userData.originalOpacity === undefined) {
+                        // 최초 세팅이 없으면 현재 opacity로 기록
+                        mat.userData.originalOpacity = opacity;
+                    }
+                });
             }
-            
+
             // ObjectListPanel에 등록된 오브젝트만 보이도록 설정 (vol 메시들은 objects Map에 있으므로 통과)
             if (this.objectListPanel && !this.objectListPanel.hasObject(objectId)) {
                 mesh.visible = false;
@@ -778,6 +859,15 @@ export default class LiverViewer {
             this.loadingBar.updateTheme(this.isDarkMode);
         }
 
+        if (this.zoomControl) {
+            this.zoomControl.updateTheme(this.isDarkMode);
+        }
+
+        // FloatingModeButtons 테마 업데이트
+        if (this.floatingModeButtons) {
+            this.floatingModeButtons.setDarkMode(this.isDarkMode);
+        }
+
     }
 
     startAnimation() {
@@ -853,12 +943,27 @@ export default class LiverViewer {
 
             // Render only when needed - single pass rendering
             if (renderNeeded && this.renderer && this.scene && this.camera) {
-                // Standard rendering (background is already set in the scene)
-                this.renderer.render(this.scene, this.camera);
+                // Update mesh label positions before rendering
+                if (this.labelManager) {
+                    this.labelManager.updateAllLabelsPosition();
+                }
 
-                // Render labels on top
-                if (this.renderer.labelRenderer) {
-                    this.renderer.labelRenderer.render(this.scene, this.camera);
+                // Stereoscopic 모드 렌더링
+                if (this.renderMode === 'stereoscopic' && this.stereoscopicRenderer) {
+                    this.stereoscopicRenderer.render((eyeCamera) => {
+                        this.renderer.renderer.render(this.scene, eyeCamera);
+                        if (this.renderer.labelRenderer) {
+                            this.renderer.labelRenderer.render(this.scene, eyeCamera);
+                        }
+                    });
+                } else {
+                    // Standard rendering (background is already set in the scene)
+                    this.renderer.render(this.scene, this.camera);
+
+                    // Render labels on top
+                    if (this.renderer.labelRenderer) {
+                        this.renderer.labelRenderer.render(this.scene, this.camera);
+                    }
                 }
 
                 this.renderNeeded = false;
@@ -909,6 +1014,143 @@ export default class LiverViewer {
     showModelSelector() {
         if (this.modelSelector) {
             this.modelSelector.show();
+        }
+    }
+
+    /**
+     * Floating Mode Buttons 초기화
+     */
+    setupFloatingModeButtons() {
+        try {
+            this.floatingModeButtons = new FloatingModeButtons({
+                onXRModeRequested: () => this.onXRModeRequested(),
+                onStereoModeRequested: () => this.on3DGlassModeRequested(),
+                isDarkMode: this.isDarkMode,
+                isMobile: this.isMobile,
+                liverViewer: this
+            });
+
+            // XRHandler 초기화
+            this.xrHandler = new XRHandler(this);
+
+            console.log('[LiverViewer] FloatingModeButtons and XRHandler initialized');
+        } catch (error) {
+            console.error('Error setting up floating mode buttons:', error);
+            ErrorHandler.handle(error, 'FloatingModeButtons Setup');
+        }
+    }
+
+    /**
+     * XR Mode 요청 시 호출
+     */
+    onXRModeRequested() {
+        console.log('[LiverViewer] XR Mode requested');
+        
+        if (this.xrHandler) {
+            this.xrHandler.openXRMode();
+        } else {
+            alert('XR Handler is not initialized');
+        }
+    }
+
+    /**
+     * 3D SBS Mode 요청 시 호출
+     */
+    on3DGlassModeRequested() {
+        console.log('[LiverViewer] 3D SBS Mode requested');
+        
+        if (this.renderMode === 'stereoscopic') {
+            this.disableStereoscopic();
+        } else {
+            this.enableStereoscopic();
+        }
+    }
+
+    /**
+     * Stereoscopic 렌더링 활성화 (SBS 모드)
+     */
+    enableStereoscopic() {
+        try {
+            if (this.renderMode === 'stereoscopic') {
+                console.warn('Stereoscopic mode is already enabled');
+                return;
+            }
+
+            this.renderMode = 'stereoscopic';
+
+            // StereoscopicRenderer 초기화
+            if (!this.stereoscopicRenderer) {
+                this.stereoscopicRenderer = new StereoscopicRenderer(
+                    this.renderer.renderer,
+                    this.camera,
+                    this.scene
+                );
+            }
+
+            // Stereoscopic 모드 활성화
+            this.stereoscopicRenderer.enableStereoscopic();
+            this.renderer.enableStereoscopicMode();
+
+            if (this.floatingModeButtons) {
+                this.floatingModeButtons.setStereoscopicActive(true);
+            }
+
+            this.requestRender();
+
+            console.log('[LiverViewer] Stereoscopic rendering enabled');
+        } catch (error) {
+            console.error('Error enabling stereoscopic rendering:', error);
+            ErrorHandler.handle(error, 'Stereoscopic Enable');
+        }
+    }
+
+    /**
+     * Stereoscopic 렌더링 비활성화
+     */
+    disableStereoscopic() {
+        try {
+            if (this.renderMode !== 'stereoscopic') {
+                console.warn('Stereoscopic mode is not active');
+                return;
+            }
+
+            this.renderMode = 'standard';
+
+            // Stereoscopic 모드 비활성화
+            if (this.stereoscopicRenderer) {
+                this.stereoscopicRenderer.disableStereoscopic();
+            }
+
+            this.renderer.disableStereoscopicMode();
+
+            if (this.floatingModeButtons) {
+                this.floatingModeButtons.setStereoscopicActive(false);
+            }
+
+            this.requestRender();
+
+            console.log('[LiverViewer] Stereoscopic rendering disabled');
+        } catch (error) {
+            console.error('Error disabling stereoscopic rendering:', error);
+            ErrorHandler.handle(error, 'Stereoscopic Disable');
+        }
+    }
+
+    /**
+     * 렌더링 모드 토글
+     */
+    toggleRenderMode(newMode) {
+        if (newMode === this.renderMode) {
+            console.warn(`Already in ${newMode} mode`);
+            return;
+        }
+
+        if (newMode === 'stereoscopic') {
+            this.enableStereoscopic();
+        } else if (newMode === 'standard') {
+            this.disableStereoscopic();
+        } else {
+            console.error(`Unknown render mode: ${newMode}`);
         }
     }
 }

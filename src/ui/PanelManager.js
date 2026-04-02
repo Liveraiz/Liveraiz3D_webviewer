@@ -1,3 +1,5 @@
+import { DeviceDetector } from "../utils/DeviceDetector";
+
 class PanelManager {
     /**
      * PanelManager 클래스 생성자
@@ -9,6 +11,7 @@ class PanelManager {
         this.rightPanel = null;
         this.activePanel = null;
         this.isMobile = isMobile;
+        this.deviceDetector = new DeviceDetector();
         
         // 화면 크기 변경 시 모바일 상태 업데이트
         this.updateMobileState = this.updateMobileState.bind(this);
@@ -46,7 +49,7 @@ class PanelManager {
         const currentActiveType = this.activePanel ? this.getPanelType(this.activePanel) : 'none';
         
         // 실시간 모바일 상태 확인
-        const currentIsMobile = window.innerWidth < 768;
+        const currentIsMobile = this.deviceDetector.isMobile();
         
 
 
@@ -114,7 +117,7 @@ class PanelManager {
      * 모바일 상태를 업데이트하는 함수
      */
     updateMobileState() {
-        const newIsMobile = window.innerWidth < 768;
+        const newIsMobile = this.deviceDetector.isMobile();
         if (this.isMobile !== newIsMobile) {
 
             this.isMobile = newIsMobile;

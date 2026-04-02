@@ -1,5 +1,6 @@
 import { Constants } from "../utils/Constants";
 import FOVController from "../functions/FOVController";
+import { DeviceDetector } from "../utils/DeviceDetector";
 
 export default class TopBar {
     constructor({
@@ -11,6 +12,7 @@ export default class TopBar {
         controlManager = null,
         cameraPlayer = null,
         modelLoader = null,
+        modelSelector = null,
     }) {
         // isMobile이 전달되지 않은 경우 자동 감지 (크롬 개발자 도구 모바일 시뮬레이션 포함)
         this.isMobile = isMobile !== undefined ? isMobile : this.detectMobile();
@@ -20,7 +22,7 @@ export default class TopBar {
         this.textPanel = textPanel;
         this.objectListPanel = objectListPanel;
         this.controlManager = controlManager;
-        this.modelSelector = null;
+        this.modelSelector = modelSelector;
         this.isOrbitControls = true; // Track current control type
         this.cameraActive = false;
         this.cameraPlayer = cameraPlayer; // Store the cameraPlayer reference
@@ -49,31 +51,7 @@ export default class TopBar {
 
     // 모바일 감지 메서드 추가 (태블릿은 PC로 분류)
     detectMobile() {
-        // 1. 화면 크기 기반 감지 (768px 미만만 모바일로 분류)
-        const isSmallScreen = window.innerWidth < 768;
-        
-        // 2. User Agent 기반 감지 (태블릿 제외)
-        const userAgent = navigator.userAgent.toLowerCase();
-        // iPad는 태블릿이므로 모바일에서 제외, iPhone만 모바일로 분류
-        const isMobileUA = /android.*mobile|webos|iphone|ipod|blackberry|iemobile|opera mini/i.test(userAgent);
-        
-        // 3. 터치 지원 여부는 태블릿도 지원하므로 제외
-        
-        // 4. 크롬 개발자 도구 모바일 시뮬레이션 감지 (화면 크기만 고려)
-        const isChromeDevTools = window.chrome && window.chrome.webstore === undefined;
-        const isMobileSimulation = isChromeDevTools && isSmallScreen;
-        
-        // 5. 추가 모바일 감지 방법들 (화면 크기만 고려)
-        const isMobileViewport = window.matchMedia && window.matchMedia('(max-width: 767px)').matches;
-        
-        // 6. 크롬 개발자 도구에서 모바일 시뮬레이션 중인지 확인 (화면 크기만 고려)
-        const isChromeMobileSim = window.chrome && isSmallScreen;
-        
-        const result = isSmallScreen || isMobileUA || isMobileSimulation || isMobileViewport || isChromeMobileSim;
-        
-        // console.log('Mobile Detection:', { isSmallScreen, isMobileUA, userAgent: userAgent.substring(0, 50), isMobileSimulation, isMobileViewport, isChromeMobileSim, result });
-        
-        return result;
+        return new DeviceDetector().isMobile();
     }
 
     /**
@@ -290,7 +268,59 @@ export default class TopBar {
             }
         });
 
-        // 모바일이 아닐 때만 업로드 버튼 추가
+        // 폴더 선택 버튼 생성 (SVG 아이콘만)
+        const folderButton = document.createElement("button");
+        
+        // SVG 폴더 아이콘
+        const folderSVG = `
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+            </svg>
+        `;
+        
+        folderButton.innerHTML = folderSVG;
+        folderButton.title = "Load models from folder";
+        folderButton.style.cssText = `
+            background-color: transparent;
+            border: none;
+            color: ${this.isDarkMode ? "#e0e0e0" : "#333333"};
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 6px;
+            margin: 0 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0.7;
+            transition: opacity 0.3s ease;
+            width: 36px;
+            height: 36px;
+            position: absolute;
+            right: ${this.isMobile ? "145px" : "195px"};
+            top: 50%;
+            transform: translateY(-50%);
+        `;
+
+        folderButton.addEventListener("mouseover", () => {
+            folderButton.style.opacity = "1";
+        });
+
+        folderButton.addEventListener("mouseout", () => {
+            folderButton.style.opacity = "0.7";
+        });
+
+        folderButton.addEventListener("click", () => {
+            console.log('[TopBar] Folder button clicked');
+            console.log('[TopBar] this.modelSelector:', this.modelSelector);
+            if (this.modelSelector) {
+                console.log('[TopBar] Calling openFolderDialog');
+                this.modelSelector.openFolderDialog();
+            } else {
+                console.warn('[TopBar] modelSelector is not available');
+            }
+        });
+
+        // 모바일이 아닐 때만 업로드 버튼과 폴더 버튼 추가
         console.log('TopBar - Upload button condition check:', {
             isMobile: this.isMobile,
             windowWidth: window.innerWidth,
@@ -300,6 +330,7 @@ export default class TopBar {
         if (!this.isMobile) {
             console.log('TopBar - Adding upload button (desktop mode)');
             topBar.appendChild(uploadButton);
+            topBar.appendChild(folderButton);
         } else {
             console.log('TopBar - Skipping upload button (mobile mode)');
         }

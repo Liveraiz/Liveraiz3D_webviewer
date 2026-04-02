@@ -1,14 +1,18 @@
 /**
- * 뷰어 관련 상수 정의
- * 색상, 크기, 모드 등 뷰어에서 사용되는 기본 값들을 정의
+ * Define viewer-related constants
+ * Define default values used in the viewer such as colors, sizes, and modes
  */
-// 각 상수값을 관리하는 클래스
+// Class that manages each constant value
 export const Constants = {
     /**
-     * 색상 상수
-     * 다크/라이트 모드의 배경색과 UI 요소 색상 정의
+     * Color constants
+     * Define background colors and UI element colors for dark/light modes
      */
     COLORS: {
+        // Main brand color
+        PRIMARY_ACCENT: '#3A98B9',
+        SECONDARY_ACCENT: '#9333EA',  // Purple
+        
         DARK_BACKGROUND: '#1a1a1a',
         LIGHT_BACKGROUND: '#ffffff',
         DARK_TEXT: '#ffffff',
@@ -23,7 +27,7 @@ export const Constants = {
     },
 
     /**
-     * 크기 상수
+     * Size constants
      * UI 요소의 크기와 여백 정의
      */
     SIZES: {
@@ -42,6 +46,54 @@ export const Constants = {
         TRANSLATE: 'translate',
         ROTATE: 'rotate',
         SCALE: 'scale',
+    },
+
+    /**
+     * 테이블 타입 매핑
+     * 파일명의 키워드에 따라 적용할 테이블 타입과 메서드
+     * 더 구체적인 것(CCC, LDKT)을 먼저 배치
+     */
+    TABLE_TYPES: {
+        CCC: {
+            keywords: ['CCC'],
+            method: 'createHCCTable',
+            displayName: 'CCC Surgery'
+        },
+        HCC: {
+            keywords: ['HCC'],
+            method: 'createHCCTable',
+            displayName: 'HCC Surgery'
+        },
+        LDKT: {
+            keywords: ['LDKT'],
+            method: 'createKTTable',
+            displayName: 'LDKT Surgery'
+        },
+        KT: {
+            keywords: ['KT'],
+            method: 'createKTTable',
+            displayName: 'KT Surgery'
+        },
+        LDLT: {
+            keywords: ['LDLT', '5-SECTION', 'RL'],
+            method: 'createLDLTTable',
+            displayName: 'LDLT Surgery'
+        },
+        HVT: {
+            keywords: ['HVT'],
+            method: 'createHVTTable',
+            displayName: 'HVT Surgery'
+        },
+        LEFT: {
+            keywords: ['LEFT', 'left'],
+            method: 'createLeftTable',
+            displayName: 'LEFT Surgery'
+        },
+        FUSION: {
+            keywords: ['FUSION'],
+            method: null,  // 표 필요 없음 - 기본 텍스트로 표시
+            displayName: 'FUSION Surgery'
+        }
     },
 
     /**
@@ -193,6 +245,59 @@ export const Constants = {
             ENVIRONMENT: '/studio_small_03_2k.hdr'
         }
     },
+
+    /**
+     * Floating Button 관련 상수
+     */
+    FLOATING_BUTTONS: {
+        CONTAINER: {
+            BOTTOM: '20px',
+            RIGHT: '20px',
+            GAP: '8px',
+            Z_INDEX: 900,
+            SAFE_AREA_BOTTOM: 'env(safe-area-inset-bottom, 20px)'
+        },
+        BUTTON: {
+            SIZE: 48,
+            BORDER_RADIUS: 24,
+            PADDING: 0,
+            FONT_SIZE: '11px',
+            ICON_SIZE: 20
+        },
+        DARK_MODE: {
+            BACKGROUND: 'rgba(50, 50, 50, 0.95)',
+            TEXT: '#ffffff',
+            BORDER: '#666666',
+            HOVER: 'rgba(70, 70, 70, 0.95)',
+            SHADOW: '0 4px 12px rgba(0, 0, 0, 0.5)'
+        },
+        LIGHT_MODE: {
+            BACKGROUND: 'rgba(240, 240, 240, 0.95)',
+            TEXT: '#000000',
+            BORDER: '#cccccc',
+            HOVER: 'rgba(220, 220, 220, 0.95)',
+            SHADOW: '0 4px 12px rgba(0, 0, 0, 0.15)'
+        }
+    },
+
+    /**
+     * XR 모드 관련 상수
+     */
+    XR_MODE: {
+        SESSION_TYPE: 'immersive-ar',
+        FEATURES: ['local-floor'],
+        REFERENCE_SPACE: 'local-floor'
+    },
+
+    /**
+     * Stereoscopic 렌더링 관련 상수
+     */
+    STEREOSCOPIC: {
+        ENABLED: false,
+        EYE_SEPARATION: 65,
+        CONVERGENCE_DISTANCE: 2000,
+        IOD_ADJUSTMENT_RANGE: [30, 100]
+    }
     
 };
   
@@ -212,7 +317,14 @@ export const LIVER_KEYWORDS = [
 // 투명도 조절 가능한 mesh 이름 키워드 (통합 관리)
 export const OPACITY_CONTROLLABLE_KEYWORDS = [
     ...LIVER_KEYWORDS,
-    "myometrium","uterus", "recipient_cavity", "pancreas", "Pancreas"
+    "myometrium","uterus", "recipient_cavity", "pancreas", "Pancreas",
+    "bladder", "tumor", "cancer", "glissonean_pedicle", "fibroid"
+];
+
+// Fibroid 관련 메시를 위한 키워드들
+export const FIBROID_KEYWORDS = [
+    "fibroid",
+    "fibroids",
 ];
 
 export const VESSEL_KEYWORDS = [

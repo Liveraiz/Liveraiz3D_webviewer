@@ -75,6 +75,8 @@ export default class SeeThrough {
             "ras",
             "rps",
             "ctap_livera",
+            "myometrium",
+            "uterus"
         ];
 
         // 모든 매칭되는 Mesh를 배열에 저장

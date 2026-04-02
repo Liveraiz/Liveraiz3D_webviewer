@@ -97,7 +97,7 @@ export default class FOVController {
     applyContainerStyles(container) {
         container.style.cssText = `
             position: absolute;
-            right: 200px;
+            right: 260px;
             top: 50%;
             transform: translateY(-50%);
             display: flex;

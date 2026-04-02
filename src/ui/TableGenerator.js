@@ -1,6 +1,7 @@
 // utils/TableGenerator.js
 
 import { COLOR, tableColor } from "../utils/color.js";
+import { Constants } from "../utils/Constants";
 
 export class TableGenerator {
     constructor(isDarkMode = false) {
@@ -11,7 +12,7 @@ export class TableGenerator {
         this.isDarkMode = isDarkMode;
     }
 
-    // 공통 스타일 정의
+    // Common style definition
     getCommonStyles() {
         return {
             light: {
@@ -23,7 +24,7 @@ export class TableGenerator {
                 valueBg: "#ffffff",
             },
             dark: {
-                header: "#3A98B9",
+                header: Constants.COLORS.PRIMARY_ACCENT,
                 headerText: "#e6e6e6",
                 tableBorder: "#4a5568",
                 textColor: "#000000",
@@ -58,22 +59,111 @@ export class TableGenerator {
         return value + "%";
     }
 
-    // HCC 테이블 생성 (기존 코드 그대로)
+    /**
+     * 파일명 기반으로 Surgery Type 감지
+     * Constants.TABLE_TYPES에 정의된 매핑을 사용
+     * @param {string} fileName - 파일명
+     * @returns {string} Surgery Type (HCC, CCC, KT, LDKT, LDLT 등)
+     */
+    detectSurgeryType(fileName) {
+        if (!fileName) return null;
+        
+        const name = fileName.toUpperCase();
+        
+        // Search in the order defined in Constants.TABLE_TYPES
+        // (object iteration order maintained as defined)
+        for (const [typeKey, typeConfig] of Object.entries(Constants.TABLE_TYPES)) {
+            for (const keyword of typeConfig.keywords) {
+                if (name.includes(keyword)) {
+                    console.log(`[TableGenerator] Detected type: ${typeKey} (keyword: ${keyword})`);
+                    return typeKey;
+                }
+            }
+        }
+        
+        return null;
+    }
+
+    /**
+     * 파일명과 CSV 데이터를 기반으로 자동 테이블 생성
+     * @param {string} csvData - CSV 데이터
+     * @param {string} fileName - 파일명
+     * @returns {Object} { html: string, surgeryType: string }
+     */
+    autoCreateTable(csvData, fileName) {
+        const surgeryType = this.detectSurgeryType(fileName);
+        let tableHTML = '';
+
+        if (surgeryType && Constants.TABLE_TYPES[surgeryType]) {
+            const typeConfig = Constants.TABLE_TYPES[surgeryType];
+            const methodName = typeConfig.method;
+            
+            // Check if method exists and call it
+            if (typeof this[methodName] === 'function') {
+                tableHTML = this[methodName](csvData, surgeryType);
+            } else {
+                console.warn(`[TableGenerator] Method not found: ${methodName}`);
+                tableHTML = `<pre style="white-space: pre-wrap; word-wrap: break-word; font-family: monospace;">${csvData}</pre>`;
+            }
+        } else {
+            // Default display
+            tableHTML = `<pre style="white-space: pre-wrap; word-wrap: break-word; font-family: monospace;">${csvData}</pre>`;
+        }
+
+        return {
+            html: tableHTML,
+            surgeryType: surgeryType
+        };
+    }
+
+    // Spleen Volume 별도 표 생성
+    createSpleenVolumeTable(csvData) {
+        var rows = csvData.replaceAll('"', "").split("\r\n");
+        rows = rows.filter((row) => row.trim() !== "");
+        if (rows.length === 0) return "";
+        var parsedRows = rows.map((row) => row.split(","));
+        var headers = parsedRows[0];
+        let spleenIdx = -1;
+        for (let i = 0; i < headers.length; i++) {
+            if (headers[i].toLowerCase().includes("spleen")) {
+                spleenIdx = i;
+                break;
+            }
+        }
+        if (spleenIdx === -1) return "";
+        // 볼륨값은 두 번째 row에 있다고 가정
+        let spleenVolume = parsedRows[1]?.[spleenIdx] || "";
+        if (!spleenVolume || spleenVolume === "0") return "";
+
+        // 별도 테이블 스타일 및 표 생성
+        const theme = this.isDarkMode ? this.getCommonStyles().dark : this.getCommonStyles().light;
+        const style = `
+        <style>
+            .spleen-table { border-collapse: collapse; width: 100%; max-width: 350px; font-family: Arial, sans-serif; margin: 16px 0 0 0; box-shadow: ${theme.boxShadow}; color: ${theme.textColor}; table-layout: fixed; }
+            .spleen-table th, .spleen-table td { border: 1px solid ${theme.tableBorder}; padding: 8px; text-align: center; }
+            .spleen-table th { background-color: #8e44ad; color: #fff; font-weight: bold; }
+            .spleen-table td { background-color: #fff; color: #222; font-size: 15px; }
+        </style>
+        `;
+        let table = style + "<table class='spleen-table'>";
+        table += "<thead><tr><th colspan='2'>Spleen Volume</th></tr></thead>";
+        table += "<tbody>";
+        table += `<tr><td>Volume</td><td>${this.formatVolume(spleenVolume)}</td></tr>`;
+        table += "</tbody></table>";
+        return table;
+    }
+
+    // Create HCC table (existing code + separate Spleen Volume table)
     createHCCTable(csvData, surgeryType = "HCC") {
         console.log("Creating HCC table with data:", csvData);
 
         var rows = csvData.replaceAll('"', "").split("\r\n");
-
         rows = rows.filter((row) => row.trim() !== "");
-
         if (rows.length === 0) return "<p>데이터가 없습니다.</p>";
-
         var parsedRows = rows.map((row) => row.split(","));
         var headers = parsedRows[0];
-
         var volumeData = {};
         var percentData = {};
-
         if (parsedRows.length > 1) {
             for (var i = 0; i < headers.length; i++) {
                 var key = headers[i];
@@ -81,7 +171,6 @@ export class TableGenerator {
                 volumeData[key] = value;
             }
         }
-
         if (parsedRows.length > 2) {
             for (var i = 0; i < headers.length; i++) {
                 var key = headers[i];
@@ -91,8 +180,10 @@ export class TableGenerator {
         } else {
             percentData = { ...volumeData };
         }
-
-        return this._generateHCCTableHTML(volumeData, percentData, surgeryType);
+        // Spleen Volume 표 생성
+        const spleenTable = this.createSpleenVolumeTable(csvData);
+        // 기존 HCC 표 + Spleen 표(있으면) 반환
+        return this._generateHCCTableHTML(volumeData, percentData, surgeryType) + (spleenTable ? `<div style='margin-top:12px;'>${spleenTable}</div>` : "");
     }
 
     // LDLT RL 테이블 생성
@@ -233,7 +324,7 @@ export class TableGenerator {
             "RIHVat",
             "MHVt",
             "V5t",
-            "V58",
+            "V58t",
             "V8t",
         ];
 
@@ -303,6 +394,141 @@ export class TableGenerator {
         }
 
         return this._generateHVTTableHTML(volumeData, percentData, recipBW, patientName, surgeryType);
+    }
+
+    // LEFT 테이블 생성 (Left Lobe 전용)
+    createLeftTable(csvData, surgeryType = "LDLT") {
+        console.log("Creating LEFT table with data:", csvData);
+
+        // 항목 목록
+        const leftItems = ["Lt.lobe", "LHVt", "V4t", "V4at", "V4bt"];
+
+        // CSV 파싱
+        var rows = csvData ? csvData.replaceAll('"', "").split(/\r?\n/).filter(row => row.trim() !== "") : [];
+        var parsedRows = rows.map(row => row.split(","));
+        var headers = parsedRows[0] || [];
+        var patientName = headers.length > 1 ? headers[1].trim() : "Patient";
+
+        // 값 추출 (hvt 방식)
+        var volumeData = {};
+        var percentData = {};
+        var recipBW = "";
+        
+        // 헤더 인덱스 파악
+        const segIdx = headers.findIndex(h => h.toLowerCase().includes("segment") || h.trim() === headers[0]);
+        const volIdx = headers.findIndex(h => h.toLowerCase().includes("volume"));
+        const pctIdx = headers.findIndex(h => h.toLowerCase().includes("percent"));
+        const grwrIdx = headers.findIndex(h => h.toLowerCase().includes("grwr"));
+
+        for (let i = 1; i < parsedRows.length; i++) {
+            const row = parsedRows[i];
+            // Recip BW 별도 처리
+            if (row[0]?.toLowerCase().includes("recip")) {
+                recipBW = row[1] ? row[1].trim() : "";
+                continue;
+            }
+            // left 항목만 추출
+            const segment = row[segIdx]?.trim();
+            if (leftItems.includes(segment)) {
+                const item = segment;
+                volumeData[item] = row[volIdx]?.trim() || "";
+                percentData[item] = row[pctIdx]?.trim() || "";
+                percentData[item + "_grwr"] = row[grwrIdx]?.trim() || "";
+            }
+        }
+
+        return this._generateLeftTableHTML(volumeData, percentData, recipBW, patientName, surgeryType);
+    }
+
+    // LEFT 테이블 HTML 생성
+    _generateLeftTableHTML(volumeData, percentData, recipBW, patientName, surgeryType) {
+        const theme = this.isDarkMode
+            ? this.getCommonStyles().dark
+            : this.getCommonStyles().light;
+
+        const leftColors = {
+            "Lt.lobe": "#ffe6b1",
+            "LHVt": "#fff2aa",
+            "V4t": "#c9ffb3",
+            "V4at": "#92cd93",
+            "V4bt": "#8eb09a"
+        };
+
+        const style = `
+        <style>
+            .left-table {
+                border-collapse: collapse;
+                width: 100%;
+                max-width: 600px;
+                font-family: Arial, sans-serif;
+                margin: 20px 0;
+                box-shadow: ${theme.boxShadow};
+                color: ${theme.textColor};
+                table-layout: fixed;
+            }
+            
+            .left-table th, 
+            .left-table td {
+                border: 1px solid ${theme.tableBorder};
+                padding: 8px;
+                text-align: center;
+                width: 50%;
+            }
+            
+            .left-table th {
+                font-weight: bold;
+            }
+            
+            .left-table thead th {
+                background-color: ${theme.header};
+                color: ${theme.headerText};
+            }
+            
+            .value { background-color: ${theme.valueBg}; }
+            .percent-row { background-color: #E5E5E5; }
+        </style>
+        `;
+
+        let table = style + "<table class='left-table'>";
+        
+        // 헤더
+        table += "<thead><tr>";
+        table += "<th>" + surgeryType + "</th>";
+        table += "<th>" + patientName + "</th>";
+        table += "</tr></thead>";
+        
+        table += "<tbody>";
+
+        // 각 left 항목
+        const leftItems = ["Lt.lobe", "LHVt", "V4t", "V4at", "V4bt"];
+        leftItems.forEach((item) => {
+            const volume = volumeData[item];
+            const percent = percentData[item];
+            const grwr = percentData[item + "_grwr"];
+            const bgColor = leftColors[item] || "#FFFFFF";
+            
+            if (volume || percent || grwr) {
+                // 항목 이름 행
+                table += "<tr>";
+                table += `<th style='background-color: ${bgColor};'>${item}</th>`;
+                table += `<td class='value'>${this.formatVolume(volume)}</td>`;
+                table += "</tr>";
+                
+                // 퍼센트/GRWR 행
+                table += "<tr class='percent-row'>";
+                table += `<td class='percent-row'>${percent ? percent + "%" : ""}</td>`;
+                table += `<td class='percent-row'>${grwr ? grwr : ""}</td>`;
+                table += "</tr>";
+            }
+        });
+
+        // Recip BW 행 (있는 경우만)
+        if (recipBW) {
+            table += `<tr><th style='background-color: #D4D4D4;'>Recip BW</th><td class='value'>${recipBW}</td></tr>`;
+        }
+
+        table += "</tbody></table>";
+        return table;
     }
 
     // KT 테이블 생성
@@ -422,6 +648,7 @@ export class TableGenerator {
             llsBg: "#FFE0A3",
             lmsBg: "#FFF9C4",
             spigelianBg: "#C8E6C9",
+            cancerBg: "#F8BBD0",
         };
 
         const style = `
@@ -462,6 +689,7 @@ export class TableGenerator {
             .lls { background-color: ${colors.llsBg}; }
             .lms { background-color: ${colors.lmsBg}; }
             .spigelian { background-color: ${colors.spigelianBg}; }
+            .cancer { background-color: ${colors.cancerBg}; }
             .value { background-color: ${theme.valueBg}; }
             
             .surgery-header {
@@ -571,20 +799,17 @@ export class TableGenerator {
         table += "</tr>";
 
         table += "<tr>";
-        table += "<td></td>";
+        table += "<th class='cancer'>Cancer</th>";
         table += "<th class='spigelian'>Spigelian</th>";
         table += "</tr>";
 
         table += "<tr>";
-        table += "<td></td>";
-        table +=
-            "<td class='value'>" +
-            this.formatVolume(volumeData["Spigelian"]) +
-            "</td>";
+        table += "<td class='value'>" + this.formatVolume(volumeData["Cancer"])  + "</td>";
+        table += "<td class='value'>" + this.formatVolume(volumeData["Spigelian"]) + "</td>";
         table += "</tr>";
 
         table += "<tr>";
-        table += "<td></td>";
+        table += "<td class='value'></td>";
         table +=
             "<td class='value'>" +
             this.formatPercent(percentData["Spigelian"]) +
@@ -869,7 +1094,7 @@ export class TableGenerator {
             "RIHVat",
             "MHVt",
             "V5t",
-            "V58",
+            "V58t",
             "V8t",
         ];
 
@@ -923,6 +1148,181 @@ export class TableGenerator {
             table += "<td class='value'>" + recipBWDisplay + "</td>";
             table += "</tr>";
         }
+
+        table += "</tbody></table>";
+
+        return table;
+    }
+
+    // Liver 5-Section Volume 테이블 생성
+    createLiver5SectionTable(csvData, surgeryType = "Liver 5-Section") {
+        console.log("Creating Liver 5-Section table with data:", csvData);
+
+        var rows = csvData.replaceAll('"', "").split("\r\n");
+        rows = rows.filter((row) => row.trim() !== "");
+
+        if (rows.length === 0) return "<p>데이터가 없습니다.</p>";
+
+        var parsedRows = rows.map((row) => row.split(","));
+        var headers = parsedRows[0];
+
+        // CSV 헤더 분석: Segment, Volume (cm³), Percentage (%), GRWR (%)
+        const segIdx = headers.findIndex(h => h.toLowerCase().includes("segment"));
+        const volIdx = headers.findIndex(h => h.toLowerCase().includes("volume"));
+        const pctIdx = headers.findIndex(h => h.toLowerCase().includes("percent") && !h.toLowerCase().includes("grwr"));
+        const grwrIdx = headers.findIndex(h => h.toLowerCase().includes("grwr"));
+
+        var volumeData = {};
+        var percentData = {};
+        var grwrData = {};
+
+        // 데이터 추출
+        for (let i = 1; i < parsedRows.length; i++) {
+            const row = parsedRows[i];
+            const segment = row[segIdx]?.trim();
+            if (segment) {
+                volumeData[segment] = row[volIdx]?.trim() || "0";
+                percentData[segment] = row[pctIdx]?.trim() || "0";
+                grwrData[segment] = row[grwrIdx]?.trim() || "0";
+            }
+        }
+
+        return this._generateLiver5SectionTableHTML(volumeData, percentData, grwrData, surgeryType);
+    }
+
+    // Liver 5-Section 테이블 HTML 생성
+    _generateLiver5SectionTableHTML(volumeData, percentData, grwrData, surgeryType) {
+        const theme = this.isDarkMode
+            ? this.getCommonStyles().dark
+            : this.getCommonStyles().light;
+
+        // HCC 색상 참조
+        const colors = COLOR.HCC || {
+            wholeLiverBg: "#FFE5E5",
+            rtlobeBg: "#FFE0E0",
+            ltlobeBg: "#FFFFD5",
+            rasBg: "#FFB3BA",
+            rpsBg: "#F0E6FF",      // 연한 보라
+            llsBg: "#FFD9B3",      // 연한 주황
+            lmsBg: "#FFFACD",      // 연한 노랑 (레몬 쉬폰)
+            spigelianBg: "#B3F0FF", // 연한 네온 하늘색
+            cancerBg: "#FFB6C6"
+        };
+
+        const style = `
+        <style>
+            .liver-5section-table {
+                border-collapse: collapse;
+                width: 100%;
+                max-width: 600px;
+                font-family: Arial, sans-serif;
+                margin: 20px 0;
+                box-shadow: ${theme.boxShadow};
+                color: ${theme.textColor};
+                table-layout: fixed;
+            }
+            
+            .liver-5section-table th, 
+            .liver-5section-table td {
+                border: 1px solid ${theme.tableBorder};
+                padding: 8px;
+                text-align: center;
+                width: 50%;
+            }
+            
+            .liver-5section-table th {
+                font-weight: bold;
+            }
+            
+            .liver-5section-table thead th {
+                background-color: ${theme.header};
+                color: ${theme.headerText};
+            }
+            
+            .ras { background-color: ${colors.rasBg}; }
+            .rps { background-color: ${colors.rpsBg}; }
+            .lls { background-color: ${colors.llsBg}; }
+            .lms { background-color: ${colors.lmsBg}; }
+            .spigelian { background-color: ${colors.spigelianBg}; }
+            .value { background-color: ${theme.valueBg}; }
+            
+            .surgery-header {
+                background-color: ${theme.header};
+                color: ${theme.headerText};
+                text-align: center;
+                font-weight: bold;
+                padding: 10px;
+            }
+        </style>
+        `;
+
+        let table = style + "<table class='liver-5section-table'>";
+
+        // 헤더
+        table += "<thead><tr>";
+        table += "<th colspan='2' class='surgery-header'>" + surgeryType + "</th>";
+        table += "</tr></thead>";
+
+        table += "<tbody>";
+
+        // Segment 1 (RAS / RPS) - 첫 쌍
+        table += "<tr>";
+        table += "<th class='ras'>RAS</th>";
+        table += "<th class='rps'>RPS</th>";
+        table += "</tr>";
+
+        table += "<tr>";
+        table += "<td class='value'>" + this.formatVolume(volumeData["RAS"]) + "</td>";
+        table += "<td class='value'>" + this.formatVolume(volumeData["RPS"]) + "</td>";
+        table += "</tr>";
+
+        table += "<tr>";
+        table += "<td class='value'>" + this.formatPercent(percentData["RAS"]) + "</td>";
+        table += "<td class='value'>" + this.formatPercent(percentData["RPS"]) + "</td>";
+        table += "</tr>";
+
+        table += "<tr>";
+        table += "<td class='value'>" + this.formatPercent(grwrData["RAS"]) + "</td>";
+        table += "<td class='value'>" + this.formatPercent(grwrData["RPS"]) + "</td>";
+        table += "</tr>";
+
+        // Segment 2 (LMS / LLS) - 두번째 쌍
+        table += "<tr>";
+        table += "<th class='lms'>LMS</th>";
+        table += "<th class='lls'>LLS</th>";
+        table += "</tr>";
+
+        table += "<tr>";
+        table += "<td class='value'>" + this.formatVolume(volumeData["LMS"]) + "</td>";
+        table += "<td class='value'>" + this.formatVolume(volumeData["LLS"]) + "</td>";
+        table += "</tr>";
+
+        table += "<tr>";
+        table += "<td class='value'>" + this.formatPercent(percentData["LMS"]) + "</td>";
+        table += "<td class='value'>" + this.formatPercent(percentData["LLS"]) + "</td>";
+        table += "</tr>";
+
+        table += "<tr>";
+        table += "<td class='value'>" + this.formatPercent(grwrData["LMS"]) + "</td>";
+        table += "<td class='value'>" + this.formatPercent(grwrData["LLS"]) + "</td>";
+        table += "</tr>";
+
+        // Spigelian - 마지막 (별도행)
+        table += "<tr>";
+        table += "<th class='spigelian' colspan='2'>Spigelian</th>";
+        table += "</tr>";
+
+        table += "<tr>";
+        table += "<td class='value' colspan='2'>" + this.formatVolume(volumeData["Spigelian"]) + "</td>";
+        table += "</tr>";
+
+        table += "<tr>";
+        table += "<td class='value' colspan='2'>" + this.formatPercent(percentData["Spigelian"]) + "</td>";
+        table += "</tr>";
+
+        table += "<tr>";
+        table += "<td class='value' colspan='2'>" + this.formatPercent(grwrData["Spigelian"]) + "</td>";
+        table += "</tr>";
 
         table += "</tbody></table>";
 

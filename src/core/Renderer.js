@@ -93,4 +93,66 @@ export default class Renderer {
             }
         }
     }
+
+    /**
+     * Stereoscopic 모드 활성화
+     */
+    enableStereoscopicMode() {
+        console.log('Stereoscopic mode enabled');
+        this.renderer.setClearColor(0x000000, 1.0);
+    }
+
+    /**
+     * Stereoscopic 모드 비활성화
+     */
+    disableStereoscopicMode() {
+        console.log('Stereoscopic mode disabled');
+        this.renderer.setClearColor(0x1a1a1a, 1.0);
+    }
+
+    /**
+     * Stereoscopic 렌더링
+     * @param {THREE.Scene} scene - 렌더링할 씬
+     * @param {THREE.Camera} leftCamera - 좌안 카메라
+     * @param {THREE.Camera} rightCamera - 우안 카메라
+     */
+    renderStereo(scene, leftCamera, rightCamera) {
+        const width = this.renderer.domElement.clientWidth;
+        const height = this.renderer.domElement.clientHeight;
+        const halfWidth = width / 2;
+
+        // 좌안 렌더링
+        this.renderer.setViewport(0, 0, halfWidth, height);
+        this.renderer.render(scene, leftCamera);
+
+        // 우안 렌더링
+        this.renderer.setViewport(halfWidth, 0, halfWidth, height);
+        this.renderer.render(scene, rightCamera);
+
+        // 뷰포트 복구
+        this.renderer.setViewport(0, 0, width, height);
+
+        // CSS2D 렌더러 처리
+        if (this.labelRenderer) {
+            this.labelRenderer.render(scene, leftCamera);
+        }
+    }
+
+    /**
+     * 캔버스 크기 조정
+     */
+    setCanvasSize(width, height) {
+        this.renderer.setSize(width, height);
+        this.labelRenderer.setSize(width, height);
+    }
+
+    /**
+     * 현재 렌더러의 캔버스 크기 반환
+     */
+    getCanvasSize() {
+        return {
+            width: this.renderer.domElement.clientWidth,
+            height: this.renderer.domElement.clientHeight
+        };
+    }
 }

@@ -2,11 +2,18 @@
   "name": "liveraiz_viewer",
   "version": "1.0.0",
   "description": "",
-  "main": "vite.config.js",
+  "main": "electron/main.js",
   "scripts": {
     "dev": "vite",
+    "electron:dev:web": "vite --port 5173 --strictPort",
     "build": "vite build",
     "preview": "vite preview",
+    "electron:start": "electron .",
+    "electron:dev": "concurrently -k \"npm:electron:dev:web\" \"npm:electron:dev:app\"",
+    "electron:dev:app": "wait-on tcp:5173 && cross-env VITE_DEV_SERVER_URL=http://localhost:5173 electron .",
+    "electron:build": "npm run build",
+    "dist": "npm run build && electron-builder",
+    "dist:win": "npm run build && electron-builder --win",
     "server": "node server/server.js",
     "dev:server": "nodemon server/server.js"
   },
@@ -26,7 +33,44 @@
     "three": "^0.158.0"
   },
   "devDependencies": {
+    "concurrently": "^9.2.1",
+    "cross-env": "^7.0.3",
+    "electron": "^37.2.0",
+    "electron-builder": "^25.1.6",
     "terser": "^5.43.1",
-    "vite": "^6.4.1"
+    "vite": "^6.4.1",
+    "wait-on": "^8.0.5"
+  },
+  "build": {
+    "appId": "com.liveraiz.viewer",
+    "productName": "LiverAiz3D Viewer",
+    "files": [
+      "build/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "directories": {
+      "buildResources": "public"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        },
+        {
+          "target": "portable",
+          "arch": ["x64"]
+        }
+      ],
+      "sign": null
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
   }
 }
+

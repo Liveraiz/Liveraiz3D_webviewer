@@ -28,17 +28,18 @@ const COLOR = {
     "Resected V.": "#FFFFD5",
   },
   HVT: {
-    "Rt.lobe": "#FFDFC1", // 오렌지색
-    "RHVt": "#B8E6B8", // 연두색
-    "RSHVt": "#D4ED9E", // 연한 노란색-녹색
-    "RIHVt": "#FFF9C4", // 연한 노란색
-    "RIHVpt": "#FFCCCC", // 연한 빨간색/핑크색
-    "RIHVat": "#B3E5E5", // 연한 청록색/블루-그린
-    "MHVt": "#FFDFC1", // 오렌지색
-    "V5t": "#FFCCCC", // 연한 빨간색/핑크색
-    "V58": "#E6CCEF", // 연한 보라색
-    "V8t": "#B3D9FF", // 연한 파란색
-    "Recip BW": "#ffd1e4", // (다른 항목과 겹치지 않도록)
+    "Rt.lobe": "#FFDFC1", // Orange
+    "RHVt": "#B8E6B8", // Yellow-green
+    "RSHVt": "#D4ED9E", // Light yellow-green
+    "RIHVt": "#FFF9C4", // Light yellow
+    "RIHVpt": "#FFCCCC", // Light red/Pink
+    "RIHVat": "#B3E5E5", // Light cyan/Blue-green
+    "MHVt": "#FFDFC1", // Orange
+    "V5t": "#FFCCCC", // Light red/Pink
+    "V58": "#E6CCEF", // Light purple
+    "V58t": "#E6CCEF", // Light purple (V58t exclusive)
+    "V8t": "#B3D9FF", // Light blue
+    "Recip BW": "#ffd1e4", // (to avoid overlapping with other items)
   },
 };
 

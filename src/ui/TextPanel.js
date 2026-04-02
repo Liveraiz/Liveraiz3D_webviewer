@@ -1,3 +1,5 @@
+import { DeviceDetector } from "../utils/DeviceDetector";
+
 export default class TextPanel {
   /**
    * TextPanel 클래스 생성자
@@ -420,7 +422,7 @@ export default class TextPanel {
     }
 
     // 모바일에서 다른 패널이 닫힐 때 시각적 피드백 (실시간 상태 확인)
-    const currentIsMobile = window.innerWidth < 768;
+    const currentIsMobile = new DeviceDetector().isMobile();
     if (currentIsMobile && this.isOpen && this.panelManager) {
       console.log("모바일: Volume Panel 열림 - Mesh Panel이 자동으로 닫힙니다.");
     }

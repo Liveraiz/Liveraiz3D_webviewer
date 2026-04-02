@@ -3,10 +3,11 @@
 import { DropboxService } from "../services/DropboxService";
 import { DeviceDetector } from "../utils/DeviceDetector";
 import { TableGenerator } from "./TableGenerator";
+import { Constants } from "../utils/Constants";
 
 export default class ModelSelector {
     constructor(liverViewer) {
-        // 기본 속성 초기화
+        // Initialize basic properties
         this.liverViewer = liverViewer;
         this.isDarkMode = liverViewer.isDarkMode;
         this.dialog = null;
@@ -14,19 +15,23 @@ export default class ModelSelector {
         this.modelLoader = null;
         this.lastLoadedModels = null;
         this.textPanel = null;
-        this.patientInfoUrl = null; // 환자 정보 URL 저장
-        this.lastJsonUrl = null; // JSON URL 저장
-        this.isLoading = false; // 로딩 상태 추적
-        this.currentModelIndex = 0; // 현재 선택된 모델의 인덱스
-        this.lastScrollPosition = 0; // 마지막 carousel 스크롤 위치
+        this.patientInfoUrl = null; // Patient information URL saved
+        this.lastJsonUrl = null; // JSON URL saved
+        this.isLoading = false; // Loading state tracking
+        this.currentModelIndex = 0; // Index of currently selected model
+        this.lastScrollPosition = 0; // Last carousel scroll position
 
-        // UI 컨테이너 초기화
+        // Local file model related properties (Option B)
+        this.localModels = []; // Array of locally loaded models
+        this.isLocalFilesMode = false; // Whether local file mode is enabled
+
+        // Initialize UI container
         this.container = document.createElement("div");
         this.container.className = "model-selector";
         this.container.style.display = "none";
         document.body.appendChild(this.container);
 
-        // 모델 리스트 컨테이너 초기화
+        // Initialize model list container
         this.modelList = document.createElement("div");
         this.modelList.className = "model-list";
         this.container.appendChild(this.modelList);
@@ -53,7 +58,7 @@ export default class ModelSelector {
     }
 
     setModelLoader(modelLoader) {
-        console.log("ModelLoader 설정됨:", modelLoader);
+        console.log("ModelLoader initialized:", modelLoader);
         this.modelLoader = modelLoader;
         if (this.dropboxService) {
             this.dropboxService.setModelLoader(modelLoader);
@@ -67,49 +72,49 @@ export default class ModelSelector {
     async loadDropboxFolderContents(jsonUrl, isDirectLoad = false) {
         try {
             this.lastJsonUrl = jsonUrl;
-            console.log("입력 URL:", jsonUrl);
+            console.log("Input URL:", jsonUrl);
 
-            // Dropbox URL 유효성 검사 (dropbox.com 또는 dropboxusercontent.com 허용)
+            // Dropbox URL validation (dropbox.com or dropboxusercontent.com allowed)
             if (!jsonUrl.includes("dropbox.com") && !jsonUrl.includes("dropboxusercontent.com")) {
-                throw new Error("올바른 Dropbox 링크가 아닙니다.");
+                throw new Error("Not a valid Dropbox link.");
             }
 
-            // JSON 파일 로드 및 처리
-            // isJsonFile=true로 설정하여 폴더 링크인 경우 model.json 경로 자동 추가
+            // Load and process JSON file
+            // Set isJsonFile=true to auto add model.json path if folder link
             const directUrl = this.dropboxService.getDirectDownloadUrl(jsonUrl, true);
-            console.log("변환된 JSON URL:", directUrl);
+            console.log("Converted JSON URL:", directUrl);
             const response = await fetch(directUrl);
             if (!response.ok) {
-                throw new Error("JSON 파일을 불러올 수 없습니다.");
+                throw new Error("Unable to load JSON file.");
             }
 
             const data = await response.json();
-            console.log("불러온 JSON 데이터:", data);
+            console.log("Loaded JSON data:", data);
 
-            // 로고 데이터 처리 - onJsonLoaded 콜백이 있으면 호출
+            // Process logo data - call onJsonLoaded callback if available
             if (
                 data.logo &&
                 this.liverViewer &&
                 typeof this.onJsonLoaded === "function"
             ) {
-                console.log("로고 데이터 발견, 콜백 실행:", data.logo);
+                console.log("Logo data found, executing callback:", data.logo);
                 this.onJsonLoaded(data);
             }
 
-            // UI 업데이트 또는 데이터 저장
-            // isDirectLoad일 때도 모델 리스트를 업데이트해야 UI에 표시됨
+            // Update UI or save data
+            // Model list must be updated even when isDirectLoad to display in UI
             await this.updateModelList(data);
             this.lastLoadedModels = data.models || [];
 
             return data;
         } catch (error) {
-            console.error("전체 처리 중 오류:", error);
+            console.error("Error during full processing:", error);
             throw error;
         }
     }
 
     async handleTableDisplay(model) {
-        // TextPanel 닫기
+        // Close TextPanel
         if (this.liverViewer.textPanel) {
             this.liverViewer.textPanel.close();
         }
@@ -123,16 +128,17 @@ export default class ModelSelector {
 
                 let tableHTML = "";
 
-                // case 값을 정규화 (대소문자 무시, 공백 제거)
+                // Normalize case value (case-insensitive, trim whitespace)
                 const normalizedCase = model.case ? model.case.trim().toUpperCase() : "";
-                // 모델 이름도 확인 (HVT, RL 등을 구분하기 위해)
+                // Also check model name (to distinguish HVT, RL, etc.)
                 const modelName = model.name ? model.name.trim().toUpperCase() : "";
                 console.log("Table display - model.case:", model.case, "normalized:", normalizedCase, "model.name:", model.name);
 
-                if (normalizedCase === "HCC") {
+                if (normalizedCase === "HCC" || normalizedCase === "CCC" || normalizedCase.includes("CCC")) {
+                    // Use HCC table format for CCC too, pass CCC to surgeryType
                     tableHTML = this.tableGenerator.createHCCTable(
                         tableText,
-                        model.case
+                        normalizedCase === "CCC" || normalizedCase.includes("CCC") ? "CCC" : model.case
                     );
                 } else if (normalizedCase === "KT" || normalizedCase === "LDKT") {
                     tableHTML = this.tableGenerator.createKTTable(
@@ -140,25 +146,39 @@ export default class ModelSelector {
                         model.case
                     );
                 } else if (normalizedCase === "LDLT" || normalizedCase === "LDLT RL" || normalizedCase.includes("LDLT")) {
-                    // LDLT인 경우 모델 이름을 확인하여 HVT 또는 RL 테이블 선택
-                    if (modelName.includes("HVT") || modelName.includes("HVt") || modelName.includes("HVT")) {
-                        // HVT 테이블 (HTML 형식)
-                        console.log("HVT 테이블 사용 (모델 이름 기반):", model.name);
+                    // For LDLT, check model name to select left/HVT/RL/5-Section table
+                    if (modelName.includes("SECTION") || modelName.includes("5-SECTION")) {
+                        // Liver 5-Section Table
+                        console.log("Using Liver 5-Section Table (based on model name):", model.name);
+                        tableHTML = this.tableGenerator.createLiver5SectionTable(
+                            tableText,
+                            model.case || "Liver 5-Section"
+                        );
+                    } else if (modelName.includes("LEFT")) {
+                        // Create left model table
+                        console.log("Using LDLT left table (based on model name):", model.name);
+                        tableHTML = this.tableGenerator.createLeftTable(
+                            tableText,
+                            model.case || "LDLT"
+                        );
+                    } else if (modelName.includes("HVT") || modelName.includes("HVt") || modelName.includes("HVT")) {
+                        // HVT Table (HTML format)
+                        console.log("Using HVT Table (based on model name):", model.name);
                         tableHTML = this.tableGenerator.createHVTTable(
                             tableText,
                             model.case || "LDLT"
                         );
                     } else {
-                        // RL 테이블 (기본 LDLT 테이블)
-                        console.log("LDLT RL 테이블 사용 (모델 이름 기반):", model.name);
+                        // RL Table (default LDLT table)
+                        console.log("Using LDLT RL Table (based on model name):", model.name);
                         tableHTML = this.tableGenerator.createLDLTTable(
                             tableText,
                             model.case
                         );
                     }
                 } else if (normalizedCase === "HVT" || (normalizedCase.includes("LDLT") && model.case?.toLowerCase().includes("hvt"))) {
-                    // case에 직접 HVT가 명시된 경우
-                    console.log("HVT 테이블 사용 (case 기반):", model.case);
+                    // case explicitly specifies HVT
+                    console.log("Using HVT Table (based on case):", model.case);
                     tableHTML = this.tableGenerator.createHVTTable(
                         tableText,
                         model.case || "LDLT"
@@ -175,7 +195,7 @@ export default class ModelSelector {
                     this.liverViewer.textPanel.updateContent(tableHTML);
                 }
             } catch (error) {
-                console.error("테이블 데이터 로드 실패:", error);
+                console.error("Failed to load table data:", error);
                 if (this.liverViewer.textPanel) {
                     this.liverViewer.textPanel.updateContent("");
                 }
@@ -188,33 +208,33 @@ export default class ModelSelector {
     }
 
     extractFolderPath(url) {
-        // Dropbox 폴더 URL에서 필요한 정보 추출
+        // Extract required information from Dropbox folder URL
         const match = url.match(/\/fo\/([^/]+)/);
         return match ? match[1] : null;
     }
 
     async updateModelList(data) {
         try {
-            // 데이터 유효성 검사
+            // Data validation
             if (!data) {
-                return; // 조용히 리턴
+                return; // Return silently
             }
 
-            // 모델 배열 확인
+            // Check model array
             const models = Array.isArray(data) ? data : data.models;
             if (!models || !Array.isArray(models)) {
-                return; // 조용히 리턴
+                return; // Return silently
             }
 
-            // container나 modelList가 없으면 조용히 리턴
+            // Return silently if container or modelList doesn't exist
             if (!this.container || !this.modelList) {
                 return;
             }
 
-            // 기존 모델 리스트 초기화
+            // Initialize existing model list
             this.modelList.innerHTML = "";
 
-            // models 처리
+            // Process models
             if (!models || !Array.isArray(models)) {
                 console.error("Invalid models data:", models);
                 return;
@@ -222,21 +242,21 @@ export default class ModelSelector {
 
             this.lastLoadedModels = models;
 
-            // 기존 컨테이너 제거
+            // Remove existing container
             const oldContainer = document.getElementById("model-list");
             if (oldContainer) {
                 oldContainer.remove();
             }
 
-            // 새 컨테이너 생성
+            // Create new container
             const container = document.createElement("div");
             container.id = "model-list";
 
             const isMobile = new DeviceDetector().isMobile();
-            const containerWidth = 300; // 원래 컨테이너 크기
-            const cardWidth = (containerWidth / 3) * 1.5; // 카드 크기를 컨테이너의 50%로 축소
+            const containerWidth = 300; // Original container size
+            const cardWidth = (containerWidth / 3) * 1.5; // Reduce card size to 50% of container width
 
-            // 캐러셀 컨테이너 스타일
+            // Carousel container style
             Object.assign(container.style, {
                 display: "flex",
                 gap: "0",
@@ -244,7 +264,7 @@ export default class ModelSelector {
                 overflowY: "hidden",
                 width: `${containerWidth}px`,
                 boxSizing: "border-box",
-                scrollSnapType: "x mandatory", // carousel 정상 동작을 위해 복원
+                scrollSnapType: "x mandatory", // Restored for normal carousel operation
                 position: "relative",
                 paddingLeft: `${(containerWidth - cardWidth) / 2}px`,
                 paddingRight: `${(containerWidth - cardWidth) / 2}px`,
@@ -252,17 +272,17 @@ export default class ModelSelector {
                 msOverflowStyle: "none",
                 WebkitOverflowScrolling: "touch",
                 scrollBehavior: "smooth",
-                scrollSnapStop: "always", // carousel 정상 동작을 위해 복원
+                scrollSnapStop: "always", // Restored for normal carousel operation
             });
 
-            // 타일 정의 업데이트
+            // Update tile definition
             const style = document.createElement("style");
             style.textContent = `
                 #model-list::-webkit-scrollbar {
                     display: none;
                 }
                 .model-item {
-                    scroll-snap-align: center; /* carousel 정상 동작을 위해 복원 */
+                    scroll-snap-align: center; /* Restored for normal carousel operation */
                     transition: all 0.3s ease;
                     opacity: 0.4;
                     transform: scale(0.85);
@@ -306,16 +326,16 @@ export default class ModelSelector {
             `;
             document.head.appendChild(style);
 
-            // 스크롤 이벤트로 중앙 아이템 활성 개선
+            // Improve active center item via scroll event
             let scrollTimeout;
-            let isScrollDisabled = false; // 스크롤 이벤트 비활성화 플래그
+            let isScrollDisabled = false; // Scroll event disable flag
             
             const scrollHandler = () => {
                 if (scrollTimeout) {
                     clearTimeout(scrollTimeout);
                 }
 
-                // 스크롤이 비활성화되어 있으면 처리하지 않음
+                // Do not process if scroll is disabled
                 if (isScrollDisabled) return;
 
                 scrollTimeout = setTimeout(() => {
@@ -360,15 +380,15 @@ export default class ModelSelector {
             
             container.addEventListener("scroll", scrollHandler);
             
-            // 스크롤 이벤트 제어를 위한 메서드 추가
+            // Add method to control scroll event
             this.disableScroll = () => { isScrollDisabled = true; };
             this.enableScroll = () => { isScrollDisabled = false; };
 
-            // 좌우 버튼 추가
+            // Add left/right buttons
             const createNavigationButton = (direction) => {
                 const button = document.createElement("button");
                 
-                // 현재 테마 상태를 여러 소스에서 확인
+                // Check current theme state from multiple sources
                 const liverViewerDarkMode = this.liverViewer ? this.liverViewer.isDarkMode : null;
                 const bodyDarkMode = document.body.classList.contains('dark-mode');
                 const computedDarkMode = getComputedStyle(document.body).backgroundColor.includes('26, 26, 26');
@@ -394,7 +414,7 @@ export default class ModelSelector {
                     transition: "opacity 0.3s",
                 });
 
-                // 구글 아이콘 SVG 적용
+                // Apply Google icon SVG
                 const svg = document.createElementNS(
                     "http://www.w3.org/2000/svg",
                     "svg"
@@ -409,13 +429,13 @@ export default class ModelSelector {
                     "path"
                 );
                 if (direction === "left") {
-                    // chevron_left 아이콘
+                    // chevron_left icon
                     path.setAttribute(
                         "d",
                         "M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"
                     );
                 } else {
-                    // chevron_right 아이콘
+                    // chevron_right icon
                     path.setAttribute(
                         "d",
                         "M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"
@@ -441,19 +461,19 @@ export default class ModelSelector {
             const prevButton = createNavigationButton("left");
             const nextButton = createNavigationButton("right");
 
-            // 슬라이드 이동 함수
+            // Slide move function
             const moveToItem = (direction) => {
-                console.log("moveToItem 호출됨:", direction, "로딩 상태:", this.isLoading);
+                console.log("moveToItem called:", direction, "Loading state:", this.isLoading);
                 
-                // 로딩 중이면 carousel 이동 완전 차단
+                // Block carousel movement completely if loading
                 if (this.isLoading) {
-                    console.log("로딩 중 - carousel 이동 완전 차단");
+                    console.log("Loading - Block carousel movement completely");
                     return;
                 }
                 
-                // 모델 로딩 중이면 carousel 이동 차단
+                // Block carousel movement if model is loading
                 if (this.isLoading) {
-                    console.log("모델 로딩 중 - carousel 이동 차단");
+                    console.log("Model loading - Block carousel movement");
                     return;
                 }
                 
@@ -469,7 +489,7 @@ export default class ModelSelector {
                         ? Math.min(currentIndex + 1, items.length - 1)
                         : Math.max(currentIndex - 1, 0);
 
-                // carousel 스크롤 복원 (로딩 중이 아닐 때만)
+                // Restore carousel scroll (only when not loading)
                 if (!this.isLoading) {
                     items[targetIndex].scrollIntoView({
                         behavior: "smooth",
@@ -478,9 +498,9 @@ export default class ModelSelector {
                     });
                 }
 
-                // 부드러운 전환을 위한 타이밍 조정
+                // Timing adjustment for smooth transition
                 setTimeout(() => {
-                    // dots 업데이트
+                    // Update dots
                     dots.forEach((dot, i) => {
                         if (i === targetIndex) {
                             dot.classList.add("active");
@@ -495,7 +515,7 @@ export default class ModelSelector {
                         }
                     });
 
-                    // 아이템 활성화 상태 업데이트
+                    // Update item active state
                     items.forEach((item, i) => {
                         if (i === targetIndex) {
                             item.classList.add("active");
@@ -505,32 +525,32 @@ export default class ModelSelector {
                             item.style.zIndex = "1";
                         }
                     });
-                }, 100); // 약간의 지연 추가
+                }, 100); // Add slight delay
             };
 
-            // 버튼 클릭 이벤트
+            // Button click event
             prevButton.onclick = () => moveToItem("prev");
             nextButton.onclick = () => moveToItem("next");
 
-            // 터치 이벤트 처리
+            // Touch event handling
             let touchStartX = 0;
             let touchEndX = 0;
             let isSwiping = false;
-            this.touchStartTime = 0; // 터치 시작 시간 추가
+            this.touchStartTime = 0; // Add touch start time
 
             container.addEventListener(
                 "touchstart",
                 (e) => {
-                    // 로딩 중이면 터치 이벤트 무시
+                    // Ignore touch event if loading
                     if (this.isLoading) {
-                        console.log("터치 시작 차단 - 로딩 중");
+                        console.log("Touch start blocked - Loading");
                         isSwiping = false;
                         e.preventDefault();
                         e.stopPropagation();
                         return;
                     }
                     touchStartX = e.touches[0].clientX;
-                    this.touchStartTime = Date.now(); // 터치 시작 시간 기록
+                    this.touchStartTime = Date.now(); // Record touch start time
                     isSwiping = true;
                 },
                 { passive: false }
@@ -541,7 +561,7 @@ export default class ModelSelector {
                 (e) => {
                     if (!isSwiping || this.isLoading) {
                         if (this.isLoading) {
-                            console.log("터치 이동 차단 - 로딩 중");
+                            console.log("Touch move blocked - Loading");
                             e.preventDefault();
                             e.stopPropagation();
                         }
@@ -555,7 +575,7 @@ export default class ModelSelector {
             container.addEventListener("touchend", (e) => {
                 if (!isSwiping || this.isLoading) {
                     if (this.isLoading) {
-                        console.log("터치 종료 차단 - 로딩 중");
+                        console.log("Touch end blocked - Loading");
                         e.preventDefault();
                         e.stopPropagation();
                     }
@@ -563,30 +583,30 @@ export default class ModelSelector {
                 }
 
                 const swipeDistance = touchEndX - touchStartX;
-                // 모바일에서 민감도 낮춤: 50px → 100px, 최소 스와이프 시간 추가
+                // Reduce sensitivity on mobile: 50px → 100px, add minimum swipe time
                 const minSwipeDistance = this.isMobile ? 100 : 50;
                 const swipeTime = Date.now() - this.touchStartTime;
-                const minSwipeTime = 200; // 최소 200ms 이상 스와이프해야 함
+                const minSwipeTime = 200; // Swipe must be at least 200ms
                 
                 if (Math.abs(swipeDistance) > minSwipeDistance && swipeTime > minSwipeTime) {
-                    // 모바일에서 스와이프 속도 제한 (너무 빠른 스와이프 방지)
+                    // Limit swipe speed on mobile (prevent too fast swipe)
                     const swipeSpeed = Math.abs(swipeDistance) / swipeTime;
                     const maxSwipeSpeed = this.isMobile ? 2.0 : 5.0; // px/ms
                     
                     if (swipeSpeed <= maxSwipeSpeed) {
-                        console.log(`스와이프 감지: 거리=${Math.abs(swipeDistance)}px, 시간=${swipeTime}ms, 속도=${swipeSpeed.toFixed(2)}px/ms`);
+                        console.log(`Swipe detected: distance=${Math.abs(swipeDistance)}px, time=${swipeTime}ms, speed=${swipeSpeed.toFixed(2)}px/ms`);
                         moveToItem(swipeDistance > 0 ? "prev" : "next");
                     } else {
-                        console.log(`스와이프 무시: 속도가 너무 빠름 (${swipeSpeed.toFixed(2)}px/ms > ${maxSwipeSpeed}px/ms)`);
+                        console.log(`Swipe ignored: speed is too fast (${swipeSpeed.toFixed(2)}px/ms > ${maxSwipeSpeed}px/ms)`);
                     }
                 } else {
-                    console.log(`스와이프 무시: 거리=${Math.abs(swipeDistance)}px, 시간=${swipeTime}ms (임계값: ${minSwipeDistance}px, ${minSwipeTime}ms)`);
+                    console.log(`Swipe ignored: distance=${Math.abs(swipeDistance)}px, time=${swipeTime}ms (threshold: ${minSwipeDistance}px, ${minSwipeTime}ms)`);
                 }
 
                 isSwiping = false;
             });
 
-            // 키드 이벤트 처리
+            // Key event handling
             document.addEventListener("keydown", (e) => {
                 if (this.dialog && !this.isLoading) {
                     if (e.key === "ArrowLeft") {
@@ -597,7 +617,7 @@ export default class ModelSelector {
                 }
             });
 
-            // 모델 카드에 클릭 이벤트 추가
+            // Add click event to model card
             models.forEach((model, index) => {
                 const item = document.createElement("div");
                 item.className = "model-item";
@@ -612,17 +632,17 @@ export default class ModelSelector {
                     overflow: "hidden",
                     display: "flex",
                     flexDirection: "column",
-                    marginRight: "-15px", // 다음 카드가 살짝 보이도록
+                    marginRight: "-15px", // Show next card slightly
                     position: "relative",
                     zIndex: index === 0 ? "2" : "1",
                     boxShadow: "0 4px 8px rgba(0,0,0,0.2)",
                 });
 
-                // 썸네일 컨테이너 크기도 조정
+                // Adjust thumbnail container size
                 const thumbnailContainer = document.createElement("div");
                 Object.assign(thumbnailContainer.style, {
                     width: "100%",
-                    height: `${cardWidth}px`, // 정사각형 유지
+                    height: `${cardWidth}px`, // Keep square aspect ratio
                     backgroundColor: "rgba(0, 0, 0, 0.2)",
                     display: "flex",
                     alignItems: "center",
@@ -650,7 +670,7 @@ export default class ModelSelector {
 
                 item.appendChild(thumbnailContainer);
 
-                // 텍스트 컨테이너
+                // Text container
                 const textContainer = document.createElement("div");
                 Object.assign(textContainer.style, {
                     padding: "8px",
@@ -688,47 +708,47 @@ export default class ModelSelector {
 
                 item.appendChild(textContainer);
 
-                                // 모델 클릭 이벤트 수정
+                // Modify model click event
                 item.addEventListener("click", async (e) => {
-                    // 이벤트 전파 차단 (carousel 넘어감 방지)
+                    // Block event propagation (prevent carousel overflow)
                     e.stopPropagation();
                     e.preventDefault();
                     
-                    console.log("모델 클릭됨:", model.name, "활성 상태:", item.classList.contains("active"), "모바일:", this.isMobile);
+                    console.log("Model clicked:", model.name, "Active state:", item.classList.contains("active"), "Mobile:", this.isMobile);
                     
-                    // 활성 카드인 경우에만 모델 로드 허용 (carousel 이동 방지)
+                    // Allow model load only for active card (prevent carousel movement)
                     if (item.classList.contains("active")) {
-                        // 모바일에서 추가적인 carousel 이동 방지
+                        // Prevent additional carousel movement on mobile
                         if (this.isMobile) {
-                            // 모바일에서 즉시 로딩 상태 설정
+                            // Set loading state immediately on mobile
                             this.isLoading = true;
-                            console.log("모바일 - 즉시 로딩 상태 설정");
+                            console.log("Mobile - Set loading state immediately");
                         }
-                        // carousel 이동 완전 차단
-                        console.log("모델 로드 시작 - carousel 이동 차단");
+                        // Block carousel movement completely
+                        console.log("Start model loading - Block carousel movement");
                         
                         try {
                             const directGlbUrl = this.dropboxService.getDirectDownloadUrl(model.glbUrl);
-                            console.log("모델 로드 시도:", directGlbUrl);
+                            console.log("Attempting to load model:", directGlbUrl);
 
                             if (this.liverViewer && this.liverViewer.modelLoader) {
-                                // carousel 모든 이벤트 비활성화
+                                // Disable all carousel events
                                 if (this.disableScroll) {
                                     this.disableScroll();
                                 }
                                 
-                                // 터치 이벤트 일시 비활성화
+                                // Temporarily disable touch events
                                 container.style.pointerEvents = 'none';
                                 
-                                // 스크롤 동작 완전 비활성화
+                                // Completely disable scroll behavior
                                 container.style.scrollBehavior = 'auto';
                                 container.style.overflowX = 'hidden';
                                 
-                                // 로딩 상태 시작
+                                // Start loading state
                                 this.isLoading = true;
                                 item.classList.add('loading');
                                 
-                                // 로딩 상태 표시
+                                // Show loading state
                                 const loadingIndicator = document.createElement("div");
                                 loadingIndicator.textContent = "Loading...";
                                 loadingIndicator.style.position = "absolute";
@@ -738,80 +758,80 @@ export default class ModelSelector {
                                 loadingIndicator.style.color = this.isDarkMode ? "white" : "black";
                                 item.appendChild(loadingIndicator);
 
-                                // 모델 로드
+                                // Load model
                                 await this.loadModel(directGlbUrl, index);
-                                console.log("모델 로드 성공");
+                                console.log("Model loading successful");
 
-                                // 로딩 인디케이터 제거
+                                // Remove loading indicator
                                 loadingIndicator.remove();
                                 
-                                // 로딩 상태 종료
+                                // End loading state
                                 this.isLoading = false;
                                 item.classList.remove('loading');
                                 
-                                // carousel 모든 이벤트 재활성화
+                                // Re-enable all carousel events
                                 if (this.enableScroll) {
                                     this.enableScroll();
                                 }
                                 
-                                // 터치 이벤트 재활성화
+                                // Re-enable touch events
                                 container.style.pointerEvents = 'auto';
                                 
-                                // 스크롤 동작 재활성화
+                                // Re-enable scroll behavior
                                 container.style.scrollBehavior = 'smooth';
                                 container.style.overflowX = 'auto';
                                 
-                                console.log("모델 로드 완료 - carousel 이벤트 재활성화");
+                                console.log("Model loading complete - Re-enable carousel events");
 
-                                // TextPanel 닫기
+                                // Close TextPanel
                                 if (this.liverViewer.textPanel) {
                                     this.liverViewer.textPanel.close();
                                 }
 
                                 await this.handleTableDisplay(model);
 
-                                // ModelSelector 닫기
+                                // Close ModelSelector
                                 this.close();
 
-                                // URL 업데이트 (선택사항)
+                                // Update URL (optional)
                                 const currentUrl = new URL(window.location.href);
                                 currentUrl.searchParams.set("model", model.name);
                                 window.history.pushState({}, "", currentUrl);
                             } else {
-                                console.error("modelLoader가 설정되지 않았습니다.");
-                                throw new Error("modelLoader가 설정되지 않았습니다.");
+                                console.error("modelLoader not set");
+                                throw new Error("modelLoader not set");
                             }
                         } catch (error) {
-                            console.error("모델 로드 실패:", error);
-                            // 로딩 상태 종료 (에러 시에도)
+                            console.error("Failed to load model:", error);
+                            // End loading state (even on error)
                             this.isLoading = false;
                             item.classList.remove('loading');
                             
-                            // carousel 모든 이벤트 재활성화 (에러 시에도)
+                            // Re-enable all carousel events (even on error)
                             if (this.enableScroll) {
                                 this.enableScroll();
                             }
                             
-                            // 터치 이벤트 재활성화 (에러 시에도)
+                            // Re-enable touch events (even on error)
                             container.style.pointerEvents = 'auto';
                             
-                            // 스크롤 동작 재활성화 (에러 시에도)
+                            // Re-enable scroll behavior (even on error)
                             container.style.scrollBehavior = 'smooth';
                             container.style.overflowX = 'auto';
                             
-                            alert("모델을 로드하는데 실패했습니다: " + error.message);
+                            alert("Failed to load model: " + error.message);
                         }
                     } else {
-                        // 비활성 카드 클릭 시 스크롤 기능 제거 (carousel 넘어감 문제 해결)
-                        // 사용자가 원할 때만 수동으로 스크롤하도록 함
-                        console.log("비활성 카드 클릭됨 - 스크롤 동작 비활성화");
+                        // Inactive card clicked - Remove scroll functionality (prevent carousel overflow)
+                        // Allow manual scroll only when user wants
+                        console.log("Inactive card clicked - Disable scroll behavior");
                     }
                 });
 
                 container.appendChild(item);
             });
 
-            // dots 컨테이너 스타일 수정
+            // Modify dots container style
             const dotsContainer = document.createElement("div");
             Object.assign(dotsContainer.style, {
                 display: "flex",
@@ -826,13 +846,13 @@ export default class ModelSelector {
                 zIndex: "3",
             });
 
-            // 페이지네이션 닷 생성 분 명시적 작성
+            // Explicitly write pagination dots generation
             models.forEach((_, index) => {
                 const dot = document.createElement("div");
                 dot.className = "pagination-dot";
                 if (index === 0) dot.classList.add("active");
 
-                // 개별 dot 스타일 추가
+                // Add individual dot style
                 Object.assign(dot.style, {
                     width: "8px",
                     height: "8px",
@@ -846,14 +866,14 @@ export default class ModelSelector {
                 dotsContainer.appendChild(dot);
             });
 
-            // 순서 확인
+            // Check order
             wrapper.appendChild(prevButton);
             wrapper.appendChild(container);
             wrapper.appendChild(nextButton);
             wrapper.appendChild(dotsContainer);
             this.dialog.appendChild(wrapper);
 
-            // 초기 스크롤 위치 설정 - carousel 문제 해결을 위해 제거
+            // Set initial scroll position - Removed to fix carousel issue
             // setTimeout(() => {
             //     const firstItem = container.querySelector(".model-item");
             //     if (firstItem) {
@@ -865,12 +885,12 @@ export default class ModelSelector {
             //     }
             // }, 0);
 
-            // 공유 버튼
+            // Share button
             const shareButton = document.createElement("button");
             Object.assign(shareButton.style, {
                 position: "absolute",
-                bottom: "20px", // 하단에서 20px
-                right: "20px", // 우측에서 20px
+                bottom: "20px",
+                right: "20px",
                 background: "rgba(255, 149, 0, 0.8)",
                 border: "none",
                 borderRadius: "5px",
@@ -881,10 +901,11 @@ export default class ModelSelector {
                 gap: "5px",
                 color: "white",
                 fontSize: "12px",
-                zIndex: "10", // 다른 요소들 위에 표시
+                zIndex: "10",
+                transition: "all 0.2s ease",
             });
 
-            // 공유 아이콘과 텍스트
+            // Share icon and text
             shareButton.innerHTML = `
                 <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                     <path d="M20.4,21.64H3.6c-1.11,0-2.01-.91-2.01-2.02v-4.29c0-.28.22-.5.5-.5s.5.22.5.5v4.29c0,.56.45,1.02,1.01,1.02h16.8c.56,0,1.01-.46,1.01-1.02v-4.34c0-.28.22-.5.5-.5s.5.22.5.5v4.34c0,1.12-.9,2.02-2.01,2.02Z"/>
@@ -896,28 +917,30 @@ export default class ModelSelector {
                 Share
             `;
 
-            // hover 효과 추가
+            // Add hover effect
             shareButton.onmouseover = () => {
-                shareButton.style.background = "rgba(0, 0, 0, 0.85)";
+                shareButton.style.background = "rgba(255, 149, 0, 1)";
+                shareButton.style.transform = "scale(1.05)";
             };
             shareButton.onmouseleave = () => {
-                shareButton.style.background = "rgba(0, 0, 0, 0.7)";
+                shareButton.style.background = "rgba(255, 149, 0, 0.8)";
+                shareButton.style.transform = "scale(1)";
             };
 
-            // 클릭 이벤트
+            // Click event
             shareButton.onclick = async () => {
                 if (this.lastJsonUrl) {
                     this.createShareableLink(this.lastJsonUrl);
                 } else {
-                    alert("공유할 모델이 로드되지 않았습니다.");
+                    alert("No model loaded to share.");
                 }
             };
 
             this.dialog.appendChild(shareButton);
         } catch (error) {
-            // 개발 모드에서만 로그 출력
+            // Log output only in development mode
             if (process.env.NODE_ENV === "development") {
-                console.debug("모델 리스트 업데이트 중 오류:", error);
+                console.debug("Error updating model list:", error);
             }
         }
     }
@@ -927,10 +950,10 @@ export default class ModelSelector {
             return;
         }
 
-        // carousel 스크롤 위치 보존을 위한 변수
+        // Variable to preserve carousel scroll position
         this.savedScrollPosition = 0;
 
-        // 현재 테마 상태 확인 (여러 소스에서 확인)
+        // Check current theme state (from multiple sources)
         const liverViewerDarkMode = this.liverViewer ? this.liverViewer.isDarkMode : null;
         const bodyDarkMode = document.body.classList.contains('dark-mode');
         const computedDarkMode = getComputedStyle(document.body).backgroundColor.includes('26, 26, 26');
@@ -942,10 +965,10 @@ export default class ModelSelector {
             computedDarkMode
         });
 
-        // 현재 선택된 모델의 위치로 carousel 스크롤
+        // Scroll carousel to current selected model position
         if (this.lastLoadedModels && this.currentModelIndex >= 0) {
             console.log("Scrolling to current model index:", this.currentModelIndex);
-            // 약간의 지연 후 carousel 위치 설정
+            // Set carousel position after slight delay
             setTimeout(() => {
                 const container = document.querySelector('#model-list');
                 if (container && this.lastLoadedModels.length > this.currentModelIndex) {
@@ -982,7 +1005,7 @@ export default class ModelSelector {
             transition: "all 0.3s ease",
         });
 
-        // 닫기 버튼
+        // Close button
         const closeButton = document.createElement("button");
         closeButton.innerHTML = `
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${textColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1003,14 +1026,14 @@ export default class ModelSelector {
         closeButton.onclick = this.close;
         this.dialog.appendChild(closeButton);
 
-        // 제목
+        // Title
         const title = document.createElement("h3");
         title.textContent = "Import 3D model";
         title.style.marginBottom = "20px";
         title.style.color = textColor;
         this.dialog.appendChild(title);
 
-        // Dropbox 링크 입력 필드
+        // Dropbox link input field
         const inputContainer = document.createElement("div");
         Object.assign(inputContainer.style, {
             marginBottom: "20px",
@@ -1050,6 +1073,16 @@ export default class ModelSelector {
 
         inputContainer.appendChild(input);
         inputContainer.appendChild(loadButton);
+        
+        // Detect share mode - URL parameters or JSON already loaded
+        const urlParams = new URLSearchParams(window.location.search);
+        const isShared = urlParams.get("shared") === "true" || urlParams.get("readonly") === "true" || this.lastJsonUrl;
+        
+        // Hide input container if in share mode
+        if (isShared) {
+            inputContainer.style.display = "none";
+        }
+        
         this.dialog.appendChild(inputContainer);
 
         // 구분선
@@ -1137,7 +1170,10 @@ export default class ModelSelector {
             if (this.dialog && document.body.contains(this.dialog)) {
                 // carousel 스크롤 위치 보존을 위한 지연
                 setTimeout(() => {
-                    document.body.removeChild(this.dialog);
+                    // 🔴 제거 전에 다시 한 번 존재 여부 확인
+                    if (this.dialog && this.dialog.parentNode) {
+                        this.dialog.parentNode.removeChild(this.dialog);
+                    }
                     this.dialog = null;
                     
                     // carousel 스크롤 위치 복원
@@ -1208,6 +1244,7 @@ export default class ModelSelector {
                 // }
 
                 console.log("Model and patient info load completed");
+                
                 this.close();
             } else {
                 console.error("ModelLoader not available:", {
@@ -1523,5 +1560,320 @@ export default class ModelSelector {
                 dialog.remove();
             }
         });
+    }
+
+    /**
+     * Open folder or multiple file selection dialog
+     * If local models already exist, redisplay model list without folder selection
+     */
+    openFolderDialog() {
+        console.log('[ModelSelector] openFolderDialog called');
+        console.log('[ModelSelector] this.localModels.length:', this.localModels.length);
+        
+        // If local models are already loaded, redisplay model list
+        if (this.localModels && this.localModels.length > 0) {
+            console.log('[ModelSelector] Redisplay existing local model list');
+            this.displayLocalModelList();
+            return;
+        }
+        
+        // If no local models, open folder selection dialog
+        console.log('[ModelSelector] this.modelLoader:', this.modelLoader);
+        if (this.modelLoader) {
+            console.log('[ModelSelector] Calling modelLoader.openFolderDialog');
+            this.modelLoader.openFolderDialog();
+        } else {
+            console.warn('[ModelSelector] modelLoader is not available');
+        }
+    }
+
+    openMultiFileDialog() {
+        if (this.modelLoader) {
+            this.modelLoader.openMultiFileDialog();
+        }
+    }
+
+    /**
+     * Process models loaded from local folder/files
+     * @param {Array} preparedModels - Model array prepared from LocalFileManager
+     */
+    async loadLocalModels(preparedModels) {
+        console.log('[ModelSelector] Load local models:', preparedModels.length, 'items');
+        this.localModels = preparedModels;
+        this.isLocalFilesMode = true;
+
+        // 모델 리스트 업데이트
+        await this.displayLocalModelList();
+    }
+
+    /**
+     * 로컬 모델 리스트를 UI에 표시
+     */
+    async displayLocalModelList() {
+        try {
+            // Close existing dialog
+            if (this.dialog) {
+                this.close();
+            }
+
+            // Create new dialog
+            this.dialog = document.createElement("div");
+            this.dialog.className = "model-selector-dialog local-folder-mode";
+            this.dialog.style.cssText = `
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                background: ${this.isDarkMode ? '#2a2a2a' : '#ffffff'};
+                border: 1px solid ${this.isDarkMode ? '#444444' : '#cccccc'};
+                border-radius: 12px;
+                padding: 30px;
+                max-width: 600px;
+                max-height: 600px;
+                overflow-y: auto;
+                z-index: 10000;
+                box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            `;
+
+            // Header
+            const header = document.createElement('div');
+            header.style.cssText = `
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 20px;
+                padding-bottom: 15px;
+                border-bottom: 2px solid ${this.isDarkMode ? '#444444' : '#eeeeee'};
+            `;
+            header.innerHTML = `
+                <h2 style="margin: 0; color: ${this.isDarkMode ? '#e6e6e6' : '#2c3e50'};font-size: 20px;">Local Model List</h2>
+                <button onclick="this.closest('.model-selector-dialog').remove()" style="
+                    background: transparent;
+                    border: none;
+                    color: ${this.isDarkMode ? '#999' : '#666'};
+                    font-size: 24px;
+                    cursor: pointer;
+                    padding: 0;
+                    width: 30px;
+                    height: 30px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                ">×</button>
+            `;
+            this.dialog.appendChild(header);
+
+            // Info text
+            const info = document.createElement('div');
+            info.style.cssText = `
+                font-size: 14px;
+                color: ${this.isDarkMode ? '#aaa' : '#666'};
+                margin-bottom: 20px;
+            `;
+            info.textContent = `Total ${this.localModels.length} models loaded. (Automatically grouped by filename)`;
+            this.dialog.appendChild(info);
+
+            // Model list container
+            const modelListContainer = document.createElement('div');
+            modelListContainer.style.cssText = `
+                display: grid;
+                grid-template-columns: 1fr;
+                gap: 12px;
+            `;
+
+            // Display each model as a button
+            for (const model of this.localModels) {
+                const modelButton = document.createElement('div');
+                modelButton.className = 'local-model-button';
+                modelButton.dataset.modelId = model.id;
+                modelButton.style.cssText = `
+                    padding: 15px;
+                    background: ${this.isDarkMode ? '#3a3a3a' : '#f5f5f5'};
+                    border: 2px solid transparent;
+                    border-radius: 8px;
+                    cursor: pointer;
+                    transition: all 0.3s ease;
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                `;
+
+                modelButton.onmouseover = () => {
+                    modelButton.style.background = this.isDarkMode ? '#4a4a4a' : '#efefef';
+                    modelButton.style.borderColor = Constants.COLORS.PRIMARY_ACCENT;
+                };
+
+                modelButton.onmouseout = () => {
+                    modelButton.style.background = this.isDarkMode ? '#3a3a3a' : '#f5f5f5';
+                    modelButton.style.borderColor = 'transparent';
+                };
+
+                // Model info (left)
+                const modelInfo = document.createElement('div');
+                modelInfo.style.cssText = `
+                    flex: 1;
+                `;
+
+                const modelName = document.createElement('div');
+                modelName.style.cssText = `
+                    font-weight: 600;
+                    color: ${this.isDarkMode ? '#e6e6e6' : '#2c3e50'};
+                    font-size: 15px;
+                    margin-bottom: 5px;
+                `;
+                modelName.textContent = model.name;
+                modelInfo.appendChild(modelName);
+
+                const modelMeta = document.createElement('div');
+                modelMeta.style.cssText = `
+                    font-size: 12px;
+                    color: ${this.isDarkMode ? '#999' : '#999'};
+                `;
+                modelMeta.textContent = `${model.csvFile ? '📊 CSV' : ''}${model.imageFile ? ' 📷 Image' : ''}`.trim() || '3D Model';
+                modelInfo.appendChild(modelMeta);
+
+                // Model thumbnail (right)
+                const modelThumbnail = document.createElement('div');
+                modelThumbnail.style.cssText = `
+                    width: 60px;
+                    height: 60px;
+                    background: ${this.isDarkMode ? '#2a2a2a' : '#e0e0e0'};
+                    border-radius: 6px;
+                    margin-left: 15px;
+                    overflow: hidden;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                `;
+
+                if (model.imageUrl) {
+                    modelThumbnail.style.backgroundImage = `url(${model.imageUrl})`;
+                    modelThumbnail.style.backgroundSize = 'cover';
+                    modelThumbnail.style.backgroundPosition = 'center';
+                } else {
+                    modelThumbnail.innerHTML = '📦';
+                    modelThumbnail.style.fontSize = '24px';
+                }
+
+                modelButton.appendChild(modelInfo);
+                modelButton.appendChild(modelThumbnail);
+
+                // Click event
+                modelButton.onclick = () => this.selectLocalModel(model);
+
+                modelListContainer.appendChild(modelButton);
+            }
+
+            this.dialog.appendChild(modelListContainer);
+
+            // Action buttons (bottom)
+            const actions = document.createElement('div');
+            actions.style.cssText = `
+                display: flex;
+                gap: 10px;
+                margin-top: 20px;
+                padding-top: 15px;
+                border-top: 1px solid ${this.isDarkMode ? '#444444' : '#e0e0e0'};
+            `;
+
+            const moreFilesBtn = document.createElement('button');
+            moreFilesBtn.textContent = '+ Load Another Folder';
+            moreFilesBtn.style.cssText = `
+                flex: 1;
+                padding: 10px;
+                background: ${Constants.COLORS.SECONDARY_ACCENT};
+                color: white;
+                border: none;
+                border-radius: 6px;
+                cursor: pointer;
+                font-size: 14px;
+                font-weight: 600;
+                transition: opacity 0.3s ease;
+            `;
+            moreFilesBtn.onmouseover = () => moreFilesBtn.style.opacity = '0.8';
+            moreFilesBtn.onmouseout = () => moreFilesBtn.style.opacity = '1';
+            moreFilesBtn.onclick = () => {
+                // Close dialog and start selecting new folder
+                if (this.dialog) {
+                    this.dialog.remove();
+                    this.dialog = null;
+                }
+                // Open new folder selection dialog
+                if (this.modelLoader) {
+                    this.modelLoader.openFolderDialog();
+                }
+            };
+
+            actions.appendChild(moreFilesBtn);
+            this.dialog.appendChild(actions);
+
+            document.body.appendChild(this.dialog);
+
+            // Background click close event
+            this.dialog.addEventListener('click', (e) => {
+                if (e.target === this.dialog) {
+                    this.close();
+                }
+            });
+
+        } catch (error) {
+            console.error('[ModelSelector] Error displaying local model list:', error);
+        }
+    }
+
+    /**
+     * Local model selection and loading
+     * @param {Object} model - Selected model information
+     */
+    async selectLocalModel(model) {
+        try {
+            console.log('[ModelSelector] Local model selected:', model.name);
+
+            // Close dialog
+            if (this.dialog) {
+                this.dialog.remove();
+                this.dialog = null;
+            }
+
+            // Load model from ModelLoader
+            if (this.modelLoader) {
+                await this.modelLoader.loadModelFromLocal(model);
+            }
+
+            // Display CSV table (if exists)
+            if (model.csvData) {
+                this.displayLocalModelTable(model);
+            }
+
+        } catch (error) {
+            console.error('[ModelSelector] Local model selection error:', error);
+            alert('Error occurred while loading model: ' + error.message);
+        }
+    }
+
+    /**
+     * 로컬 모델의 CSV 테이블 표시
+     * @param {Object} model - 모델 정보 (csvData, surgeryType 포함)
+     */
+    displayLocalModelTable(model) {
+        try {
+            if (!model.csvData || !window.liverViewer || !window.liverViewer.textPanel) {
+                console.warn('[ModelSelector] TextPanel or CSV data not found');
+                return;
+            }
+
+            // Use autoCreateTable method from TableGenerator - Auto detection based on filename
+            const result = this.tableGenerator.autoCreateTable(model.csvData, model.name);
+            const tableHTML = result.html;
+            const surgeryType = result.surgeryType;
+
+            console.log(`[ModelSelector] CSV table created: ${model.name} (Type: ${surgeryType})`);
+
+            // Display in TextPanel (updateContent automatically opens the panel)
+            window.liverViewer.textPanel.updateContent(tableHTML);
+
+        } catch (error) {
+            console.error('[ModelSelector] Error displaying local model table:', error);
+        }
     }
 }

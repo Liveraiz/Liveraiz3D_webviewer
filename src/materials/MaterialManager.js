@@ -27,6 +27,309 @@ export default class MaterialManager {
     }
 
     /**
+     * muscle 셰이더 재질 생성
+     * @returns {THREE.MeshStandardMaterial} muscle 셰이더가 적용된 재질
+     */
+    createMuscleShader() {
+        const material = new THREE.MeshStandardMaterial({
+            side: THREE.DoubleSide,
+            transparent: false,
+            metalness: 0.18,
+            roughness: 0.42,
+            color: 0xd36b4a // 근육 느낌의 붉은색
+        });
+
+        material.onBeforeCompile = (shader) => {
+            shader.uniforms.muscleScale = { value: 0.18 };
+            shader.uniforms.muscleNoiseIntensity = { value: 0.45 };
+            shader.uniforms.muscleColor1 = { value: new THREE.Color(0xd36b4a) };
+            shader.uniforms.muscleColor2 = { value: new THREE.Color(0xf7b199) };
+
+            const noiseFunctions = `
+                float muscleRand(vec2 co){
+                    return fract(sin(dot(co.xy,vec2(12.9898,78.233))) * 43758.5453);
+                }
+                float muscleRand3D(vec3 co){
+                    return fract(sin(dot(co,vec3(12.9898,78.233,45.164))) * 43758.5453);
+                }
+                // Perlin-like noise 구현
+                float muscleNoise(vec3 p) {
+                    vec3 i = floor(p);
+                    vec3 f = fract(p);
+                    f = f * f * (3.0 - 2.0 * f); // smoothstep
+                    
+                    float n000 = muscleRand3D(i + vec3(0,0,0));
+                    float n100 = muscleRand3D(i + vec3(1,0,0));
+                    float n010 = muscleRand3D(i + vec3(0,1,0));
+                    float n110 = muscleRand3D(i + vec3(1,1,0));
+                    float n001 = muscleRand3D(i + vec3(0,0,1));
+                    float n101 = muscleRand3D(i + vec3(1,0,1));
+                    float n011 = muscleRand3D(i + vec3(0,1,1));
+                    float n111 = muscleRand3D(i + vec3(1,1,1));
+                    
+                    float nx00 = mix(n000, n100, f.x);
+                    float nx10 = mix(n010, n110, f.x);
+                    float nx0z = mix(nx00, nx10, f.y);
+                    
+                    float nx01 = mix(n001, n101, f.x);
+                    float nx11 = mix(n011, n111, f.x);
+                    float nx1z = mix(nx01, nx11, f.y);
+                    
+                    return mix(nx0z, nx1z, f.z);
+                }
+                // 구불구불한 섬유선 느낌의 흰색 선
+                float hairlikeStrands(vec3 p) {
+                    // 구불구불한 경로를 만들기 위한 노이즈 기반 오프셋
+                    float wobble1 = muscleNoise(vec3(p.x * 0.3, p.y * 0.3, p.z * 0.3)) * 3.0;
+                    float wobble2 = muscleNoise(vec3(p.x * 0.25 + 15.0, p.y * 0.25, p.z * 0.25)) * 2.5;
+                    
+                    // 공간 분할 마스크 (선이 겹치지 않게)
+                    float mask1 = muscleNoise(vec3(p.x * 0.15, p.y * 0.15, p.z * 0.15));
+                    float mask2 = muscleNoise(vec3(p.x * 0.18 + 30.0, p.y * 0.18, p.z * 0.18));
+                    
+                    // 두께 변화를 위한 노이즈 (더 극적인 변화: 0.2~1.0)
+                    float thickness1 = muscleNoise(vec3(p.x * 0.5, p.y * 0.5, p.z * 0.5)) * 0.8 + 0.2;
+                    float thickness2 = muscleNoise(vec3(p.x * 0.45 + 20.0, p.y * 0.45, p.z * 0.45)) * 0.8 + 0.2;
+                    
+                    // 선이 끊어지도록 하는 마스크 (노이즈가 특정 값 이상일 때만 표시)
+                    float breakMask1 = smoothstep(0.35, 0.55, muscleNoise(vec3(p.x * 0.6, p.y * 0.6, p.z * 0.6)));
+                    float breakMask2 = smoothstep(0.35, 0.55, muscleNoise(vec3(p.x * 0.55 + 25.0, p.y * 0.55, p.z * 0.55)));
+                    
+                    // 비스듬하고 구불구불한 섬유선들
+                    float strand1 = abs(sin((p.y + p.x * 0.4 + wobble1) * 4.0));
+                    float strand2 = abs(sin((p.y + p.z * 0.5 + wobble2) * 3.5));
+                    
+                    // 두께가 더 랜덤하게 변하는 선 만들기 (pow 값을 더 넓은 범위로)
+                    float pow1 = 5.0 + thickness1 * 10.0; // 5.0~15.0 범위
+                    float pow2 = 5.0 + thickness2 * 10.0;
+                    float fiber1 = pow(strand1, pow1) * smoothstep(0.3, 0.7, mask1) * breakMask1;
+                    float fiber2 = pow(strand2, pow2) * smoothstep(0.3, 0.7, mask2) * breakMask2;
+                    
+                    // 섬유선 합성
+                    float fiberPattern = min(fiber1 + fiber2, 1.0);
+                    return fiberPattern;
+                }
+            `;
+
+            shader.vertexShader = `
+                varying vec3 vObjectPosition;
+                ${shader.vertexShader.replace(
+                    '#include <begin_vertex>',
+                    `#include <begin_vertex>\nvObjectPosition = position;`
+                )}
+            `;
+
+            shader.fragmentShader = `
+                uniform float muscleScale;
+                uniform float muscleNoiseIntensity;
+                uniform vec3 muscleColor1;
+                uniform vec3 muscleColor2;
+                varying vec3 vObjectPosition;
+                ${noiseFunctions}
+                ${shader.fragmentShader.replace(
+                    '#include <color_fragment>',
+                    `#include <color_fragment>\nvec3 pos = vObjectPosition * muscleScale;\nvec3 baseColor = mix(muscleColor1, muscleColor2, muscleNoise(pos) * 0.5 + 0.5);\nvec3 muscleBase = mix(baseColor, muscleColor2, 0.3);\nfloat whiteFiber = hairlikeStrands(pos);\nwhiteFiber = smoothstep(0.02, 0.98, whiteFiber);\nwhiteFiber *= muscleNoiseIntensity * 1.2;\ndiffuseColor.rgb = mix(muscleBase, vec3(1.0), whiteFiber * 0.14);`
+                )}
+            `;
+        };
+        return material;
+    }
+
+    /**
+     * muscle 메시에 셰이더 재질 적용
+     * @param {THREE.Mesh} mesh - 적용할 메시
+     */
+    applyMuscleShader(mesh) {
+        if (!mesh || !mesh.isMesh) {
+            console.warn('[MaterialManager] Invalid mesh for muscle shader');
+            return;
+        }
+        const muscleMaterial = this.createMuscleShader();
+        if (mesh.material) {
+            if (Array.isArray(mesh.material)) {
+                mesh.material.forEach(m => m.dispose());
+            } else {
+                mesh.material.dispose();
+            }
+        }
+        mesh.material = muscleMaterial;
+        mesh.material.needsUpdate = true;
+        console.log(`[MaterialManager] Muscle shader applied to mesh: ${mesh.name}`);
+    }
+
+    /**
+     * prostate 셰이더 재질 생성
+     * @returns {THREE.MeshStandardMaterial} prostate 셰이더가 적용된 재질
+     */
+    createProstateShader() {
+        const material = new THREE.MeshStandardMaterial({
+            side: THREE.DoubleSide,
+            transparent: false,
+            metalness: 0.1,
+            roughness: 0.45,
+            color: 0xE8A6A1 // 연한 핑크
+        });
+
+        material.onBeforeCompile = (shader) => {
+            shader.uniforms.prostateScale = { value: 0.25 };
+            shader.uniforms.prostateColor1 = { value: new THREE.Color(0xE8A6A1) }; // 연한 핑크
+            shader.uniforms.prostateColor2 = { value: new THREE.Color(0xF5C4BF) }; // 더 밝은 핑크
+            shader.uniforms.ductColor = { value: new THREE.Color(0xD8908B) }; // 살짝 어두운 핑크
+
+            const noiseFunctions = `
+                float prostateRand(vec2 co){
+                    return fract(sin(dot(co.xy,vec2(12.9898,78.233))) * 43758.5453);
+                }
+                float prostateRand3D(vec3 co){
+                    return fract(sin(dot(co,vec3(12.9898,78.233,45.164))) * 43758.5453);
+                }
+                // Perlin-like noise
+                float prostateNoise(vec3 p) {
+                    vec3 i = floor(p);
+                    vec3 f = fract(p);
+                    f = f * f * (3.0 - 2.0 * f);
+                    
+                    float n000 = prostateRand3D(i + vec3(0,0,0));
+                    float n100 = prostateRand3D(i + vec3(1,0,0));
+                    float n010 = prostateRand3D(i + vec3(0,1,0));
+                    float n110 = prostateRand3D(i + vec3(1,1,0));
+                    float n001 = prostateRand3D(i + vec3(0,0,1));
+                    float n101 = prostateRand3D(i + vec3(1,0,1));
+                    float n011 = prostateRand3D(i + vec3(0,1,1));
+                    float n111 = prostateRand3D(i + vec3(1,1,1));
+                    
+                    float nx00 = mix(n000, n100, f.x);
+                    float nx10 = mix(n010, n110, f.x);
+                    float nx0z = mix(nx00, nx10, f.y);
+                    
+                    float nx01 = mix(n001, n101, f.x);
+                    float nx11 = mix(n011, n111, f.x);
+                    float nx1z = mix(nx01, nx11, f.y);
+                    
+                    return mix(nx0z, nx1z, f.z);
+                }
+                
+                // 방사형 선관 패턴
+                float ductalPattern(vec3 p) {
+                    // 중심으로부터의 각도
+                    float angle = atan(p.z, p.x);
+                    float radius = length(p.xz);
+                    
+                    // 방사형으로 퍼지는 선관들 (갯수 증가)
+                    float ducts = 0.0;
+                    for (int i = 0; i < 16; i++) { // 8 -> 16개로 증가
+                        float a = float(i) * 0.392699; // PI/8 (더 촘촘하게)
+                        // frequency 증가 (6.0 -> 12.0)
+                        float d = abs(sin((angle - a) * 12.0 + prostateNoise(p * 3.0) * 0.8));
+                        // pow 값 증가로 더 가는 선 (12.0 -> 16.0)
+                        ducts += pow(d, 16.0) * (0.8 + prostateNoise(vec3(p.x * 0.8, p.y + float(i) * 10.0, p.z * 0.8)) * 0.4);
+                    }
+                    return min(ducts, 1.0);
+                }
+                
+                // 결절 패턴
+                float nodularPattern(vec3 p) {
+                    float n1 = prostateNoise(p * 3.0);
+                    float n2 = prostateNoise(p * 6.0) * 0.5;
+                    float n3 = prostateNoise(p * 12.0) * 0.25;
+                    return n1 + n2 + n3;
+                }
+            `;
+
+            shader.vertexShader = `
+                varying vec3 vObjectPosition;
+                ${shader.vertexShader.replace(
+                    '#include <begin_vertex>',
+                    `#include <begin_vertex>\nvObjectPosition = position;`
+                )}
+            `;
+
+            shader.fragmentShader = `
+                uniform float prostateScale;
+                uniform vec3 prostateColor1;
+                uniform vec3 prostateColor2;
+                uniform vec3 ductColor;
+                varying vec3 vObjectPosition;
+                ${noiseFunctions}
+                ${shader.fragmentShader.replace(
+                    '#include <color_fragment>',
+                    `#include <color_fragment>\nvec3 pos = vObjectPosition * prostateScale;\nfloat nodular = nodularPattern(pos);\nvec3 baseColor = mix(prostateColor1, prostateColor2, nodular * 0.5 + 0.5);\nfloat ducts = ductalPattern(pos);\nducts = smoothstep(0.02, 0.95, ducts);\nvec3 finalColor = mix(baseColor, ductColor, ducts * 0.1);\ndiffuseColor.rgb = finalColor;`
+                )}
+            `;
+        };
+        return material;
+    }
+
+    /**
+     * prostate 메시에 셰이더 재질 적용
+     * @param {THREE.Mesh} mesh - 적용할 메시
+     */
+    applyProstateShader(mesh) {
+        if (!mesh || !mesh.isMesh) {
+            console.warn('[MaterialManager] Invalid mesh for prostate shader');
+            return;
+        }
+        const prostateMaterial = this.createProstateShader();
+        if (mesh.material) {
+            if (Array.isArray(mesh.material)) {
+                mesh.material.forEach(m => m.dispose());
+            } else {
+                mesh.material.dispose();
+            }
+        }
+        mesh.material = prostateMaterial;
+        mesh.material.needsUpdate = true;
+        console.log(`[MaterialManager] Prostate shader applied to mesh: ${mesh.name}`);
+    }
+
+    /**
+     * mesh의 원본 opacity를 userData에 안전하게 저장
+     * @param {THREE.Mesh} mesh
+     */
+    storeOriginalOpacity(mesh) {
+        if (!mesh || !mesh.material) return;
+        if (mesh.userData.originalOpacity === undefined) {
+            mesh.userData.originalOpacity = mesh.material.opacity;
+        }
+    }
+
+    /**
+     * mesh의 opacity를 userData.originalOpacity로 복원
+     * @param {THREE.Mesh} mesh
+     */
+    restoreOriginalOpacity(mesh) {
+        if (!mesh || !mesh.material) return;
+        if (mesh.userData.originalOpacity !== undefined) {
+            mesh.material.opacity = mesh.userData.originalOpacity;
+            mesh.material.needsUpdate = true;
+        }
+    }
+
+    /**
+     * mesh의 opacity를 지정값으로 설정 (userData.originalOpacity도 갱신)
+     * @param {THREE.Mesh} mesh
+     * @param {number} opacity
+     */
+    setAndStoreOpacity(mesh, opacity) {
+        if (!mesh || !mesh.material) return;
+        mesh.material.opacity = opacity;
+        mesh.material.needsUpdate = true;
+        mesh.userData.originalOpacity = opacity;
+    }
+
+    /**
+     * 부모-자식 관계에서 effectiveOpacity 계산 (parentOpacity * originalOpacity)
+     * @param {THREE.Mesh} mesh
+     * @param {number} parentOpacity
+     */
+    applyParentOpacity(mesh, parentOpacity) {
+        if (!mesh || !mesh.material) return;
+        const orig = mesh.userData.originalOpacity !== undefined ? mesh.userData.originalOpacity : mesh.material.opacity;
+        mesh.material.opacity = orig * parentOpacity;
+        mesh.material.needsUpdate = true;
+    }
+
+    /**
      * MeshTooltip 참조를 설정합니다.
      * @param {MeshTooltip} meshTooltip - MeshTooltip 인스턴스
      */
