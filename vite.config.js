@@ -3,7 +3,7 @@ import { defineConfig } from 'vite';
 import path from 'path';
 
 export default defineConfig({
-  base: "/", // Netlify에서는 절대 경로 사용
+  base: "./", // Electron과 웹 모두 호환
   server: {
     host: '0.0.0.0',
     port: 3000,

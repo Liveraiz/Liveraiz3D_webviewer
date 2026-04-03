@@ -1024,7 +1024,7 @@ export default class LiverViewer {
         try {
             this.floatingModeButtons = new FloatingModeButtons({
                 onXRModeRequested: () => this.onXRModeRequested(),
-                on3DGlassModeRequested: (mode) => this.on3DGlassModeRequested(mode),
+                on3DGlassModeRequested: () => this.on3DGlassModeRequested(),
                 isDarkMode: this.isDarkMode,
                 isMobile: this.isMobile,
                 liverViewer: this
@@ -1054,25 +1054,20 @@ export default class LiverViewer {
     }
 
     /**
-     * 3D Glass Mode 요청 시 호출
+     * 3D SBS Mode 요청 시 호출
      */
-    on3DGlassModeRequested(selectedMode) {
-        console.log('[LiverViewer] 3D Glass Mode requested:', selectedMode);
-
-        if (selectedMode === 'off') {
-            if (this.renderMode === 'stereoscopic') {
-                this.disableStereoscopic();
-            }
-            return;
+    on3DGlassModeRequested() {
+        console.log('[LiverViewer] 3D Glass Mode requested');
+        
+        if (this.renderMode === 'stereoscopic') {
+            this.disableStereoscopic();
+        } else {
+            this.enableStereoscopic();
         }
-
-        const fallbackMode = Constants.STEREOSCOPIC.DEFAULT_MODE || 'side-by-side';
-        const requestedMode = selectedMode || fallbackMode;
-        this.enableStereoscopic(requestedMode);
     }
 
     /**
-     * Stereoscopic 렌더링 활성화
+     * Stereoscopic 렌더링 활성화 (SBS 모드)
      */
     enableStereoscopic(mode = Constants.STEREOSCOPIC.DEFAULT_MODE || 'side-by-side') {
         try {

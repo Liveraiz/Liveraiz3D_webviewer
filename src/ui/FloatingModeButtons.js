@@ -4,27 +4,17 @@ import { Constants } from '../utils/Constants';
 export default class FloatingModeButtons {
     constructor(options) {
         this.onXRModeRequested = options.onXRModeRequested || (() => {});
-        this.on3DGlassModeRequested = options.on3DGlassModeRequested || (() => {});
+        this.onStereoModeRequested = options.onStereoModeRequested || (() => {});
         this.isDarkMode = options.isDarkMode || false;
         this.isMobile = options.isMobile || false;
         this.liverViewer = options.liverViewer || null;
 
         this.container = null;
         this.xrButton = null;
-        this.glassButton = null;
-        this.glassButtonLabel = null;
-        this.stereoModeMenu = null;
+        this.sbsButton = null;
+        this.lineByLineButton = null;
         this.isStereoscopicActive = false;
-        this.stereoscopicMode = Constants.STEREOSCOPIC.DEFAULT_MODE || 'side-by-side';
-
-        this.stereoscopicModeLabels = {
-            [Constants.STEREOSCOPIC.MODES.SIDE_BY_SIDE]: 'SBS',
-            [Constants.STEREOSCOPIC.MODES.TOP_BOTTOM]: 'TAB',
-            [Constants.STEREOSCOPIC.MODES.ANAGLYPH]: 'ANA',
-            [Constants.STEREOSCOPIC.MODES.INTERLACED]: 'INT'
-        };
-
-        this.handleDocumentClick = this.handleDocumentClick.bind(this);
+        this.activeStereoMode = null;
 
         this.initialize();
     }
@@ -32,10 +22,8 @@ export default class FloatingModeButtons {
     initialize() {
         this.createContainer();
         this.createButtons();
-        this.createStereoscopicModeMenu();
         this.setupEventListeners();
         document.body.appendChild(this.container);
-        document.addEventListener('click', this.handleDocumentClick);
     }
 
     createContainer() {
@@ -70,98 +58,29 @@ export default class FloatingModeButtons {
         //     onClick: () => this.handleXRModeClick()
         // });
 
-        // 3D Glass Mode 버튼
-        this.glassButton = this.createButton({
-            id: '3d-glass-button',
-            label: this.getStereoscopicButtonLabel(),
+        // 3D SBS 버튼
+        this.sbsButton = this.createButton({
+            id: '3d-sbs-button',
+            label: '3D SBS',
             icon: '3D',
-            onClick: () => this.handle3DGlassModeClick()
+            onClick: () => this.handleStereoModeClick('sbs')
         });
 
-        this.glassButtonLabel = this.glassButton.querySelector('span:last-child');
+        // // 3D Line-by-Line 버튼 (비활성화)
+        // this.lineByLineButton = this.createButton({
+        //     id: '3d-line-button',
+        //     label: '3D LBL',
+        //     icon: '3D',
+        //     onClick: () => this.handleStereoModeClick('line-by-line')
+        // });
 
         // this.container.appendChild(this.xrButton);
-        this.container.appendChild(this.glassButton);
+        this.container.appendChild(this.sbsButton);
+        // this.container.appendChild(this.lineByLineButton);
 
         // this.applyButtonStyles(this.xrButton);
-        this.applyButtonStyles(this.glassButton);
-    }
-
-    createStereoscopicModeMenu() {
-        this.stereoModeMenu = document.createElement('div');
-        this.stereoModeMenu.id = 'stereo-mode-menu';
-
-        Object.assign(this.stereoModeMenu.style, {
-            position: 'absolute',
-            right: '0',
-            bottom: '60px',
-            display: 'none',
-            minWidth: '140px',
-            padding: '6px',
-            borderRadius: '10px',
-            boxSizing: 'border-box',
-            backdropFilter: 'blur(8px)'
-        });
-
-        const modeItems = [
-            { key: Constants.STEREOSCOPIC.MODES.SIDE_BY_SIDE, label: 'SBS (좌우)' },
-            { key: Constants.STEREOSCOPIC.MODES.TOP_BOTTOM, label: 'Top-Bottom' },
-            { key: Constants.STEREOSCOPIC.MODES.ANAGLYPH, label: 'Anaglyph' },
-            { key: Constants.STEREOSCOPIC.MODES.INTERLACED, label: 'Interlaced (Line-by-Line)' }
-        ];
-
-        modeItems.forEach((modeItem) => {
-            const optionButton = document.createElement('button');
-            optionButton.type = 'button';
-            optionButton.dataset.mode = modeItem.key;
-            optionButton.textContent = modeItem.label;
-
-            Object.assign(optionButton.style, {
-                width: '100%',
-                border: 'none',
-                borderRadius: '8px',
-                padding: '8px 10px',
-                textAlign: 'left',
-                cursor: 'pointer',
-                background: 'transparent',
-                fontSize: '12px',
-                marginBottom: '4px'
-            });
-
-            optionButton.addEventListener('click', (event) => {
-                event.stopPropagation();
-                this.selectStereoscopicMode(modeItem.key);
-            });
-
-            this.stereoModeMenu.appendChild(optionButton);
-        });
-
-        const offButton = document.createElement('button');
-        offButton.type = 'button';
-        offButton.dataset.mode = 'off';
-        offButton.textContent = '끄기';
-
-        Object.assign(offButton.style, {
-            width: '100%',
-            border: 'none',
-            borderRadius: '8px',
-            padding: '8px 10px',
-            textAlign: 'left',
-            cursor: 'pointer',
-            background: 'transparent',
-            fontSize: '12px',
-            marginTop: '2px'
-        });
-
-        offButton.addEventListener('click', (event) => {
-            event.stopPropagation();
-            this.on3DGlassModeRequested('off');
-            this.hideStereoscopicModeMenu();
-        });
-
-        this.stereoModeMenu.appendChild(offButton);
-        this.container.appendChild(this.stereoModeMenu);
-        this.updateModeMenuTheme();
+        this.applyButtonStyles(this.sbsButton);
+        // this.applyButtonStyles(this.lineByLineButton);
     }
 
     createButton(options) {
@@ -207,14 +126,14 @@ export default class FloatingModeButtons {
             const config = Constants.FLOATING_BUTTONS;
             const theme = this.isDarkMode ? config.DARK_MODE : config.LIGHT_MODE;
             button.style.backgroundColor = theme.HOVER;
-            button.style.transform = this.isStereoscopicActive && button === this.glassButton ? 'scale(1.08)' : 'scale(1.04)';
+            button.style.transform = this.isStereoscopicActive && button === this.sbsButton ? 'scale(1.08)' : 'scale(1.04)';
         });
 
         button.addEventListener('mouseleave', () => {
             const config = Constants.FLOATING_BUTTONS;
             const theme = this.isDarkMode ? config.DARK_MODE : config.LIGHT_MODE;
             button.style.backgroundColor = theme.BACKGROUND;
-            button.style.transform = this.isStereoscopicActive && button === this.glassButton ? 'scale(1.06)' : 'scale(1)';
+            button.style.transform = this.isStereoscopicActive && button === this.sbsButton ? 'scale(1.06)' : 'scale(1)';
         });
 
         button.addEventListener('mousedown', () => {
@@ -222,7 +141,7 @@ export default class FloatingModeButtons {
         });
 
         button.addEventListener('mouseup', () => {
-            button.style.transform = this.isStereoscopicActive && button === this.glassButton ? 'scale(1.06)' : 'scale(1)';
+            button.style.transform = this.isStereoscopicActive && button === this.sbsButton ? 'scale(1.06)' : 'scale(1)';
         });
 
         button.addEventListener('click', options.onClick);
@@ -244,12 +163,10 @@ export default class FloatingModeButtons {
         });
 
         // 3D 버튼 활성 상태를 시각적으로 표시
-        if (button === this.glassButton && this.isStereoscopicActive) {
+        if (button === this.sbsButton && this.isStereoscopicActive) {
             button.style.boxShadow = '0 0 0 2px rgba(0, 180, 255, 0.9), 0 8px 16px rgba(0, 0, 0, 0.25)';
             button.style.transform = 'scale(1.06)';
         }
-
-        this.updateModeMenuTheme();
     }
 
     setupEventListeners() {
@@ -269,111 +186,20 @@ export default class FloatingModeButtons {
         this.onXRModeRequested();
     }
 
-    handle3DGlassModeClick() {
-        console.log('3D Glass Mode menu opened');
-        this.toggleStereoscopicModeMenu();
+    handleStereoModeClick(mode) {
+        console.log('3D mode requested:', mode);
+        this.onStereoModeRequested(mode);
     }
 
     updateTheme() {
         this.applyButtonStyles(this.xrButton);
-        this.applyButtonStyles(this.glassButton);
-        this.updateModeMenuTheme();
+        this.applyButtonStyles(this.sbsButton);
+        // this.applyButtonStyles(this.lineByLineButton);
     }
 
-    setStereoscopicActive(isActive, activeMode = null) {
+    setStereoscopicActive(isActive) {
         this.isStereoscopicActive = Boolean(isActive);
-
-        if (activeMode) {
-            this.stereoscopicMode = activeMode;
-        }
-
-        this.updateStereoscopicButtonLabel();
         this.updateTheme();
-    }
-
-    selectStereoscopicMode(mode) {
-        this.stereoscopicMode = mode;
-        this.updateStereoscopicButtonLabel();
-        this.on3DGlassModeRequested(mode);
-        this.hideStereoscopicModeMenu();
-    }
-
-    getStereoscopicButtonLabel() {
-        return `3D ${this.getModeShortLabel(this.stereoscopicMode)}`;
-    }
-
-    getModeShortLabel(mode) {
-        return this.stereoscopicModeLabels[mode] || 'SBS';
-    }
-
-    updateStereoscopicButtonLabel() {
-        if (!this.glassButtonLabel) return;
-        this.glassButtonLabel.textContent = this.getStereoscopicButtonLabel();
-        this.glassButton.title = this.getStereoscopicButtonLabel();
-        this.glassButton.setAttribute('aria-label', this.getStereoscopicButtonLabel());
-    }
-
-    toggleStereoscopicModeMenu() {
-        if (!this.stereoModeMenu) return;
-
-        const isOpen = this.stereoModeMenu.style.display === 'block';
-        this.stereoModeMenu.style.display = isOpen ? 'none' : 'block';
-        this.updateModeMenuTheme();
-    }
-
-    hideStereoscopicModeMenu() {
-        if (!this.stereoModeMenu) return;
-        this.stereoModeMenu.style.display = 'none';
-    }
-
-    updateModeMenuTheme() {
-        if (!this.stereoModeMenu) return;
-
-        const config = Constants.FLOATING_BUTTONS;
-        const theme = this.isDarkMode ? config.DARK_MODE : config.LIGHT_MODE;
-
-        Object.assign(this.stereoModeMenu.style, {
-            backgroundColor: theme.BACKGROUND,
-            border: `1px solid ${theme.BORDER}`,
-            boxShadow: theme.SHADOW
-        });
-
-        const optionButtons = this.stereoModeMenu.querySelectorAll('button');
-        optionButtons.forEach((button) => {
-            const mode = button.dataset.mode;
-            const isModeButton = mode !== 'off';
-            const isSelected = isModeButton && this.stereoscopicMode === mode;
-            const isOffButton = mode === 'off';
-
-            button.style.color = theme.TEXT;
-            button.style.backgroundColor = isSelected
-                ? (this.isDarkMode ? 'rgba(0, 180, 255, 0.25)' : 'rgba(0, 140, 220, 0.2)')
-                : 'transparent';
-            button.style.opacity = isOffButton && !this.isStereoscopicActive ? '0.6' : '1';
-
-            button.onmouseenter = () => {
-                button.style.backgroundColor = isSelected
-                    ? (this.isDarkMode ? 'rgba(0, 180, 255, 0.35)' : 'rgba(0, 140, 220, 0.28)')
-                    : theme.HOVER;
-            };
-
-            button.onmouseleave = () => {
-                button.style.backgroundColor = isSelected
-                    ? (this.isDarkMode ? 'rgba(0, 180, 255, 0.25)' : 'rgba(0, 140, 220, 0.2)')
-                    : 'transparent';
-            };
-        });
-    }
-
-    handleDocumentClick(event) {
-        if (!this.container || !this.stereoModeMenu) return;
-
-        const clickedInsideMenu = this.stereoModeMenu.contains(event.target);
-        const clickedGlassButton = this.glassButton && this.glassButton.contains(event.target);
-
-        if (!clickedInsideMenu && !clickedGlassButton) {
-            this.hideStereoscopicModeMenu();
-        }
     }
 
     setDarkMode(isDarkMode) {
@@ -382,7 +208,6 @@ export default class FloatingModeButtons {
     }
 
     destroy() {
-        document.removeEventListener('click', this.handleDocumentClick);
         if (this.container && this.container.parentNode) {
             this.container.parentNode.removeChild(this.container);
         }
