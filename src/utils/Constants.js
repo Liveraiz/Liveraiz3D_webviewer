@@ -322,14 +322,6 @@ export const LIVER_KEYWORDS = [
     "P58", "P8","P8v","P8d","P4","P4v","P4d","P3","P23", "P2","P1",
 ];
 
-// 투명도 조절 가능한 mesh 이름 키워드 (통합 관리)
-export const OPACITY_CONTROLLABLE_KEYWORDS = [
-    ...LIVER_KEYWORDS,
-    ...LUNG_RESECTION_KEYWORDS,
-    "myometrium","uterus", "recipient_cavity", "pancreas", "Pancreas",
-    "bladder", "tumor", "cancer", "glissonean_pedicle", "fibroid"
-];
-
 // Fibroid 관련 메시를 위한 키워드들
 export const FIBROID_KEYWORDS = [
     "fibroid",
@@ -345,6 +337,14 @@ export const LUNG_RESECTION_KEYWORDS = [
     "RUL",           // Right Upper Lobe
     "LUL_Preserved", // Left Upper Lobe - Preserved
     "LUL_Target",    // Left Upper Lobe - Target
+];
+
+// 투명도 조절 가능한 mesh 이름 키워드 (통합 관리)
+export const OPACITY_CONTROLLABLE_KEYWORDS = [
+    ...LIVER_KEYWORDS,
+    ...LUNG_RESECTION_KEYWORDS,
+    "myometrium","uterus", "recipient_cavity", "pancreas", "Pancreas",
+    "bladder", "tumor", "cancer", "glissonean_pedicle", "fibroid"
 ];
 
 export const VESSEL_KEYWORDS = [
