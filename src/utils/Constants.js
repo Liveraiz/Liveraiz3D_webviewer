@@ -294,6 +294,14 @@ export const Constants = {
      */
     STEREOSCOPIC: {
         ENABLED: false,
+        DEFAULT_MODE: 'side-by-side',
+        MODES: {
+            SIDE_BY_SIDE: 'side-by-side',
+            TOP_BOTTOM: 'top-bottom',
+            ANAGLYPH: 'anaglyph',
+            INTERLACED: 'interlaced'
+        },
+        INTERLACED_LEFT_EYE_ON_ODD: true,
         EYE_SEPARATION: 65,
         CONVERGENCE_DISTANCE: 2000,
         IOD_ADJUSTMENT_RANGE: [30, 100]
@@ -317,6 +325,7 @@ export const LIVER_KEYWORDS = [
 // 투명도 조절 가능한 mesh 이름 키워드 (통합 관리)
 export const OPACITY_CONTROLLABLE_KEYWORDS = [
     ...LIVER_KEYWORDS,
+    ...LUNG_RESECTION_KEYWORDS,
     "myometrium","uterus", "recipient_cavity", "pancreas", "Pancreas",
     "bladder", "tumor", "cancer", "glissonean_pedicle", "fibroid"
 ];
@@ -325,6 +334,17 @@ export const OPACITY_CONTROLLABLE_KEYWORDS = [
 export const FIBROID_KEYWORDS = [
     "fibroid",
     "fibroids",
+];
+
+// 폐절제술 관련 메시 키워드 (폐엽 부분)
+export const LUNG_RESECTION_KEYWORDS = [
+    "LLL",           // Left Lower Lobe
+    "LUL",           // Left Upper Lobe
+    "RLL",           // Right Lower Lobe
+    "RML",           // Right Middle Lobe
+    "RUL",           // Right Upper Lobe
+    "LUL_Preserved", // Left Upper Lobe - Preserved
+    "LUL_Target",    // Left Upper Lobe - Target
 ];
 
 export const VESSEL_KEYWORDS = [

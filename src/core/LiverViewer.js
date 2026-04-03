@@ -1024,7 +1024,7 @@ export default class LiverViewer {
         try {
             this.floatingModeButtons = new FloatingModeButtons({
                 onXRModeRequested: () => this.onXRModeRequested(),
-                on3DGlassModeRequested: () => this.on3DGlassModeRequested(),
+                on3DGlassModeRequested: (mode) => this.on3DGlassModeRequested(mode),
                 isDarkMode: this.isDarkMode,
                 isMobile: this.isMobile,
                 liverViewer: this
@@ -1056,28 +1056,26 @@ export default class LiverViewer {
     /**
      * 3D Glass Mode 요청 시 호출
      */
-    on3DGlassModeRequested() {
-        console.log('[LiverViewer] 3D Glass Mode requested');
-        
-        if (this.renderMode === 'stereoscopic') {
-            this.disableStereoscopic();
-        } else {
-            this.enableStereoscopic();
+    on3DGlassModeRequested(selectedMode) {
+        console.log('[LiverViewer] 3D Glass Mode requested:', selectedMode);
+
+        if (selectedMode === 'off') {
+            if (this.renderMode === 'stereoscopic') {
+                this.disableStereoscopic();
+            }
+            return;
         }
+
+        const fallbackMode = Constants.STEREOSCOPIC.DEFAULT_MODE || 'side-by-side';
+        const requestedMode = selectedMode || fallbackMode;
+        this.enableStereoscopic(requestedMode);
     }
 
     /**
      * Stereoscopic 렌더링 활성화
      */
-    enableStereoscopic() {
+    enableStereoscopic(mode = Constants.STEREOSCOPIC.DEFAULT_MODE || 'side-by-side') {
         try {
-            if (this.renderMode === 'stereoscopic') {
-                console.warn('Stereoscopic mode is already enabled');
-                return;
-            }
-
-            this.renderMode = 'stereoscopic';
-
             // StereoscopicRenderer 초기화
             if (!this.stereoscopicRenderer) {
                 this.stereoscopicRenderer = new StereoscopicRenderer(
@@ -1087,12 +1085,26 @@ export default class LiverViewer {
                 );
             }
 
+            this.stereoscopicRenderer.setMode(mode);
+
+            if (this.renderMode === 'stereoscopic') {
+                if (this.floatingModeButtons) {
+                    this.floatingModeButtons.setStereoscopicActive(true, this.stereoscopicRenderer.getMode());
+                }
+
+                this.requestRender();
+                console.log('[LiverViewer] Stereoscopic mode switched:', this.stereoscopicRenderer.getMode());
+                return;
+            }
+
+            this.renderMode = 'stereoscopic';
+
             // Stereoscopic 모드 활성화
             this.stereoscopicRenderer.enableStereoscopic();
             this.renderer.enableStereoscopicMode();
 
             if (this.floatingModeButtons) {
-                this.floatingModeButtons.setStereoscopicActive(true);
+                this.floatingModeButtons.setStereoscopicActive(true, this.stereoscopicRenderer.getMode());
             }
 
             this.requestRender();

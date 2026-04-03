@@ -5,8 +5,9 @@ import path from 'path';
 export default defineConfig({
   base: "/", // Netlify에서는 절대 경로 사용
   server: {
+    host: '0.0.0.0',
     port: 3000,
-    open: true,
+    open: false,
     usePolling: true,  // 파일 변경 감지를 위한 폴링 활성화
     proxy: {
       '/api': {
