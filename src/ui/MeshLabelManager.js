@@ -1,10 +1,11 @@
 // ui/MeshLabelManager.js
 import * as THREE from 'three';
 import { CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer';
+import { MASS_KEYWORDS } from '../utils/Constants';
 
 /**
  * 메시 라벨 매니저
- * fibroid_1, fibroid_2 등 뒤에 숫자가 붙은 메시에 2D 숫자 라벨을 표시하고 관리
+ * mass_1, tumor_2 등 mass 관련 메시에만 2D 숫자 라벨을 표시하고 관리
  */
 export class MeshLabelManager {
     constructor(scene, camera) {
@@ -17,12 +18,19 @@ export class MeshLabelManager {
 
     /**
      * 메시에 숫자 라벨 추가
-     * fibroid_1, fibroid_2 패턴을 찾아서 라벨 생성
+     * mass_1, tumor_2 패턴을 찾아서 라벨 생성 (mass 관련 메시만)
      * @param {THREE.Mesh} mesh - 대상 메시
      * @returns {CSS2DObject|null} - 생성된 라벨 객체
      */
     addLabelToMesh(mesh) {
-        // fibroid_1, fibroid_2 패턴 체크 (숫자로 끝나는 메시)
+        // mass 관련 키워드 체크
+        const isMassRelated = MASS_KEYWORDS.some((keyword) =>
+            mesh.name.toLowerCase().includes(keyword.toLowerCase())
+        );
+        
+        if (!isMassRelated) return null;
+
+        // mass_1, tumor_2 패턴 체크 (숫자로 끝나는 메시)
         const numberMatch = mesh.name.match(/.+_(\d+)$/);
         if (!numberMatch) return null;
 
@@ -184,7 +192,13 @@ export class MeshLabelManager {
         this.clearAllLabels();
         this.scene.traverse((obj) => {
             if (obj.isMesh && obj.name.match(/.+_\d+$/)) {
-                this.addLabelToMesh(obj);
+                // mass 관련 메시인지 체크
+                const isMassRelated = MASS_KEYWORDS.some((keyword) =>
+                    obj.name.toLowerCase().includes(keyword.toLowerCase())
+                );
+                if (isMassRelated) {
+                    this.addLabelToMesh(obj);
+                }
             }
         });
     }

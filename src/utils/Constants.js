@@ -328,6 +328,14 @@ export const FIBROID_KEYWORDS = [
     "fibroids",
 ];
 
+// Mass 관련 메시를 위한 키워드들 (종양/암 등)
+export const MASS_KEYWORDS = [
+    "tumor",
+    "cancer",
+    "mass",
+    "cyst"
+];
+
 // 폐절제술 관련 메시 키워드 (폐엽 부분)
 export const LUNG_RESECTION_KEYWORDS = [
     "LLL",           // Left Lower Lobe
