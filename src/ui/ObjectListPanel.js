@@ -6,7 +6,7 @@ import {
     VESSEL_KEYWORDS,
     PRIMARY_EXCLUDE_KEYWORDS,
     EXCLUDE_KEYWORDS,
-    OPACITY_CONTROLLABLE_KEYWORDS,
+    isOpacityControllableMeshName,
     Constants,
 } from "../utils/Constants";
 
@@ -1220,9 +1220,7 @@ export class ObjectListPanel {
             );
 
         // 투명도 조절 가능한 객체인지 확인
-        const isOpacityControllable = OPACITY_CONTROLLABLE_KEYWORDS.some((keyword) =>
-            name.toLowerCase().includes(keyword.toLowerCase())
-        );
+        const isOpacityControllable = isOpacityControllableMeshName(name);
 
         // Right/Left 그룹은 제외 (isCustomGroup이고 groupMeshes가 있는 경우)
         const isRightLeftGroup = arguments[0]?.isCustomGroup && Array.isArray(arguments[0]?.groupMeshes);

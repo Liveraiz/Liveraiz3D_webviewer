@@ -357,6 +357,29 @@ export const OPACITY_CONTROLLABLE_KEYWORDS = [
     "bladder", "tumor", "cancer", "glissonean_pedicle", "fibroid"
 ];
 
+// 문자열 비교 시 구분자(공백/언더스코어/하이픈 등) 차이를 제거해 매칭 안정성 향상
+const normalizeForMeshKeywordMatch = (value = "") =>
+    String(value).toLowerCase().replace(/[^a-z0-9]/g, "");
+
+export const isMeshNameMatchingKeyword = (meshName, keyword) => {
+    if (!meshName || !keyword) return false;
+
+    const rawMeshName = String(meshName).toLowerCase();
+    const rawKeyword = String(keyword).toLowerCase();
+    if (rawMeshName.includes(rawKeyword)) {
+        return true;
+    }
+
+    const normalizedMeshName = normalizeForMeshKeywordMatch(meshName);
+    const normalizedKeyword = normalizeForMeshKeywordMatch(keyword);
+    return !!normalizedKeyword && normalizedMeshName.includes(normalizedKeyword);
+};
+
+export const isOpacityControllableMeshName = (meshName) =>
+    OPACITY_CONTROLLABLE_KEYWORDS.some((keyword) =>
+        isMeshNameMatchingKeyword(meshName, keyword)
+    );
+
 export const VESSEL_KEYWORDS = [
     "ha",     // hepatic artery
     "pv",     // portal vein
