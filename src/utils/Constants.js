@@ -321,7 +321,8 @@ export const LIVER_KEYWORDS = [
     "P6", "P6v","P6d", "P67", "P7", "P7v", "P7d", "P7d","P5","P5v","P5d",
     "P58", "P8","P8v","P8d","P4","P4v","P4d","P3","P23", "P2","P1","S1","S2","S3",
     "S4","S5","S6","S7","S8", "seg1","seg2","seg3","seg4","seg5","seg6","seg7","seg8",
-    "s1","s2","s3","s4","s5","s6","s7","s8", "Seg1","Seg2","Seg3","Seg4","Seg5","Seg6","Seg7","Seg8"
+    "s1","s2","s3","s4","s5","s6","s7","s8", "Seg1","Seg2","Seg3","Seg4","Seg5","Seg6","Seg7","Seg8",
+    "front", "back"
 ];
 
 // Fibroid 관련 메시를 위한 키워드들
