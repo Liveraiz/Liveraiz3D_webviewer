@@ -319,32 +319,11 @@ export const LIVER_KEYWORDS = [
     "V4t", "V4at", "V4bt", "LHVt", "Remnant", "Resection",
     "Seg1", "Seg2", "Seg3","Seg4","Seg5","Seg6","Seg7","Seg8",
     "P6", "P6v","P6d", "P67", "P7", "P7v", "P7d", "P7d","P5","P5v","P5d",
-    "P58", "P8","P8v","P8d","P4","P4v","P4d","P3","P23", "P2","P1",
+    "P58", "P8","P8v","P8d","P4","P4v","P4d","P3","P23", "P2","P1","S1","S2","S3",
+    "S4","S5","S6","S7","S8", "seg1","seg2","seg3","seg4","seg5","seg6","seg7","seg8",
+    "s1","s2","s3","s4","s5","s6","s7","s8", "Seg1","Seg2","Seg3","Seg4","Seg5","Seg6","Seg7","Seg8",
+    "front", "back"
 ];
-
-// 투명도 조절 가능한 mesh 이름 키워드 (통합 관리)
-export const OPACITY_CONTROLLABLE_KEYWORDS = [
-    ...LIVER_KEYWORDS,
-    "myometrium","uterus", "recipient_cavity", "pancreas", "Pancreas",
-    "bladder", "tumor", "cancer", "glissonean_pedicle", "fibroid"
-];
-
-// 숫자 라벨 대상이 되는 mass 계열 메시 키워드
-export const MASS_KEYWORDS = [
-    'mass',
-    'tumor',
-    'fibroid',
-    'fibroids'
-];
-
-export const isOpacityControllableMeshName = (name = '') => {
-    if (!name) return false;
-
-    const lowerName = String(name).toLowerCase();
-    return OPACITY_CONTROLLABLE_KEYWORDS.some((keyword) =>
-        lowerName.includes(String(keyword).toLowerCase())
-    );
-};
 
 // Fibroid 관련 메시를 위한 키워드들
 export const FIBROID_KEYWORDS = [
@@ -352,13 +331,79 @@ export const FIBROID_KEYWORDS = [
     "fibroids",
 ];
 
+// Mass 관련 메시를 위한 키워드들 (종양/암 등)
+export const MASS_KEYWORDS = [
+    "tumor",
+    "cancer",
+    "mass",
+    "cyst"
+];
+
+// 폐절제술 관련 메시 키워드 (폐엽 부분)
+export const LUNG_RESECTION_KEYWORDS = [
+    "LLL",           // Left Lower Lobe
+    "LUL",           // Left Upper Lobe
+    "RLL",           // Right Lower Lobe
+    "RML",           // Right Middle Lobe
+    "RUL",           // Right Upper Lobe
+    "LUL_Preserved", // Left Upper Lobe - Preserved
+    "LUL_Target",    // Left Upper Lobe - Target
+    "S1b", "S1c", "S1a", // Left Upper Lobe segments
+    "S2b", "S2a",          // Left Upper Lobe segments
+    "S3a", "S3b",          // Left Upper Lobe segments
+    "S4a", "S4b",          // Left Lower Lobe segments
+    "S5a", "S5b",          // Left Lower Lobe segments
+    "S6a", "S6b",           // Left Lower Lobe segments
+    "S1", "S2", "S3", "S4", "S5", "S6", "S7", "S8", "S9", "S10" // Right Lung segments
+];
+
+// 투명도 조절 가능한 mesh 이름 키워드 (통합 관리)
+export const OPACITY_CONTROLLABLE_KEYWORDS = [
+    ...LIVER_KEYWORDS,
+    ...LUNG_RESECTION_KEYWORDS,
+    "myometrium","uterus", "recipient_cavity", "pancreas", "Pancreas",
+    "bladder", "tumor", "cancer", "glissonean_pedicle", "fibroid"
+];
+
+// 정확히 일치할 때만 투명도 조절 허용할 mesh 이름 (폐 절제술 - 정맥)
+export const EXACT_OPACITY_CONTROLLABLE_MESH_NAMES = [
+    "Pul veins"
+];
+
+// 문자열 비교 시 구분자(공백/언더스코어/하이픈 등) 차이를 제거해 매칭 안정성 향상
+const normalizeForMeshKeywordMatch = (value = "") =>
+    String(value).toLowerCase().replace(/[^a-z0-9]/g, "");
+
+export const isMeshNameMatchingKeyword = (meshName, keyword) => {
+    if (!meshName || !keyword) return false;
+
+    const rawMeshName = String(meshName).toLowerCase();
+    const rawKeyword = String(keyword).toLowerCase();
+    if (rawMeshName.includes(rawKeyword)) {
+        return true;
+    }
+
+    const normalizedMeshName = normalizeForMeshKeywordMatch(meshName);
+    const normalizedKeyword = normalizeForMeshKeywordMatch(keyword);
+    return !!normalizedKeyword && normalizedMeshName.includes(normalizedKeyword);
+};
+
+export const isOpacityControllableMeshName = (meshName) =>
+    EXACT_OPACITY_CONTROLLABLE_MESH_NAMES.some(
+        (exactMeshName) =>
+            normalizeForMeshKeywordMatch(meshName) ===
+            normalizeForMeshKeywordMatch(exactMeshName)
+    ) ||
+    OPACITY_CONTROLLABLE_KEYWORDS.some((keyword) =>
+        isMeshNameMatchingKeyword(meshName, keyword)
+    );
+
 export const VESSEL_KEYWORDS = [
     "ha",     // hepatic artery
     "pv",     // portal vein
     "bd",     // bile duct
     "hv",     // hepatic vein
 ];
-
 // 오브젝트 리스트에서 우선 체크할 제외 키워드
 export const PRIMARY_EXCLUDE_KEYWORDS = [
     'vol',
