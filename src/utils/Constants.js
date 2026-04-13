@@ -391,8 +391,8 @@ export const isMeshNameMatchingKeyword = (meshName, keyword) => {
 export const isOpacityControllableMeshName = (meshName) =>
     EXACT_OPACITY_CONTROLLABLE_MESH_NAMES.some(
         (exactMeshName) =>
-            String(meshName || "").trim().toLowerCase() ===
-            String(exactMeshName).trim().toLowerCase()
+            normalizeForMeshKeywordMatch(meshName) ===
+            normalizeForMeshKeywordMatch(exactMeshName)
     ) ||
     OPACITY_CONTROLLABLE_KEYWORDS.some((keyword) =>
         isMeshNameMatchingKeyword(meshName, keyword)
