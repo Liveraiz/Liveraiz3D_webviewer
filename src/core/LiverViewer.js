@@ -1024,7 +1024,30 @@ export default class LiverViewer {
         try {
             this.floatingModeButtons = new FloatingModeButtons({
                 onXRModeRequested: () => this.onXRModeRequested(),
-                on3DGlassModeRequested: () => this.on3DGlassModeRequested(),
+                onStereoModeRequested: (mode) => {
+                    if (this.renderMode === 'stereoscopic' && this.stereoscopicRenderer && this.stereoscopicRenderer.getMode() === mode) {
+                        this.disableStereoscopic();
+                        return;
+                    }
+
+                    this.enableStereoscopic(mode, this.stereoscopicAnamorphic ?? true);
+                },
+                onStereoAspectRequested: (anamorphic) => {
+                    this.stereoscopicAnamorphic = Boolean(anamorphic);
+
+                    if (this.renderMode === 'stereoscopic' && this.stereoscopicRenderer) {
+                        this.stereoscopicRenderer.setAnamorphic(this.stereoscopicAnamorphic);
+                        this.requestRender();
+                    }
+
+                    if (this.floatingModeButtons && this.stereoscopicRenderer) {
+                        this.floatingModeButtons.setStereoscopicActive(
+                            this.renderMode === 'stereoscopic',
+                            this.stereoscopicRenderer.getMode(),
+                            this.stereoscopicAnamorphic
+                        );
+                    }
+                },
                 isDarkMode: this.isDarkMode,
                 isMobile: this.isMobile,
                 liverViewer: this
@@ -1069,7 +1092,7 @@ export default class LiverViewer {
     /**
      * Stereoscopic 렌더링 활성화 (SBS 모드)
      */
-    enableStereoscopic(mode = Constants.STEREOSCOPIC.DEFAULT_MODE || 'side-by-side') {
+    enableStereoscopic(mode = Constants.STEREOSCOPIC.DEFAULT_MODE || 'side-by-side', anamorphic = true) {
         try {
             // StereoscopicRenderer 초기화
             if (!this.stereoscopicRenderer) {
@@ -1080,11 +1103,13 @@ export default class LiverViewer {
                 );
             }
 
+            this.stereoscopicAnamorphic = Boolean(anamorphic);
             this.stereoscopicRenderer.setMode(mode);
+            this.stereoscopicRenderer.setAnamorphic(this.stereoscopicAnamorphic);
 
             if (this.renderMode === 'stereoscopic') {
                 if (this.floatingModeButtons) {
-                    this.floatingModeButtons.setStereoscopicActive(true, this.stereoscopicRenderer.getMode());
+                    this.floatingModeButtons.setStereoscopicActive(true, this.stereoscopicRenderer.getMode(), this.stereoscopicAnamorphic);
                 }
 
                 this.requestRender();
@@ -1099,7 +1124,7 @@ export default class LiverViewer {
             this.renderer.enableStereoscopicMode();
 
             if (this.floatingModeButtons) {
-                this.floatingModeButtons.setStereoscopicActive(true, this.stereoscopicRenderer.getMode());
+                this.floatingModeButtons.setStereoscopicActive(true, this.stereoscopicRenderer.getMode(), this.stereoscopicAnamorphic);
             }
 
             this.requestRender();
@@ -1131,7 +1156,7 @@ export default class LiverViewer {
             this.renderer.disableStereoscopicMode();
 
             if (this.floatingModeButtons) {
-                this.floatingModeButtons.setStereoscopicActive(false);
+                this.floatingModeButtons.setStereoscopicActive(false, null, this.stereoscopicAnamorphic ?? true);
             }
 
             this.requestRender();

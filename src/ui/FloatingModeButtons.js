@@ -5,6 +5,7 @@ export default class FloatingModeButtons {
     constructor(options) {
         this.onXRModeRequested = options.onXRModeRequested || (() => {});
         this.onStereoModeRequested = options.onStereoModeRequested || (() => {});
+        this.onStereoAspectRequested = options.onStereoAspectRequested || (() => {});
         this.isDarkMode = options.isDarkMode || false;
         this.isMobile = options.isMobile || false;
         this.liverViewer = options.liverViewer || null;
@@ -12,9 +13,12 @@ export default class FloatingModeButtons {
         this.container = null;
         this.xrButton = null;
         this.sbsButton = null;
+        this.topBottomButton = null;
+        this.anamorphicButton = null;
         this.lineByLineButton = null;
         this.isStereoscopicActive = false;
         this.activeStereoMode = null;
+        this.isAnamorphic = true;
 
         this.initialize();
     }
@@ -63,7 +67,26 @@ export default class FloatingModeButtons {
             id: '3d-sbs-button',
             label: '3D SBS',
             icon: '3D',
-            onClick: () => this.handleStereoModeClick('sbs')
+            stereoMode: Constants.STEREOSCOPIC.MODES?.SIDE_BY_SIDE || 'side-by-side',
+            onClick: () => this.handleStereoModeClick(Constants.STEREOSCOPIC.MODES?.SIDE_BY_SIDE || 'side-by-side')
+        });
+
+        // 3D Top/Bottom 버튼
+        this.topBottomButton = this.createButton({
+            id: '3d-top-bottom-button',
+            label: '3D TB',
+            icon: '3D',
+            stereoMode: Constants.STEREOSCOPIC.MODES?.TOP_BOTTOM || 'top-bottom',
+            onClick: () => this.handleStereoModeClick(Constants.STEREOSCOPIC.MODES?.TOP_BOTTOM || 'top-bottom')
+        });
+
+        // Anamorphic toggle button
+        this.anamorphicButton = this.createButton({
+            id: '3d-anamorphic-button',
+            label: 'AM',
+            icon: 'AN',
+            stereoAspect: 'anamorphic',
+            onClick: () => this.handleStereoAspectClick()
         });
 
         // // 3D Line-by-Line 버튼 (비활성화)
@@ -76,10 +99,13 @@ export default class FloatingModeButtons {
 
         // this.container.appendChild(this.xrButton);
         this.container.appendChild(this.sbsButton);
+        this.container.appendChild(this.topBottomButton);
+        this.container.appendChild(this.anamorphicButton);
         // this.container.appendChild(this.lineByLineButton);
 
         // this.applyButtonStyles(this.xrButton);
         this.applyButtonStyles(this.sbsButton);
+        this.applyButtonStyles(this.topBottomButton);
         // this.applyButtonStyles(this.lineByLineButton);
     }
 
@@ -122,18 +148,29 @@ export default class FloatingModeButtons {
         button.appendChild(iconSpan);
         button.appendChild(labelSpan);
 
+        if (options.stereoMode) {
+            button.dataset.stereoMode = options.stereoMode;
+        }
+
+        if (options.stereoAspect) {
+            button.dataset.stereoAspect = options.stereoAspect;
+        }
+
+        const isStereoButtonActive = () => Boolean(this.activeStereoMode && button.dataset.stereoMode === this.activeStereoMode);
+        const isAspectButtonActive = () => Boolean(button.dataset.stereoAspect && this.isAnamorphic);
+
         button.addEventListener('mouseenter', () => {
             const config = Constants.FLOATING_BUTTONS;
             const theme = this.isDarkMode ? config.DARK_MODE : config.LIGHT_MODE;
             button.style.backgroundColor = theme.HOVER;
-            button.style.transform = this.isStereoscopicActive && button === this.sbsButton ? 'scale(1.08)' : 'scale(1.04)';
+            button.style.transform = (isStereoButtonActive() || isAspectButtonActive()) ? 'scale(1.08)' : 'scale(1.04)';
         });
 
         button.addEventListener('mouseleave', () => {
             const config = Constants.FLOATING_BUTTONS;
             const theme = this.isDarkMode ? config.DARK_MODE : config.LIGHT_MODE;
             button.style.backgroundColor = theme.BACKGROUND;
-            button.style.transform = this.isStereoscopicActive && button === this.sbsButton ? 'scale(1.06)' : 'scale(1)';
+            button.style.transform = (isStereoButtonActive() || isAspectButtonActive()) ? 'scale(1.06)' : 'scale(1)';
         });
 
         button.addEventListener('mousedown', () => {
@@ -141,7 +178,7 @@ export default class FloatingModeButtons {
         });
 
         button.addEventListener('mouseup', () => {
-            button.style.transform = this.isStereoscopicActive && button === this.sbsButton ? 'scale(1.06)' : 'scale(1)';
+            button.style.transform = (isStereoButtonActive() || isAspectButtonActive()) ? 'scale(1.06)' : 'scale(1)';
         });
 
         button.addEventListener('click', options.onClick);
@@ -163,8 +200,11 @@ export default class FloatingModeButtons {
         });
 
         // 3D 버튼 활성 상태를 시각적으로 표시
-        if (button === this.sbsButton && this.isStereoscopicActive) {
+        if (button.dataset.stereoMode && button.dataset.stereoMode === this.activeStereoMode) {
             button.style.boxShadow = '0 0 0 2px rgba(0, 180, 255, 0.9), 0 8px 16px rgba(0, 0, 0, 0.25)';
+            button.style.transform = 'scale(1.06)';
+        } else if (button.dataset.stereoAspect && this.isAnamorphic) {
+            button.style.boxShadow = '0 0 0 2px rgba(255, 180, 0, 0.9), 0 8px 16px rgba(0, 0, 0, 0.25)';
             button.style.transform = 'scale(1.06)';
         }
     }
@@ -194,11 +234,22 @@ export default class FloatingModeButtons {
     updateTheme() {
         this.applyButtonStyles(this.xrButton);
         this.applyButtonStyles(this.sbsButton);
+        this.applyButtonStyles(this.topBottomButton);
+        this.applyButtonStyles(this.anamorphicButton);
         // this.applyButtonStyles(this.lineByLineButton);
     }
 
-    setStereoscopicActive(isActive) {
+    setStereoscopicActive(isActive, activeStereoMode = null, isAnamorphic = true) {
         this.isStereoscopicActive = Boolean(isActive);
+        this.activeStereoMode = this.isStereoscopicActive ? activeStereoMode : null;
+        this.isAnamorphic = Boolean(isAnamorphic);
+        this.updateTheme();
+    }
+
+    handleStereoAspectClick() {
+        this.isAnamorphic = !this.isAnamorphic;
+        console.log('Stereo aspect toggled. Anamorphic:', this.isAnamorphic);
+        this.onStereoAspectRequested?.(this.isAnamorphic);
         this.updateTheme();
     }
 
