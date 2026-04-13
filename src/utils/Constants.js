@@ -365,6 +365,11 @@ export const OPACITY_CONTROLLABLE_KEYWORDS = [
     "bladder", "tumor", "cancer", "glissonean_pedicle", "fibroid"
 ];
 
+// 정확히 일치할 때만 투명도 조절 허용할 mesh 이름 (폐 절제술 - 정맥)
+export const EXACT_OPACITY_CONTROLLABLE_MESH_NAMES = [
+    "Pul veins"
+];
+
 // 문자열 비교 시 구분자(공백/언더스코어/하이픈 등) 차이를 제거해 매칭 안정성 향상
 const normalizeForMeshKeywordMatch = (value = "") =>
     String(value).toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -384,6 +389,11 @@ export const isMeshNameMatchingKeyword = (meshName, keyword) => {
 };
 
 export const isOpacityControllableMeshName = (meshName) =>
+    EXACT_OPACITY_CONTROLLABLE_MESH_NAMES.some(
+        (exactMeshName) =>
+            String(meshName || "").trim().toLowerCase() ===
+            String(exactMeshName).trim().toLowerCase()
+    ) ||
     OPACITY_CONTROLLABLE_KEYWORDS.some((keyword) =>
         isMeshNameMatchingKeyword(meshName, keyword)
     );
