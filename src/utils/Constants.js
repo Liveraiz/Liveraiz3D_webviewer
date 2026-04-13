@@ -367,7 +367,8 @@ export const OPACITY_CONTROLLABLE_KEYWORDS = [
 
 // 정확히 일치할 때만 투명도 조절 허용할 mesh 이름 (폐 절제술 - 정맥)
 export const EXACT_OPACITY_CONTROLLABLE_MESH_NAMES = [
-    "Pul veins"
+    "Pul veins",
+    "Pul_veins"
 ];
 
 // 문자열 비교 시 구분자(공백/언더스코어/하이픈 등) 차이를 제거해 매칭 안정성 향상
