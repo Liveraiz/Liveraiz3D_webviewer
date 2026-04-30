@@ -390,6 +390,14 @@ export class ObjectListPanel {
                 
                 const nameA = getDisplayName(a);
                 const nameB = getDisplayName(b);
+                
+                // 불투명도 조정 가능 여부로 먼저 정렬 (가능한 것이 상단)
+                const isOpacityA = isOpacityControllableMeshName(nameA);
+                const isOpacityB = isOpacityControllableMeshName(nameB);
+                if (isOpacityA !== isOpacityB) {
+                    return isOpacityB - isOpacityA; // true(1) > false(0)
+                }
+                
                 const orderA = this.getObjectSortOrder(nameA);
                 const orderB = this.getObjectSortOrder(nameB);
                 
@@ -494,6 +502,13 @@ export class ObjectListPanel {
             info.children
                 .map((childName) => hierarchyMap.get(childName))
                 .sort((a, b) => {
+                    // 불투명도 조정 가능 여부로 먼저 정렬 (가능한 것이 상단)
+                    const isOpacityA = isOpacityControllableMeshName(a.mesh.name);
+                    const isOpacityB = isOpacityControllableMeshName(b.mesh.name);
+                    if (isOpacityA !== isOpacityB) {
+                        return isOpacityB - isOpacityA; // true(1) > false(0)
+                    }
+                    
                     const orderA = this.getObjectSortOrder(a.mesh.name);
                     const orderB = this.getObjectSortOrder(b.mesh.name);
                     if (orderA === orderB) {
