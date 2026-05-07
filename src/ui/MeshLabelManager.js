@@ -135,7 +135,7 @@ export class MeshLabelManager {
         div.textContent = number;
         div.style.cssText = `
             background: rgba(255, 255, 255, 0.95);
-            color: ${meshColor};
+            color: #000000;
             padding: 6px 10px;
             border-radius: 4px;
             font-size: 16px;
