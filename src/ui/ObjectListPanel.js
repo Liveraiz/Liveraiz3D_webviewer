@@ -79,6 +79,9 @@ export class ObjectListPanel {
 
         this.meshTooltip = null; // MeshTooltip 참조 추가
 
+        // MeshLabelManager 참조 추가
+        this.labelManager = liverViewer?.labelManager;
+
         // 드래그 스크롤 이벤트 리스너 참조 저장
         this.dragScrollHandlers = null;
 
@@ -2090,6 +2093,144 @@ export class ObjectListPanel {
         // 토글이 이미 생성되어 있다면 상태 업데이트
         if (this.meshTooltipToggle) {
             this.updateMeshTooltipToggleState();
+        }
+    }
+
+    /**
+     * LabelManager 설정 메서드
+     * @param {MeshLabelManager} labelManager
+     */
+    setLabelManager(labelManager) {
+        this.labelManager = labelManager;
+        console.log('[ObjectListPanel] LabelManager set, creating toggle', labelManager);
+        // labelManager가 설정되고 라벨이 있을 때만 토글 생성
+        if (this.labelManager && this.panel && !this.meshLabelToggleContainer && this.labelManager.getLabelCount() > 0) {
+            this.createMeshLabelToggle();
+        }
+    }
+
+    /**
+     * 라벨 토글 갱신 메서드 (모델 로드 후 호출)
+     */
+    updateLabelToggle() {
+        if (!this.labelManager) return;
+        
+        const hasLabels = this.labelManager.getLabelCount() > 0;
+        
+        if (hasLabels && !this.meshLabelToggleContainer) {
+            // 라벨이 있는데 토글이 없으면 생성
+            this.createMeshLabelToggle();
+            console.log('[ObjectListPanel] Label toggle created after model load');
+        } else if (!hasLabels && this.meshLabelToggleContainer) {
+            // 라벨이 없는데 토글이 있으면 제거
+            this.meshLabelToggleContainer.remove();
+            this.meshLabelToggleContainer = null;
+            console.log('[ObjectListPanel] Label toggle removed');
+        }
+    }
+
+    /**
+     * 2D 라벨 표시 토글 버튼 생성
+     */
+    createMeshLabelToggle() {
+        // labelManager가 없거나 라벨이 없으면 토글 생성 안함
+        if (!this.labelManager || this.labelManager.getLabelCount() === 0) {
+            console.warn("[ObjectListPanel] 라벨이 없어서 토글을 생성하지 않습니다");
+            return;
+        }
+
+        console.log(`[ObjectListPanel] Creating label toggle. Existing labels: ${this.labelManager.getLabelCount()}`);
+
+        const toggleContainer = document.createElement("div");
+        Object.assign(toggleContainer.style, {
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            padding: "12px 20px",
+            backgroundColor: this.isDarkMode
+                ? "rgba(255, 255, 255, 0.15)"
+                : "rgba(70, 70, 70, 0.15)",
+            borderRadius: "0",
+            borderTop: this.isDarkMode
+                ? "1px solid rgba(255, 255, 255, 0.1)"
+                : "1px solid rgba(0, 0, 0, 0.1)",
+            flexShrink: "0",
+        });
+
+        // 라벨 생성
+        const label = document.createElement("span");
+        label.textContent = "2D Label Display";
+        Object.assign(label.style, {
+            fontSize: "14px",
+            fontWeight: "500",
+            color: this.isDarkMode ? "white" : "black",
+        });
+
+        // 토글 버튼 생성
+        const toggleButton = document.createElement("button");
+        this.meshLabelToggle = toggleButton;
+        Object.assign(toggleButton.style, {
+            background: "none",
+            border: "none",
+            cursor: "pointer",
+            padding: "4px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            borderRadius: "4px",
+            transition: "background-color 0.2s",
+        });
+
+        // 초기 상태 설정 - labelManager의 실제 상태를 기반으로
+        this.labelManagerEnabled = this.labelManager.areAllLabelsVisible ? this.labelManager.areAllLabelsVisible() : true;
+        this.updateMeshLabelToggleState();
+
+        // 토글 버튼 클릭 이벤트
+        toggleButton.addEventListener("click", () => {
+            if (this.labelManager) {
+                this.labelManagerEnabled = !this.labelManagerEnabled;
+                console.log(`[ObjectListPanel] Label toggle clicked: ${this.labelManagerEnabled}`);
+                this.labelManager.setAllLabelsVisible(this.labelManagerEnabled);
+                this.updateMeshLabelToggleState();
+                console.log(`[ObjectListPanel] 2D 라벨 표시 ${this.labelManagerEnabled ? '활성화' : '비활성화'}`);
+            } else {
+                console.warn("[ObjectListPanel] LabelManager가 설정되지 않았습니다");
+            }
+        });
+
+        toggleContainer.appendChild(label);
+        toggleContainer.appendChild(toggleButton);
+        this.panel.appendChild(toggleContainer);
+        this.meshLabelToggleContainer = toggleContainer;
+    }
+
+    /**
+     * 2D 라벨 표시 토글 버튼 상태 업데이트
+     */
+    updateMeshLabelToggleState() {
+        if (!this.meshLabelToggle) return;
+
+        const isEnabled = this.labelManagerEnabled;
+        const iconColor = this.isDarkMode ? "white" : "black";
+
+        if (isEnabled) {
+            // 체크된 상태
+            this.meshLabelToggle.innerHTML = `
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="${iconColor}">
+                    <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zM17.99 9l-1.41-1.42-6.59 6.59-2.58-2.57-1.42 1.41 4 3.99z"/>
+                </svg>
+            `;
+            this.meshLabelToggle.style.backgroundColor = this.isDarkMode
+                ? "rgba(255, 255, 255, 0.2)"
+                : "rgba(70, 70, 70, 0.2)";
+        } else {
+            // 체크 해제된 상태
+            this.meshLabelToggle.innerHTML = `
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="${iconColor}">
+                    <path d="M19 5v14H5V5h14m0-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/>
+                </svg>
+            `;
+            this.meshLabelToggle.style.backgroundColor = "transparent";
         }
     }
 

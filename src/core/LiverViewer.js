@@ -180,7 +180,7 @@ export default class LiverViewer {
 
             // ObjectListPanel에 labelManager 연결
             if (this.objectListPanel && this.labelManager) {
-                this.objectListPanel.labelManager = this.labelManager;
+                this.objectListPanel.setLabelManager(this.labelManager);
                 console.log('[LiverViewer] labelManager connected to ObjectListPanel');
             }
 
@@ -427,6 +427,11 @@ export default class LiverViewer {
                     if (this.labelManager) {
                         this.labelManager.initializeLabelsFromScene();
                         console.log(`[LiverViewer] ${this.labelManager.getLabelCount()} mesh labels initialized`);
+                        
+                        // ObjectListPanel 라벨 토글 갱신
+                        if (this.objectListPanel) {
+                            this.objectListPanel.updateLabelToggle();
+                        }
                     }
 
                     // 측정값 초기화

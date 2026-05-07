@@ -30,8 +30,8 @@ export class MeshLabelManager {
         
         if (!isMassRelated) return null;
 
-        // mass_1, tumor_2 패턴 체크 (숫자로 끝나는 메시)
-        const numberMatch = mesh.name.match(/.+_(\d+)$/);
+        // mass_1, tumor_2, mass1, tumor2 패턴 체크 (숫자로 끝나는 메시)
+        const numberMatch = mesh.name.match(/.+?_?(\d+)$/);
         if (!numberMatch) return null;
 
         // hat 메시는 라벨 표시 제외
@@ -40,7 +40,19 @@ export class MeshLabelManager {
         }
 
         const number = numberMatch[1];
-        const labelDiv = this.createLabelDiv(number, mesh.name);
+        
+        // 메시의 색상 추출
+        let meshColor = '#000000';
+        if (mesh.material) {
+            const material = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
+            if (material.color) {
+                meshColor = '#' + material.color.getHexString();
+            }
+        }
+        
+        const labelDiv = this.createLabelDiv(number, mesh.name, meshColor);
+        // UUID 기반 고유 ID 추가
+        labelDiv.id = `label-${mesh.uuid}`;
         const css2dObject = new CSS2DObject(labelDiv);
 
         // 메시의 바운딩박스 기준으로 카메라 쪽에 배치
@@ -55,6 +67,7 @@ export class MeshLabelManager {
         this.labels.set(mesh.uuid, css2dObject);
         this.labelData.set(mesh.uuid, { label: labelDiv, number, meshName: mesh.name });
 
+        console.log(`[MeshLabelManager] Label added for mesh: ${mesh.name}, number: ${number}`);
         return css2dObject;
     }
 
@@ -113,15 +126,16 @@ export class MeshLabelManager {
      * 라벨 DOM 생성
      * @param {string} number - 표시할 숫자
      * @param {string} meshName - 메시 이름
+     * @param {string} meshColor - 메시의 색상 (hex color)
      * @returns {HTMLElement}
      */
-    createLabelDiv(number, meshName) {
+    createLabelDiv(number, meshName, meshColor = '#000000') {
         const div = document.createElement('div');
         div.className = 'mesh-label';
         div.textContent = number;
         div.style.cssText = `
-            background: rgba(0, 0, 0, 0.85);
-            color: #fff;
+            background: rgba(255, 255, 255, 0.95);
+            color: ${meshColor};
             padding: 6px 10px;
             border-radius: 4px;
             font-size: 16px;
@@ -129,7 +143,7 @@ export class MeshLabelManager {
             white-space: nowrap;
             pointer-events: none;
             user-select: none;
-            border: 2px solid #4a90e2;
+            border: 2px solid ${meshColor};
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
             font-family: 'Courier New', monospace;
             letter-spacing: 1px;
@@ -189,9 +203,10 @@ export class MeshLabelManager {
      * 씬의 모든 메시를 스캔하여 라벨 초기화
      */
     initializeLabelsFromScene() {
+        console.log("[MeshLabelManager] Initializing labels from scene...");
         this.clearAllLabels();
         this.scene.traverse((obj) => {
-            if (obj.isMesh && obj.name.match(/.+_\d+$/)) {
+            if (obj.isMesh && obj.name.match(/.+?_?\d+$/)) {
                 // mass 관련 메시인지 체크
                 const isMassRelated = MASS_KEYWORDS.some((keyword) =>
                     obj.name.toLowerCase().includes(keyword.toLowerCase())
@@ -201,6 +216,7 @@ export class MeshLabelManager {
                 }
             }
         });
+        console.log(`[MeshLabelManager] Initialization complete. Total labels: ${this.labels.size}`);
     }
 
     /**
@@ -226,5 +242,47 @@ export class MeshLabelManager {
      */
     getLabelCount() {
         return this.labels.size;
+    }
+
+    /**
+     * 모든 라벨의 표시/숨김 토글
+     * @param {boolean} visible - 표시 여부
+     */
+    setAllLabelsVisible(visible) {
+        console.log(`[MeshLabelManager] setAllLabelsVisible called: ${visible}, total labels: ${this.labels.size}`);
+        for (const [meshId, labelObj] of this.labels) {
+            console.log(`[MeshLabelManager] Setting label visible: ${labelObj.userData?.meshName} = ${visible}, meshId=${meshId}`);
+            
+            // CSS2DObject의 visible 속성 설정
+            labelObj.visible = visible;
+            
+            // DOM 요소에 직접 접근해서 visibility 설정
+            // CSS2DObject의 element는 div입니다
+            if (labelObj.element) {
+                labelObj.element.style.opacity = visible ? '1' : '0';
+                labelObj.element.style.pointerEvents = visible ? 'auto' : 'none';
+                console.log(`[MeshLabelManager] Updated element opacity: ${visible ? '1' : '0'}`);
+            }
+            
+            // 백업: id로도 찾아서 설정
+            const labelDiv = document.getElementById(`label-${meshId}`);
+            if (labelDiv) {
+                labelDiv.style.opacity = visible ? '1' : '0';
+                labelDiv.style.pointerEvents = visible ? 'auto' : 'none';
+                console.log(`[MeshLabelManager] Updated DOM element by ID: label-${meshId}`);
+            }
+        }
+    }
+
+    /**
+     * 모든 라벨의 현재 표시 상태 조회
+     * @returns {boolean}
+     */
+    areAllLabelsVisible() {
+        if (this.labels.size === 0) return true;
+        for (const [meshId, labelObj] of this.labels) {
+            if (!labelObj.visible) return false;
+        }
+        return true;
     }
 }
