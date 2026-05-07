@@ -135,7 +135,7 @@ export class MeshLabelManager {
         div.textContent = number;
         div.style.cssText = `
             background: rgba(255, 255, 255, 0.95);
-            color: ${meshColor};
+            color: #000000;
             padding: 6px 10px;
             border-radius: 4px;
             font-size: 16px;
@@ -143,7 +143,7 @@ export class MeshLabelManager {
             white-space: nowrap;
             pointer-events: none;
             user-select: none;
-            border: 2px solid ${meshColor};
+            border: 2px solid #000000;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
             font-family: 'Courier New', monospace;
             letter-spacing: 1px;
