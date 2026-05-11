@@ -1,7 +1,7 @@
 {
   "name": "liveraiz_viewer",
   "version": "1.0.0",
-  "description": "",
+  "description": "LiverAiz 3D Viewer - Desktop Application",
   "main": "electron/main.js",
   "scripts": {
     "dev": "vite",
@@ -35,8 +35,11 @@
   "devDependencies": {
     "concurrently": "^9.2.1",
     "cross-env": "^7.0.3",
-    "electron": "^37.2.0",
-    "electron-builder": "^25.1.6",
+    "electron": "^42.0.1",
+    "electron-builder": "^26.8.1",
+    "jimp": "^1.6.1",
+    "png-to-ico": "^3.0.1",
+    "sharp": "^0.34.5",
     "terser": "^5.43.1",
     "vite": "^6.4.1",
     "wait-on": "^8.0.5"
@@ -56,21 +59,26 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         },
         {
           "target": "portable",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
-      "sign": null
+      "icon": "public/icon/app.ico"
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
-      "createStartMenuShortcut": true
+      "createStartMenuShortcut": true,
+      "installerIcon": "public/icon/app.ico",
+      "uninstallerIcon": "public/icon/app.ico"
     }
   }
 }
-

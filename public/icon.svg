@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="_레이어_2" data-name="레이어 2" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 272.36 272.36">
+  <defs>
+    <style>
+      .cls-1 {
+        fill: url(#_무제_그라디언트_23);
+      }
+
+      .cls-2 {
+        fill: #fff;
+      }
+
+      .cls-3 {
+        fill: none;
+        stroke: #fff;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        stroke-width: 17px;
+      }
+    </style>
+    <linearGradient id="_무제_그라디언트_23" data-name="무제 그라디언트 23" x1="0" y1="136.18" x2="272.36" y2="136.18" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#666af2"/>
+      <stop offset="1" stop-color="#641c93"/>
+    </linearGradient>
+  </defs>
+  <g id="_레이어_1-2" data-name="레이어 1">
+    <g>
+      <circle class="cls-1" cx="136.18" cy="136.18" r="136.18"/>
+      <g>
+        <circle class="cls-2" cx="173.82" cy="49.97" r="6.3"/>
+        <polygon class="cls-3" points="66.97 92.39 66.97 167.39 122.09 222.19 122.09 145.15 66.97 92.39"/>
+        <line class="cls-3" x1="122.09" y1="73.91" x2="66.97" y2="92.39"/>
+        <line class="cls-3" x1="178.26" y1="87.41" x2="94.66" y2="117.31"/>
+        <polyline class="cls-3" points="123.45 144.43 205.39 114.54 122.34 221.95 205.39 190.77"/>
+        <circle class="cls-2" cx="151.36" cy="63.69" r="8.8"/>
+        <path class="cls-2" d="M142.73,61.94s-7.39,7.86-15.52,5.18l3.28,8.15s3.89-8.62,14.76-5.23l-2.52-8.09Z"/>
+      </g>
+    </g>
+  </g>
+</svg>
