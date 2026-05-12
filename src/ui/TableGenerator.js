@@ -265,7 +265,7 @@ export class TableGenerator {
                 font-weight: bold;
             }
             .seg-detail-table .seg-name {
-                color: #000000;
+                color: ${theme.textColor};
                 font-weight: bold;
                 vertical-align: middle;
                 white-space: normal;
@@ -275,7 +275,7 @@ export class TableGenerator {
             }
             .seg-detail-table .seg-value {
                 background-color: ${theme.valueBg};
-                color: #000000;
+                color: ${theme.textColor};
                 white-space: normal;
                 overflow-wrap: anywhere;
             }
