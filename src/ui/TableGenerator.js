@@ -3,6 +3,31 @@
 import { COLOR, tableColor } from "../utils/color.js";
 import { Constants } from "../utils/Constants";
 
+const KNOWN_HCC_COLUMNS = [
+    "Measure",
+    "Whole Liver",
+    "Rt.lobe",
+    "Lt.lobe",
+    "RAS",
+    "RPS",
+    "LLS",
+    "LMS",
+    "Spigelian",
+    "Cancer",
+    "Spleen",
+];
+
+const SEG_DETAIL_COLORS = [
+    "#F7D8C4",
+    "#D9EDD8",
+    "#D7E8F7",
+    "#E8D9F7",
+    "#F8D9E3",
+    "#F7E9B8",
+    "#E7D8CC",
+    "#D8F1F4",
+];
+
 export class TableGenerator {
     constructor(isDarkMode = false) {
         this.isDarkMode = isDarkMode;
@@ -153,37 +178,144 @@ export class TableGenerator {
         return table;
     }
 
-    // Create HCC table (existing code + separate Spleen Volume table)
+    // Create HCC table (main HCC + Segment Detail + separate Spleen Volume table)
     createHCCTable(csvData, surgeryType = "HCC") {
         console.log("Creating HCC table with data:", csvData);
 
-        var rows = csvData.replaceAll('"', "").split("\r\n");
-        rows = rows.filter((row) => row.trim() !== "");
-        if (rows.length === 0) return "<p>데이터가 없습니다.</p>";
-        var parsedRows = rows.map((row) => row.split(","));
-        var headers = parsedRows[0];
-        var volumeData = {};
-        var percentData = {};
+        const rows = csvData.replaceAll('"', "").split("\r\n");
+        const filteredRows = rows.filter((row) => row.trim() !== "");
+
+        if (filteredRows.length === 0) return "<p>데이터가 없습니다.</p>";
+
+        const parsedRows = filteredRows.map((row) => row.split(","));
+        const headers = parsedRows[0];
+
+        const volumeData = {};
+        const percentData = {};
+
         if (parsedRows.length > 1) {
-            for (var i = 0; i < headers.length; i++) {
-                var key = headers[i];
-                var value = parsedRows[1][i] || "0";
-                volumeData[key] = value;
+            for (let i = 0; i < headers.length; i++) {
+                volumeData[headers[i]] = parsedRows[1][i] || "0";
             }
         }
+
         if (parsedRows.length > 2) {
-            for (var i = 0; i < headers.length; i++) {
-                var key = headers[i];
-                var value = parsedRows[2][i] || "0";
-                percentData[key] = value;
+            for (let i = 0; i < headers.length; i++) {
+                percentData[headers[i]] = parsedRows[2][i] || "0";
             }
         } else {
-            percentData = { ...volumeData };
+            Object.assign(percentData, volumeData);
         }
-        // Spleen Volume 표 생성
+
+        const extraColumns = headers.filter(
+            (header) => !KNOWN_HCC_COLUMNS.includes(header.trim())
+        );
+
+        const mainTable = this._generateHCCTableHTML(
+            volumeData,
+            percentData,
+            surgeryType
+        );
+
+        let segDetailTable = "";
+        if (extraColumns.length > 0) {
+            segDetailTable = this._generateSegDetailTableHTML(
+                extraColumns,
+                volumeData,
+                percentData
+            );
+        }
+
         const spleenTable = this.createSpleenVolumeTable(csvData);
-        // 기존 HCC 표 + Spleen 표(있으면) 반환
-        return this._generateHCCTableHTML(volumeData, percentData, surgeryType) + (spleenTable ? `<div style='margin-top:12px;'>${spleenTable}</div>` : "");
+
+        return (
+            mainTable +
+            (segDetailTable ? `<div style='margin-top:12px;'>${segDetailTable}</div>` : "") +
+            (spleenTable ? `<div style='margin-top:12px;'>${spleenTable}</div>` : "")
+        );
+    }
+
+    _generateSegDetailTableHTML(extraColumns, volumeData, percentData) {
+        const theme = this.isDarkMode
+            ? this.getCommonStyles().dark
+            : this.getCommonStyles().light;
+
+        const style = `
+        <style>
+            .seg-detail-table {
+                border-collapse: collapse;
+                width: 100%;
+                max-width: 600px;
+                font-family: Arial, sans-serif;
+                margin: 0;
+                box-shadow: ${theme.boxShadow};
+                color: ${theme.textColor};
+                table-layout: fixed;
+            }
+            .seg-detail-table th,
+            .seg-detail-table td {
+                border: 1px solid ${theme.tableBorder};
+                padding: 8px;
+                text-align: center;
+                width: 50%;
+            }
+            .seg-detail-table thead th {
+                background-color: #AFC7DD;
+                color: #ffffff;
+                font-weight: bold;
+            }
+            .seg-detail-table .seg-name {
+                color: #000000;
+                font-weight: bold;
+                vertical-align: middle;
+                white-space: normal;
+                overflow-wrap: anywhere;
+                word-break: break-word;
+                line-height: 1.2;
+            }
+            .seg-detail-table .seg-value {
+                background-color: ${theme.valueBg};
+                color: #000000;
+                white-space: normal;
+                overflow-wrap: anywhere;
+            }
+        </style>
+        `;
+
+        let table = style + "<table class='seg-detail-table'>";
+
+        table += "<thead><tr>";
+        table += "<th colspan='2'>Segment detail</th>";
+        table += "</tr></thead>";
+
+        table += "<tbody>";
+
+        const escapeHtml = (value) =>
+            String(value)
+                .replaceAll("&", "&amp;")
+                .replaceAll("<", "&lt;")
+                .replaceAll(">", "&gt;")
+                .replaceAll('"', "&quot;")
+                .replaceAll("'", "&#39;");
+
+        extraColumns.forEach((column, index) => {
+            const columnName = column.trim();
+            const displayName = escapeHtml(columnName).replaceAll("_", "_<wbr>");
+            const bgColor = SEG_DETAIL_COLORS[index % SEG_DETAIL_COLORS.length];
+
+            table += "<tr>";
+            table += `<th rowspan='2' class='seg-name' style='background-color: ${bgColor};'>${displayName}</th>`;
+            table += `<td class='seg-value'>${this.formatVolume(volumeData[columnName])}</td>`;
+            table += "</tr>";
+
+            table += "<tr>";
+            table += `<td class='seg-value'>${this.formatPercent(percentData[columnName])}</td>`;
+            table += "</tr>";
+        });
+
+        table += "</tbody></table>";
+
+        return table;
     }
 
     // LDLT RL 테이블 생성
