@@ -354,7 +354,9 @@ export const LUNG_RESECTION_KEYWORDS = [
     "S4a", "S4b",          // Left Lower Lobe segments
     "S5a", "S5b",          // Left Lower Lobe segments
     "S6a", "S6b",           // Left Lower Lobe segments
-    "S1", "S2", "S3", "S4", "S5", "S6", "S7", "S8", "S9", "S10" // Right Lung segments
+    "S1", "S2", "S3", "S4", "S5", "S6", "S7", "S8", "S9", "S10", // Right Lung segments
+    "Target"
+
 ];
 
 // 투명도 조절 가능한 mesh 이름 키워드 (통합 관리)
