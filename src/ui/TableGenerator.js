@@ -444,6 +444,7 @@ export class TableGenerator {
 
         var volumeData = {};
         var percentData = {};
+        var grwrData = {};
         var recipBW = "";
 
         // HVT 항목 목록 (볼륨이 0이어도 색상은 유지하기 위해 정의)
@@ -485,15 +486,21 @@ export class TableGenerator {
                                 var nextFirstCol = nextRow[0]?.trim() || "";
                                 var nextSecondCol = nextRow[1]?.trim() || "";
                                 
-                                // Rt.lobe의 경우 GRWR 처리
-                                if (item === "Rt.lobe" && (nextFirstCol.toUpperCase() === "GRWR" || nextSecondCol.toUpperCase() === "GRWR")) {
-                                    // GRWR 행은 퍼센트로 처리하지 않음
-                                    // 첫 번째 컬럼이 퍼센트인지 확인
-                                    var firstPercent = parseFloat(nextFirstCol.replace(/[^\d.]/g, "")) || 0;
-                                    if (firstPercent > 0 && firstPercent <= 100) {
-                                        percentData[item] = firstPercent.toString();
+                                // 다음 행의 오른쪽 값은 GRWR로 저장
+                                var grwrValue = nextSecondCol;
+                                var grwrValueNum = parseFloat(grwrValue.replace(/[^\d.]/g, "")) || 0;
+
+                                if (nextSecondCol && nextSecondCol.toLowerCase() !== "grwr" && grwrValueNum > 0) {
+                                    grwrData[item] = grwrValue;
+                                } else if (nextFirstCol && nextFirstCol.toLowerCase() !== "grwr" && grwrValueNum === 0) {
+                                    var fallbackGrwrNum = parseFloat(nextFirstCol.replace(/[^\d.]/g, "")) || 0;
+                                    if (fallbackGrwrNum > 0) {
+                                        grwrData[item] = nextFirstCol;
                                     }
-                                    i++; // GRWR 행 건너뛰기
+                                }
+
+                                if (item === "Rt.lobe" && (nextFirstCol.toUpperCase() === "GRWR" || nextSecondCol.toUpperCase() === "GRWR")) {
+                                    i++; // GRWR 마커 행 건너뛰기
                                 } else {
                                     // 퍼센트 행인 경우 (숫자 + % 또는 0-100 사이의 숫자)
                                     var nextFirstNum = parseFloat(nextFirstCol.replace(/[^\d.]/g, "")) || 0;
@@ -525,7 +532,7 @@ export class TableGenerator {
             }
         }
 
-        return this._generateHVTTableHTML(volumeData, percentData, recipBW, patientName, surgeryType);
+        return this._generateHVTTableHTML(volumeData, percentData, grwrData, recipBW, patientName, surgeryType);
     }
 
     // LEFT 테이블 생성 (Left Lobe 전용)
@@ -1166,7 +1173,7 @@ export class TableGenerator {
     }
 
     // HVT 테이블 HTML 생성
-    _generateHVTTableHTML(volumeData, percentData, recipBW, patientName, surgeryType) {
+    _generateHVTTableHTML(volumeData, percentData, grwrData, recipBW, patientName, surgeryType) {
         const theme = this.isDarkMode
             ? this.getCommonStyles().dark
             : this.getCommonStyles().light;
@@ -1234,6 +1241,7 @@ export class TableGenerator {
         hvtItems.forEach((item) => {
             const volume = volumeData[item];
             const percent = percentData[item];
+            const grwr = grwrData[item];
             
             // 볼륨이 0보다 큰 경우에만 표시
             if (volume !== undefined && volume !== null) {
@@ -1252,18 +1260,18 @@ export class TableGenerator {
                 if (item === "Rt.lobe") {
                     table += "<tr class='percent-row'>";
                     table += "<td class='percent-row'>" + (percent ? this.formatPercent(percent) : "100.00%") + "</td>";
-                    table += "<td class='percent-row'>GRWR</td>";
+                    table += "<td class='percent-row'>" + (grwr ? this.formatPercent(grwr) : "GRWR") + "</td>";
                     table += "</tr>";
                 } else if (percent) {
                     table += "<tr class='percent-row'>";
                     table += "<td class='percent-row'>" + this.formatPercent(percent) + "</td>";
-                    table += "<td class='value'><strong>" + this.formatPercent(percent) + "</strong></td>";
+                    table += "<td class='value'><strong>" + (grwr ? this.formatPercent(grwr) : "") + "</strong></td>";
                     table += "</tr>";
                 } else {
                     // 퍼센트가 없어도 행은 표시 (0%로)
                     table += "<tr class='percent-row'>";
                     table += "<td class='percent-row'>0%</td>";
-                    table += "<td class='value'><strong>0.00%</strong></td>";
+                    table += "<td class='value'><strong>" + (grwr ? this.formatPercent(grwr) : "0.00%") + "</strong></td>";
                     table += "</tr>";
                 }
                 }
