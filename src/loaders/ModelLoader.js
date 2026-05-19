@@ -683,7 +683,7 @@ export default class ModelLoader {
                 this.onLoadComplete(hasAnimations);
             }
 
-            if (loadingElem) {
+            if (loadingElem && loadingElem.style) {
                 loadingElem.style.display = "none";
             }
 
