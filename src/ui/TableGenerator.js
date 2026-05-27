@@ -23,7 +23,6 @@ const SEG_DETAIL_COLORS = [
     "#D7E8F7",
     "#E8D9F7",
     "#F8D9E3",
-    "#F7E9B8",
     "#E7D8CC",
     "#D8F1F4",
 ];
@@ -90,11 +89,18 @@ export class TableGenerator {
      * @param {string} fileName - 파일명
      * @returns {string} Surgery Type (HCC, CCC, KT, LDKT, LDLT 등)
      */
-    detectSurgeryType(fileName) {
+    detectSurgeryType(fileName, folderPath = "") {
         if (!fileName) return null;
-        
+
         const name = fileName.toUpperCase();
-        
+        const context = `${folderPath || ""}`.toUpperCase();
+
+        // LDLT folders commonly contain a generic section file name.
+        // Prefer LDLT over the default HCC fallback when the folder path says so.
+        if (context.includes("LDLT") && name.includes("SECTION")) {
+            return "LDLT";
+        }
+
         // Search in the order defined in Constants.TABLE_TYPES
         // (object iteration order maintained as defined)
         for (const [typeKey, typeConfig] of Object.entries(Constants.TABLE_TYPES)) {
@@ -105,7 +111,7 @@ export class TableGenerator {
                 }
             }
         }
-        
+
         return null;
     }
 
@@ -115,8 +121,8 @@ export class TableGenerator {
      * @param {string} fileName - 파일명
      * @returns {Object} { html: string, surgeryType: string }
      */
-    autoCreateTable(csvData, fileName) {
-        const surgeryType = this.detectSurgeryType(fileName);
+    autoCreateTable(csvData, fileName, folderPath = "") {
+        const surgeryType = this.detectSurgeryType(fileName, folderPath);
         let tableHTML = '';
 
         if (surgeryType && Constants.TABLE_TYPES[surgeryType]) {
@@ -187,11 +193,12 @@ export class TableGenerator {
 
         if (filteredRows.length === 0) return "<p>데이터가 없습니다.</p>";
 
-        const parsedRows = filteredRows.map((row) => row.split(","));
+        const parsedRows = filteredRows.map((row) => row.split(/\t|,/).map((value) => value.trim()));
         const headers = parsedRows[0];
 
         const volumeData = {};
         const percentData = {};
+        let recipBW = "";
 
         if (parsedRows.length > 1) {
             for (let i = 0; i < headers.length; i++) {
@@ -207,6 +214,20 @@ export class TableGenerator {
             Object.assign(percentData, volumeData);
         }
 
+        for (let i = 1; i < parsedRows.length; i++) {
+            const row = parsedRows[i];
+            const firstCol = row[0]?.trim() || "";
+            const secondCol = row[1]?.trim() || "";
+
+            if (firstCol.toLowerCase().includes("recip") || firstCol.toLowerCase().includes("bw")) {
+                if (!secondCol && i + 1 < parsedRows.length) {
+                    recipBW = parsedRows[i + 1][1]?.trim() || "";
+                } else {
+                    recipBW = secondCol || "";
+                }
+            }
+        }
+
         const extraColumns = headers.filter(
             (header) => !KNOWN_HCC_COLUMNS.includes(header.trim())
         );
@@ -214,6 +235,7 @@ export class TableGenerator {
         const mainTable = this._generateHCCTableHTML(
             volumeData,
             percentData,
+            recipBW,
             surgeryType
         );
 
@@ -446,6 +468,14 @@ export class TableGenerator {
         var percentData = {};
         var grwrData = {};
         var recipBW = "";
+
+        const parseNumericValue = (value) => {
+            const numericValue = parseFloat(String(value || "").replace(/[^\d.]/g, ""));
+            return isNaN(numericValue) ? 0 : numericValue;
+        };
+
+        const sumValues = (...values) =>
+            values.reduce((total, value) => total + parseNumericValue(value), 0);
 
         // HVT 항목 목록 (볼륨이 0이어도 색상은 유지하기 위해 정의)
         const hvtItems = [
@@ -773,7 +803,7 @@ export class TableGenerator {
     }
 
     // HCC 테이블 HTML 생성
-    _generateHCCTableHTML(volumeData, percentData, surgeryType) {
+    _generateHCCTableHTML(volumeData, percentData, recipBW, surgeryType) {
         const theme = this.isDarkMode
             ? this.getCommonStyles().dark
             : this.getCommonStyles().light;
@@ -929,7 +959,7 @@ export class TableGenerator {
         table += "<tr>";
         table +=
             "<td class='value'>" +
-            this.formatPercent(percentData["RPS"]) +
+            this.formatPercent(percentData["LLS"]) +
             "</td>";
         table +=
             "<td class='value'>" +
@@ -938,12 +968,12 @@ export class TableGenerator {
         table += "</tr>";
 
         table += "<tr>";
-        table += "<th class='cancer'>Cancer</th>";
+        table += "<th class='cancer'>Recip BW</th>";
         table += "<th class='spigelian'>Spigelian</th>";
         table += "</tr>";
 
         table += "<tr>";
-        table += "<td class='value'>" + this.formatVolume(volumeData["Cancer"])  + "</td>";
+        table += "<td class='value'>" + (recipBW ? recipBW : "") + "</td>";
         table += "<td class='value'>" + this.formatVolume(volumeData["Spigelian"]) + "</td>";
         table += "</tr>";
 
@@ -1303,7 +1333,9 @@ export class TableGenerator {
 
         if (rows.length === 0) return "<p>데이터가 없습니다.</p>";
 
-        var parsedRows = rows.map((row) => row.split(","));
+        const splitRow = (row) => row.split(/\t|,/).map((value) => value.trim());
+
+        var parsedRows = rows.map((row) => splitRow(row));
         var headers = parsedRows[0];
 
         // CSV 헤더 분석: Segment, Volume (cm³), Percentage (%), GRWR (%)
@@ -1315,6 +1347,7 @@ export class TableGenerator {
         var volumeData = {};
         var percentData = {};
         var grwrData = {};
+        var recipBW = "";
 
         // 데이터 추출
         for (let i = 1; i < parsedRows.length; i++) {
@@ -1325,16 +1358,36 @@ export class TableGenerator {
                 percentData[segment] = row[pctIdx]?.trim() || "0";
                 grwrData[segment] = row[grwrIdx]?.trim() || "0";
             }
+
+            const firstCol = row[0]?.trim() || "";
+            const secondCol = row[1]?.trim() || "";
+            if (firstCol.toLowerCase().includes("recip") || firstCol.toLowerCase().includes("bw")) {
+                if (!secondCol && i + 1 < parsedRows.length) {
+                    const nextRow = parsedRows[i + 1];
+                    recipBW = nextRow[1]?.trim() || "";
+                } else {
+                    recipBW = secondCol || "";
+                }
+            }
         }
 
-        return this._generateLiver5SectionTableHTML(volumeData, percentData, grwrData, surgeryType);
+        return this._generateLiver5SectionTableHTML(volumeData, percentData, grwrData, recipBW, surgeryType);
     }
 
     // Liver 5-Section 테이블 HTML 생성
-    _generateLiver5SectionTableHTML(volumeData, percentData, grwrData, surgeryType) {
+    _generateLiver5SectionTableHTML(volumeData, percentData, grwrData, recipBW, surgeryType) {
         const theme = this.isDarkMode
             ? this.getCommonStyles().dark
             : this.getCommonStyles().light;
+        const displaySurgeryType = String(surgeryType || "").toUpperCase();
+
+        const parseNumericValue = (value) => {
+            const numericValue = parseFloat(String(value || "").replace(/[^\d.]/g, ""));
+            return isNaN(numericValue) ? 0 : numericValue;
+        };
+
+        const sumValues = (...values) =>
+            values.reduce((total, value) => total + parseNumericValue(value), 0);
 
         // HCC 색상 참조
         const colors = COLOR.HCC || {
@@ -1342,11 +1395,13 @@ export class TableGenerator {
             rtlobeBg: "#FFE0E0",
             ltlobeBg: "#FFFFD5",
             rasBg: "#FFB3BA",
-            rpsBg: "#F0E6FF",      // 연한 보라
+            rpsBg: "#dfc3e6",      // 연한 보라
             llsBg: "#FFD9B3",      // 연한 주황
             lmsBg: "#FFFACD",      // 연한 노랑 (레몬 쉬폰)
             spigelianBg: "#B3F0FF", // 연한 네온 하늘색
-            cancerBg: "#FFB6C6"
+            cancerBg: "#FFB6C6",
+            grwrBg: "#BFBFBF",
+            recipBWBg: "#B3D9FF"
         };
 
         const style = `
@@ -1383,7 +1438,11 @@ export class TableGenerator {
             .rps { background-color: ${colors.rpsBg}; }
             .lls { background-color: ${colors.llsBg}; }
             .lms { background-color: ${colors.lmsBg}; }
+            .rt-lobe { background-color: ${colors.rtlobeBg}; }
+            .lt-lobe { background-color: ${colors.ltlobeBg}; }
             .spigelian { background-color: ${colors.spigelianBg}; }
+            .grwr { background-color: ${colors.grwrBg}; }
+            .recip-bw { background-color: ${colors.recipBWBg}; }
             .value { background-color: ${theme.valueBg}; }
             
             .surgery-header {
@@ -1400,69 +1459,101 @@ export class TableGenerator {
 
         // 헤더
         table += "<thead><tr>";
-        table += "<th colspan='2' class='surgery-header'>" + surgeryType + "</th>";
+        table += "<th colspan='2' class='surgery-header'>" + displaySurgeryType + "</th>";
         table += "</tr></thead>";
 
         table += "<tbody>";
 
-        // Segment 1 (RAS / RPS) - 첫 쌍
+        const rtLobeVolume = sumValues(volumeData["RAS"], volumeData["RPS"]);
+        const ltLobeVolume = sumValues(volumeData["LMS"], volumeData["LLS"], volumeData["Spigelian"]);
+        const totalLobeVolume = rtLobeVolume + ltLobeVolume;
+        const rtLobePercent = totalLobeVolume > 0 ? ((rtLobeVolume / totalLobeVolume) * 100).toFixed(2) : "0.00";
+        const ltLobePercent = totalLobeVolume > 0 ? ((ltLobeVolume / totalLobeVolume) * 100).toFixed(2) : "0.00";
+
+        table += "<tr>";
+        table += "<th class='rt-lobe'>Rt.lobe</th>";
+        table += "<th class='lt-lobe'>Lt.lobe</th>";
+        table += "</tr>";
+
+        table += "<tr>";
+        table += "<td class='value'>" + this.formatVolume(rtLobeVolume) + "</td>";
+        table += "<td class='value'>" + this.formatVolume(ltLobeVolume) + "</td>";
+        table += "</tr>";
+
+        table += "<tr>";
+        table += "<td class='value'>" + this.formatPercent(rtLobePercent) + "</td>";
+        table += "<td class='value'>" + this.formatPercent(ltLobePercent) + "</td>";
+        table += "</tr>";
+
+        // Rt.lobe 아래: RAS -> RPS, Lt.lobe 아래: LLS -> LMS -> Spigelian
         table += "<tr>";
         table += "<th class='ras'>RAS</th>";
-        table += "<th class='rps'>RPS</th>";
-        table += "</tr>";
-
-        table += "<tr>";
-        table += "<td class='value'>" + this.formatVolume(volumeData["RAS"]) + "</td>";
-        table += "<td class='value'>" + this.formatVolume(volumeData["RPS"]) + "</td>";
-        table += "</tr>";
-
-        table += "<tr>";
-        table += "<td class='value'>" + this.formatPercent(percentData["RAS"]) + "</td>";
-        table += "<td class='value'>" + this.formatPercent(percentData["RPS"]) + "</td>";
-        table += "</tr>";
-
-        table += "<tr>";
-        table += "<td class='value'>" + this.formatPercent(grwrData["RAS"]) + "</td>";
-        table += "<td class='value'>" + this.formatPercent(grwrData["RPS"]) + "</td>";
-        table += "</tr>";
-
-        // Segment 2 (LMS / LLS) - 두번째 쌍
-        table += "<tr>";
-        table += "<th class='lms'>LMS</th>";
         table += "<th class='lls'>LLS</th>";
         table += "</tr>";
 
         table += "<tr>";
-        table += "<td class='value'>" + this.formatVolume(volumeData["LMS"]) + "</td>";
+        table += "<td class='value'>" + this.formatVolume(volumeData["RAS"]) + "</td>";
         table += "<td class='value'>" + this.formatVolume(volumeData["LLS"]) + "</td>";
         table += "</tr>";
 
         table += "<tr>";
-        table += "<td class='value'>" + this.formatPercent(percentData["LMS"]) + "</td>";
+        table += "<td class='value'>" + this.formatPercent(percentData["RAS"]) + "</td>";
         table += "<td class='value'>" + this.formatPercent(percentData["LLS"]) + "</td>";
         table += "</tr>";
 
         table += "<tr>";
-        table += "<td class='value'>" + this.formatPercent(grwrData["LMS"]) + "</td>";
-        table += "<td class='value'>" + this.formatPercent(grwrData["LLS"]) + "</td>";
+        table += "<td class='grwr'>" + this.formatPercent(grwrData["RAS"]) + "</td>";
+        table += "<td class='grwr'>" + this.formatPercent(grwrData["LLS"]) + "</td>";
+        table += "</tr>";
+
+        table += "<tr>";
+        table += "<th class='rps'>RPS</th>";
+        table += "<th class='lms'>LMS</th>";
+        table += "</tr>";
+
+        table += "<tr>";
+        table += "<td class='value'>" + this.formatVolume(volumeData["RPS"]) + "</td>";
+        table += "<td class='value'>" + this.formatVolume(volumeData["LMS"]) + "</td>";
+        table += "</tr>";
+
+        table += "<tr>";
+        table += "<td class='value'>" + this.formatPercent(percentData["RPS"]) + "</td>";
+        table += "<td class='value'>" + this.formatPercent(percentData["LMS"]) + "</td>";
+        table += "</tr>";
+
+        table += "<tr>";
+        table += "<td class='grwr'>" + this.formatPercent(grwrData["RPS"]) + "</td>";
+        table += "<td class='grwr'>" + this.formatPercent(grwrData["LMS"]) + "</td>";
         table += "</tr>";
 
         // Spigelian - 마지막 (별도행)
         table += "<tr>";
-        table += "<th class='spigelian' colspan='2'>Spigelian</th>";
+        table += "<th class='spigelian'></th>";
+        table += "<th class='spigelian'>Spigelian</th>";
         table += "</tr>";
 
         table += "<tr>";
-        table += "<td class='value' colspan='2'>" + this.formatVolume(volumeData["Spigelian"]) + "</td>";
+        table += "<td class='value'></td>";
+        table += "<td class='value'>" + this.formatVolume(volumeData["Spigelian"]) + "</td>";
         table += "</tr>";
 
         table += "<tr>";
-        table += "<td class='value' colspan='2'>" + this.formatPercent(percentData["Spigelian"]) + "</td>";
+        table += "<td class='value'></td>";
+        table += "<td class='value'>" + this.formatPercent(percentData["Spigelian"]) + "</td>";
         table += "</tr>";
 
         table += "<tr>";
-        table += "<td class='value' colspan='2'>" + this.formatPercent(grwrData["Spigelian"]) + "</td>";
+        table += "<td class='grwr'></td>";
+        table += "<td class='grwr'>" + this.formatPercent(grwrData["Spigelian"]) + "</td>";
         table += "</tr>";
+
+        if (recipBW) {
+            const recipBWDisplay = recipBW.toLowerCase().includes("kg") ? recipBW : recipBW + " kg";
+            table += "<tr>";
+            table += "<th class='recip-bw'>Recip BW</th>";
+            table += "<td class='value'>" + recipBWDisplay + "</td>";
+            table += "</tr>";
+        }
 
         table += "</tbody></table>";
 

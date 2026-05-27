@@ -1331,6 +1331,7 @@ export default class ModelLoader {
                     const data = await this.localFileManager.getModelData(model.name);
                     return {
                         name: model.name,
+                        folderPath: model.folderPath || null,
                         isCaseFile: false, // 로컬 파일이므로 case 파일 아님
                         case: null,
                         tableUrl: null, // 로컬 파일이므로 테이블이 로드되지 않음

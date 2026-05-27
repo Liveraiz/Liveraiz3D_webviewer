@@ -124,6 +124,7 @@ export class LocalFileManager {
                 glbFile: group.glb || group.gltf,
                 csvFile: group.csv || null,
                 imageFile: group.jpg || group.jpeg || group.png || null,
+                folderPath: group.path || null,
                 modelPath: null, // Blob URL로 나중에 설정
                 csvData: null,
                 imageUrl: null,

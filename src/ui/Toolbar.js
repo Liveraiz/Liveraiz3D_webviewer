@@ -48,6 +48,7 @@ export default class Toolbar {
     initialize() {
         this.toolbar = this.createToolbarContainer();
         this.initializeButtons();
+        this.updateLungROIButtonVisibility();
         document.body.appendChild(this.toolbar);
         this.setupTransformControls();
     }
@@ -170,6 +171,10 @@ export default class Toolbar {
         } else {
             // 일반 버튼들은 기존 스타일 적용
             Object.assign(button.style, isActive ? activeStyle : inactiveStyle);
+        }
+
+        if (button.id === "lung-vessel-roi" && button.dataset.roiVisibility !== "visible") {
+            button.style.display = "none";
         }
 
         // Hover 효과를 CSS로 처리 (SVG 원본 보호)
@@ -1015,8 +1020,21 @@ export default class Toolbar {
         );
 
         measurementContainer.appendChild(this.lungVesselROIButton);
+        this.loadSvgIconFromFile(
+            this.lungVesselROIButton,
+            "/icon/LungROI.svg",
+            this.getLungROIIcon()
+        );
+        this.lungVesselROIButton.dataset.roiVisibility = "hidden";
+        this.lungVesselROIButton.style.display = "none";
 
         this.lungVesselROIButton.onclick = () => {
+            const currentModelName = this.modelSelector?.getCurrentModelName?.() || "";
+            if (!currentModelName || currentModelName.toUpperCase() !== "ROI_LUNG") {
+                console.warn("[Toolbar] Lung Vessel ROI is available only for the ROI_Lung model.");
+                return;
+            }
+
             this.toggleMeasurementButton(
                 this.lungVesselROIButton,
                 () => {
@@ -1237,7 +1255,7 @@ export default class Toolbar {
 
     getLungROIIcon() {
         return `<?xml version="1.0" encoding="UTF-8"?>
-<svg id="a" xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 24 24">
+<svg id="a" xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 24 24" stroke="#121212" stroke-width="0.15" stroke-linecap="round" stroke-linejoin="round">
   <defs>
     <style>
       .st0 {
@@ -1266,6 +1284,48 @@ export default class Toolbar {
   </defs>
   <path d="M13.2,7.59c.03.34.27,1.41.44,1.68.07.1.08.18.23.15-.03-2.17.2-6.16,3.43-4.74,2.89,1.28,5.08,5.87,5.82,8.78.55,2.16,1.23,7.67.16,9.57-1.19,2.11-3.84-.5-5.25-1-1.14-.41-2.32-.31-3.22-1.36-.84-.98-.68-2.05-.77-3.22-.13-1.69-.28-3.38-.27-5.08l-1.73-1.5c-.12,0-1.76,1.41-1.79,1.52-.1.69,0,1.4-.03,2.09-.07,1.36-.12,4.3-.58,5.44-.75,1.84-2.38,1.59-3.89,2.22-1.76.73-4.55,3.52-5.33-.07-.69-3.21.04-7.99,1.28-11.03.87-2.15,3.59-6.77,6.26-6.67,2.09.08,2.07,3.13,2.18,4.59,0,.11.04.51.17.55.21-.59.46-1.19.51-1.83.19-2.28-.26-5,0-7.22.03-.25.07-.33.34-.29,0,.41,0,.82,0,1.23.05,1.98.16,4.58,0,6.54-.17,2.11-1.84,3.12-3.1,4.54-1.09,1.22-1.91,2.62-2.44,4.18-.17.5-.68,3-.78,3.12-.26.3-.22-.62-.21-.72.04-.56.28-1.2.42-1.74-.53-.16-1.47,1.19-1.57,1.19-.04,0-.21-.18-.2-.28.01-.18.51-.65.67-.77.29-.22,1.12-.52,1.22-.65.16-.2.39-1.09.54-1.41.21-.47.51-.9.69-1.39-.04-.04-1.06.29-1.19.38-.34.25-.76,1.25-1.33,1.3-.1,0-.28-.16-.28-.2,0-.08,1.1-.72,1.1-1.06-.19,0-1.52.08-1.44-.3.36-.26.83-.02,1.3-.05s1.17-.23,1.61-.43c.96-.43,1.45-1.31,2.18-2.02-.34.11-.94-.58-.99-.6-.13-.04-.83-.02-1,0-.39.05-1.5,1.1-1.91.64-.08-.09-.12-.07,0-.17.11-.09,1.3-.4,1.19-.55-.2,0-1.36-.59-1.1-.85.83.26,1.52.81,2.46.55.11-.08.03-.12.03-.19-.04-.32-.25-1.1-.39-1.4-.07-.17-.59-.82-.57-.87.09-.41.65.19.75.35.13.2.14.45.31.62.34-.43.53-.97.47-1.53.08.01.32-.02.34,0,.05.05-.02.76-.06.92-.19.78-.82.77-.56,1.61.16.53.61,1.18,1.25,1.12.29-.03,1.29-1.03,1.32-1.32.02-.19-.09-.38-.09-.58-.05-3.02-.62-6.56-4.24-3.48C1.7,9.17.11,16.31.64,21.16c.45,4.13,2.73,1.61,4.78.71,1.8-.79,3.71-.44,4.12-2.92.16-1.01.21-2.42.27-3.47.05-.91.07-1.84.09-2.76-.15-.04-.17.06-.25.13-.84.65-1.98,1.96-2.27,3-.21.76-.04.5.3,1.01.13.2.63,1.02.44,1.22-.34.35-.59-1.29-1.02-1.19.03.35,0,1.75-.4,1.85-.11.03-.27-.02-.28-.12,0-.05.28-.74.32-.95.32-1.91.25-2.65,1.68-4.18l3.64-3.22c1.65,1.84,4.24,3.01,5,5.53.29.95.27,1.98.48,2.95-.28.07-.39-.21-.47-.42-.16-.45-.13-.97-.13-1.44-.45-.05-.63,1.13-.69,1.18-.05.04-.24,0-.33,0-.23-.65.74-1.34.83-1.67.2-.67-1.21-2.58-1.77-3.04l-.85-.63.35,6.23c.41,2.47,2.17,2.1,3.95,2.84,1.3.54,3.95,3.06,4.72.59.68-2.17.2-6.39-.34-8.62-.68-2.8-2.39-6.41-4.74-8.16-1.97-1.47-3.2-1.11-3.67,1.34-.13.66-.34,2.68-.15,3.24.05.14.85,1.01.97,1.06.76.35,1.64-.89,1.6-1.53,0-.17-.72-.8-.76-1.52,0-.19.07-.84.3-.47.14.22.09,1.18.51,1.44l.59-.94c.11-.21.54-.25.4.06-.1.24-.36.41-.51.77-.21.52-.25,1.11-.44,1.63.54.02.99.03,1.5-.15.34-.12,1.5-.93.83-.02-.07.19-.97.29-.89.47.13.27,1.41.42,1.19.72-.13.17-.69-.03-.87-.1-.36-.15-.66-.54-.95-.58-.82-.11-.94.03-1.55.41-.2.13-.59.09-.37.4.17.25.55.51.76.76.24.29.98,1.19.94,1.52,0,.08-.14.05-.2.03-.16-.06-1.05-1.34-1.28-1.6-1.4-1.59-2.99-2.38-3.18-4.79s.14-4.93,0-7.3c0-.24.11-.33.34-.29v7.43Z"/>
 </svg>`;
+    }
+
+    getLungVesselROIIcon() {
+        return this.getLungROIIcon();
+    }
+
+    updateLungROIButtonVisibility() {
+        if (!this.lungVesselROIButton) {
+            return;
+        }
+
+        const currentModelName = this.modelSelector?.getCurrentModelName?.() || "";
+        const isROIModel = currentModelName.toUpperCase() === "ROI_LUNG";
+
+        this.lungVesselROIButton.dataset.roiVisibility = isROIModel ? "visible" : "hidden";
+        this.lungVesselROIButton.style.display = isROIModel ? "flex" : "none";
+
+        if (!isROIModel && this.activeMeasurementButton === this.lungVesselROIButton) {
+            this.lungVesselROI.disableLungVesselROI();
+            this.lungVesselROIButton.classList.remove("active");
+            this.applyButtonStyle(this.lungVesselROIButton);
+            this.activeMeasurementButton = null;
+        }
+    }
+
+    async loadSvgIconFromFile(button, iconPath, fallbackIcon) {
+        try {
+            const response = await fetch(iconPath);
+            if (!response.ok) {
+                throw new Error(`Failed to load SVG icon: ${iconPath}`);
+            }
+
+            const svgText = await response.text();
+            if (button) {
+                button.innerHTML = svgText;
+            }
+        } catch (error) {
+            console.warn(`[Toolbar] ${error.message}`);
+            if (button && fallbackIcon) {
+                button.innerHTML = fallbackIcon;
+            }
+        }
     }
 
     getModelLoaderIcon(isDarkMode) {

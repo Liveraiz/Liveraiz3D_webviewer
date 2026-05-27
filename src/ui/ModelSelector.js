@@ -90,6 +90,7 @@ export default class ModelSelector {
 
             const data = await response.json();
             console.log("Loaded JSON data:", data);
+            this.currentFolderInfo = data.folderInfo || null;
 
             // Process logo data - call onJsonLoaded callback if available
             if (
@@ -129,7 +130,7 @@ export default class ModelSelector {
                 let tableHTML = "";
 
                 // Normalize case value (case-insensitive, trim whitespace)
-                const normalizedCase = model.case ? model.case.trim().toUpperCase() : "";
+                const normalizedCase = this.resolveEffectiveCase(model);
                 // Also check model name (to distinguish HVT, RL, etc.)
                 const modelName = model.name ? model.name.trim().toUpperCase() : "";
                 console.log("Table display - model.case:", model.case, "normalized:", normalizedCase, "model.name:", model.name);
@@ -1162,6 +1163,25 @@ export default class ModelSelector {
         return path.split("/").pop().replace(".glb", "");
     }
 
+    getCurrentModel() {
+        const models = this.isLocalFilesMode ? this.localModels : this.lastLoadedModels;
+        if (!Array.isArray(models) || models.length === 0) {
+            return null;
+        }
+
+        const modelIndex = Math.max(0, Math.min(this.currentModelIndex || 0, models.length - 1));
+        return models[modelIndex] || null;
+    }
+
+    getCurrentModelName() {
+        const currentModel = this.getCurrentModel();
+        if (!currentModel) {
+            return "";
+        }
+
+        return currentModel.name || this.getModelName(currentModel.path || currentModel.url || "") || "";
+    }
+
     close() {
         try {
             if (this.dialog && document.body.contains(this.dialog)) {
@@ -1230,6 +1250,10 @@ export default class ModelSelector {
                 console.log("Starting model load");
                 await this.liverViewer.modelLoader.loadModel(modelUrl);
                 console.log("Model loaded successfully");
+
+                if (this.liverViewer?.toolbar?.updateLungROIButtonVisibility) {
+                    this.liverViewer.toolbar.updateLungROIButtonVisibility();
+                }
 
                 // 카메라 상태 기록기는 삭제되었으므로 제거
                 // if (this.liverViewer.controlManager && this.liverViewer.controlManager.getCameraStateRecorder) {
@@ -1859,7 +1883,7 @@ export default class ModelSelector {
             }
 
             // Use autoCreateTable method from TableGenerator - Auto detection based on filename
-            const result = this.tableGenerator.autoCreateTable(model.csvData, model.name);
+            const result = this.tableGenerator.autoCreateTable(model.csvData, model.name, model.folderPath || "");
             const tableHTML = result.html;
             const surgeryType = result.surgeryType;
 
@@ -1871,5 +1895,17 @@ export default class ModelSelector {
         } catch (error) {
             console.error('[ModelSelector] Error displaying local model table:', error);
         }
+    }
+
+    resolveEffectiveCase(model) {
+        const normalizedCase = model?.case ? model.case.trim().toUpperCase() : "";
+        const modelName = model?.name ? model.name.trim().toUpperCase() : "";
+        const folderName = `${model?.folderPath || this.currentFolderInfo?.name || ""}`.toUpperCase();
+
+        if (folderName.includes("LDLT") && modelName.includes("SECTION")) {
+            return "LDLT";
+        }
+
+        return normalizedCase;
     }
 }
