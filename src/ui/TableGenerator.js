@@ -968,17 +968,17 @@ export class TableGenerator {
         table += "</tr>";
 
         table += "<tr>";
-        table += "<th class='cancer'>Recip BW</th>";
+        table += "<th class='cancer'>Cancer</th>";
         table += "<th class='spigelian'>Spigelian</th>";
         table += "</tr>";
 
         table += "<tr>";
-        table += "<td class='value'>" + (recipBW ? recipBW : "") + "</td>";
+        table += "<td class='value'>" + this.formatVolume(volumeData["Cancer"]) + "</td>";
         table += "<td class='value'>" + this.formatVolume(volumeData["Spigelian"]) + "</td>";
         table += "</tr>";
 
         table += "<tr>";
-        table += "<td class='value'></td>";
+        table += "<td class='value'>" + this.formatPercent(percentData["Cancer"]) + "</td>";
         table +=
             "<td class='value'>" +
             this.formatPercent(percentData["Spigelian"]) +
@@ -1349,6 +1349,22 @@ export class TableGenerator {
         var grwrData = {};
         var recipBW = "";
 
+        const extractRecipBW = (row) => {
+            const normalized = row.map((value) => String(value || "").trim());
+            const labelIndex = normalized.findIndex((value) => {
+                const lower = value.toLowerCase();
+                return lower.includes("recip") || lower.includes("bw");
+            });
+
+            if (labelIndex === -1) return "";
+
+            for (let index = labelIndex + 1; index < normalized.length; index++) {
+                if (normalized[index]) return normalized[index];
+            }
+
+            return "";
+        };
+
         // 데이터 추출
         for (let i = 1; i < parsedRows.length; i++) {
             const row = parsedRows[i];
@@ -1361,7 +1377,11 @@ export class TableGenerator {
 
             const firstCol = row[0]?.trim() || "";
             const secondCol = row[1]?.trim() || "";
-            if (firstCol.toLowerCase().includes("recip") || firstCol.toLowerCase().includes("bw")) {
+
+            const extractedRecipBW = extractRecipBW(row);
+            if (extractedRecipBW) {
+                recipBW = extractedRecipBW;
+            } else if (firstCol.toLowerCase().includes("recip") || firstCol.toLowerCase().includes("bw")) {
                 if (!secondCol && i + 1 < parsedRows.length) {
                     const nextRow = parsedRows[i + 1];
                     recipBW = nextRow[1]?.trim() || "";
