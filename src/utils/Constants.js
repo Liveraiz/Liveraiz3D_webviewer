@@ -364,7 +364,8 @@ export const OPACITY_CONTROLLABLE_KEYWORDS = [
     ...LIVER_KEYWORDS,
     ...LUNG_RESECTION_KEYWORDS,
     "myometrium","uterus", "recipient_cavity", "pancreas", "Pancreas",
-    "bladder", "tumor", "cancer", "glissonean_pedicle", "fibroid", "body"
+    "bladder", "tumor", "cancer", "glissonean_pedicle", "fibroid", "body",
+    "stomach wall"
 ];
 
 // 정확히 일치할 때만 투명도 조절 허용할 mesh 이름 (폐 절제술 - 정맥)
