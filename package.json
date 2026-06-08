@@ -69,13 +69,16 @@
             "x64"
           ]
         }
-      ]
+      ],
+      "icon": "icon/app.ico"
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
-      "createStartMenuShortcut": true
+      "createStartMenuShortcut": true,
+      "installerIcon": "icon/app.ico",
+      "uninstallerIcon": "icon/app.ico"
     }
   }
 }
