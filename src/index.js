@@ -2,6 +2,8 @@
 import LiverViewer from './core/LiverViewer';
 import { ErrorHandler } from './utils/ErrorHandler';
 
+let viewer = null;
+
 /**
  * 애플리케이션을 초기화하는 메인 함수
  * LiverViewer 인스턴스를 생성하고 성능 측정을 수행
@@ -13,12 +15,25 @@ const initializeApp = () => {
         console.log('=== 애플리케이션 초기화 시작 ===');
         
         // LiverViewer 인스턴스 생성 - DOM container ID를 전달
-        const viewer = new LiverViewer('container');
+        viewer = new LiverViewer('container');
+        
+        // 글로벌 스코프에 viewer 노출 (Electron IPC 통신용)
+        window.liverAizViewer = viewer;
         
         // 애플리케이션 초기화 시간 측정 및 기록
         ErrorHandler.logPerformance('Application Initialization', startTime);
         
         console.log('=== 애플리케이션 초기화 완료 ===');
+        
+        // Electron에서 CLI 파일 경로 확인
+        if (window.desktop && window.desktop.onLoadFile) {
+            window.desktop.onLoadFile((filePath) => {
+                console.log('[Hospital Integration] Auto-loading file:', filePath);
+                if (viewer && viewer.loadFile) {
+                    viewer.loadFile(filePath);
+                }
+            });
+        }
     } catch (error) {
         // 초기화 과정에서 발생한 에러 처리
         ErrorHandler.handle(error, 'Application Initialization');

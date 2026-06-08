@@ -1191,6 +1191,74 @@ export default class LiverViewer {
     /**
      * 렌더링 모드 토글
      */
+    /**
+     * Hospital Integration - Load file from CLI argument
+     * Called when the app is launched from hospital PACS with a file path
+     * @param {string} filePath - Path to the model file or folder
+     */
+    loadFile(filePath) {
+        try {
+            console.log('[Hospital Integration] Loading file:', filePath);
+            
+            if (!filePath) {
+                console.error('No file path provided');
+                return;
+            }
+
+            // Check if it's a zip file or a folder
+            if (filePath.endsWith('.zip')) {
+                console.log('[Hospital Integration] Zip file detected:', filePath);
+                // For now, we'll inform the user that automatic zip extraction
+                // should be done by the hospital integration program
+                // The viewer will then be called with the extracted folder path
+                const folderPath = filePath.replace(/\.zip$/, '');
+                this.loadFolderPath(folderPath);
+            } else {
+                // Assume it's a folder path
+                this.loadFolderPath(filePath);
+            }
+        } catch (error) {
+            console.error('[Hospital Integration] Error loading file:', error);
+            ErrorHandler.handle(error, 'Hospital Integration File Load');
+        }
+    }
+
+    /**
+     * Load models from a folder path
+     * @param {string} folderPath - Path to folder containing models
+     */
+    loadFolderPath(folderPath) {
+        try {
+            console.log('[Hospital Integration] Loading from folder:', folderPath);
+            
+            if (!this.modelSelector) {
+                console.error('ModelSelector not initialized yet');
+                return;
+            }
+
+            // Trigger file browser or direct load based on folder contents
+            // For now, we'll use the modelSelector's existing logic
+            // The hospital integration should ensure the folder contains valid model files
+            
+            // Send message to console for debugging
+            console.log('[Hospital Integration] Attempting to load models from:', folderPath);
+            
+            // Note: Actual folder reading requires:
+            // 1. Electron environment with IPC bridge
+            // 2. Backend API to read folder contents
+            // For MVP, we'll display a message to the user
+            if (this.textPanel) {
+                this.textPanel.addLog(
+                    `준비됨: ${folderPath}`,
+                    'info'
+                );
+            }
+        } catch (error) {
+            console.error('[Hospital Integration] Error loading folder:', error);
+            ErrorHandler.handle(error, 'Hospital Integration Folder Load');
+        }
+    }
+
     toggleRenderMode(newMode) {
         if (newMode === this.renderMode) {
             console.warn(`Already in ${newMode} mode`);
