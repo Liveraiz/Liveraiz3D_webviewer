@@ -17,4 +17,10 @@ contextBridge.exposeInMainWorld('desktop', {
     getCliFile: () => {
         return ipcRenderer.invoke('get-cli-file');
     },
+    readFolder: (folderPath) => {
+        return ipcRenderer.invoke('read-folder', folderPath);
+    },
+    readFile: (filePath) => {
+        return ipcRenderer.invoke('read-file', filePath);
+    },
 });

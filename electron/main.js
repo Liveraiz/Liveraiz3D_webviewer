@@ -149,4 +149,137 @@ ipcMain.handle('get-cli-file', () => {
     return cliFilePath;
 });
 
+// Handle folder reading for hospital integration
+ipcMain.handle('read-folder', async (event, folderPath) => {
+    try {
+        debugLog(`[IPC] read-folder requested: ${folderPath}`);
+        
+        if (!folderPath || !fs.existsSync(folderPath)) {
+            debugLog(`[IPC] Folder not found: ${folderPath}`);
+            return { error: 'Folder not found' };
+        }
+        
+        const stats = fs.statSync(folderPath);
+        if (!stats.isDirectory()) {
+            debugLog(`[IPC] Path is not a directory: ${folderPath}`);
+            return { error: 'Path is not a directory' };
+        }
+        
+        // Read directory contents
+        const files = fs.readdirSync(folderPath);
+        debugLog(`[IPC] Found ${files.length} files in folder`);
+        
+        // Find 3D model files (.glb, .gltf, .obj, etc.)
+        const modelFiles = files.filter(file => {
+            const ext = path.extname(file).toLowerCase();
+            return ['.glb', '.gltf', '.obj', '.fbx', '.usdz', '.ply'].includes(ext);
+        });
+        
+        debugLog(`[IPC] Found ${modelFiles.length} model files: ${modelFiles.join(', ')}`);
+        
+        if (modelFiles.length === 0) {
+            debugLog(`[IPC] No model files found in: ${folderPath}`);
+            return { error: 'No model files found', files: files };
+        }
+        
+        // For each model file, find related files with same basename
+        const modelSets = modelFiles.map(modelFile => {
+            const ext = path.extname(modelFile);
+            const basename = modelFile.substring(0, modelFile.length - ext.length);
+            
+            debugLog(`[IPC] Processing model: ${modelFile}, basename: ${basename}`);
+            
+            // Find related files (.csv, .png, etc.)
+            const relatedFiles = {};
+            relatedFiles.model = modelFile;
+            relatedFiles.modelPath = path.join(folderPath, modelFile);
+            
+            // Look for CSV file with same basename
+            const csvFile = files.find(f => {
+                const fBasename = f.substring(0, f.length - path.extname(f).length);
+                return fBasename === basename && path.extname(f).toLowerCase() === '.csv';
+            });
+            if (csvFile) {
+                relatedFiles.csv = csvFile;
+                relatedFiles.csvPath = path.join(folderPath, csvFile);
+                debugLog(`[IPC] Found CSV: ${csvFile}`);
+            }
+            
+            // Look for PNG file with same basename
+            const pngFile = files.find(f => {
+                const fBasename = f.substring(0, f.length - path.extname(f).length);
+                return fBasename === basename && path.extname(f).toLowerCase() === '.png';
+            });
+            if (pngFile) {
+                relatedFiles.png = pngFile;
+                relatedFiles.pngPath = path.join(folderPath, pngFile);
+                debugLog(`[IPC] Found PNG: ${pngFile}`);
+            }
+            
+            // Look for JPG file with same basename
+            const jpgFile = files.find(f => {
+                const fBasename = f.substring(0, f.length - path.extname(f).length);
+                return fBasename === basename && ['.jpg', '.jpeg'].includes(path.extname(f).toLowerCase());
+            });
+            if (jpgFile) {
+                relatedFiles.jpg = jpgFile;
+                relatedFiles.jpgPath = path.join(folderPath, jpgFile);
+                debugLog(`[IPC] Found JPG: ${jpgFile}`);
+            }
+            
+            return relatedFiles;
+        });
+        
+        debugLog(`[IPC] Created ${modelSets.length} model sets`);
+        
+        // Return first model set (or user can select from multiple)
+        const primarySet = modelSets[0];
+        
+        debugLog(`[IPC] Returning primary model set: ${JSON.stringify(primarySet)}`);
+        
+        return {
+            success: true,
+            primarySet: primarySet,
+            allSets: modelSets,
+            folderPath: folderPath,
+            allFiles: files,
+            modelCount: modelFiles.length
+        };
+    } catch (error) {
+        debugLog(`[IPC] Error reading folder: ${error.message}`);
+        return { error: error.message };
+    }
+});
+
+// Handle file reading for hospital integration
+ipcMain.handle('read-file', async (event, filePath) => {
+    try {
+        debugLog(`[IPC] read-file requested: ${filePath}`);
+        
+        if (!filePath || !fs.existsSync(filePath)) {
+            debugLog(`[IPC] File not found: ${filePath}`);
+            return { error: 'File not found' };
+        }
+        
+        const stats = fs.statSync(filePath);
+        if (!stats.isFile()) {
+            debugLog(`[IPC] Path is not a file: ${filePath}`);
+            return { error: 'Path is not a file' };
+        }
+        
+        // Read file content
+        const content = fs.readFileSync(filePath, 'utf-8');
+        debugLog(`[IPC] File read successfully, size: ${content.length} bytes`);
+        
+        return {
+            success: true,
+            content: content,
+            filePath: filePath
+        };
+    } catch (error) {
+        debugLog(`[IPC] Error reading file: ${error.message}`);
+        return { error: error.message };
+    }
+});
+
 debugLog('=== Startup Complete ===');

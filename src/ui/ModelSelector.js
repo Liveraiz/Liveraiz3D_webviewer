@@ -4,6 +4,7 @@ import { DropboxService } from "../services/DropboxService";
 import { DeviceDetector } from "../utils/DeviceDetector";
 import { TableGenerator } from "./TableGenerator";
 import { Constants } from "../utils/Constants";
+import { LocalFileManager } from "../services/LocalFileManager";
 
 export default class ModelSelector {
     constructor(liverViewer) {
@@ -12,6 +13,7 @@ export default class ModelSelector {
         this.isDarkMode = liverViewer.isDarkMode;
         this.dialog = null;
         this.dropboxService = new DropboxService();
+        this.localFileManager = new LocalFileManager();
         this.modelLoader = null;
         this.lastLoadedModels = null;
         this.textPanel = null;
@@ -1614,6 +1616,132 @@ export default class ModelSelector {
     }
 
     /**
+     * Load models from a folder path (for hospital integration)
+     * @param {string} folderPath - Path to folder containing model files
+     */
+    async loadFolderPath(folderPath) {
+        try {
+            console.log('[ModelSelector] loadFolderPath called with:', folderPath);
+            
+            if (!window.desktop || !window.desktop.readFolder) {
+                console.error('[ModelSelector] Electron API not available');
+                if (this.liverViewer && this.liverViewer.textPanel) {
+                    this.liverViewer.textPanel.addLog(
+                        '❌ Electron API를 사용할 수 없습니다',
+                        'error'
+                    );
+                }
+                return;
+            }
+
+            // Read folder contents
+            const result = await window.desktop.readFolder(folderPath);
+            console.log('[ModelSelector] Folder read result:', result);
+
+            if (result.error || !result.allFiles) {
+                console.error('[ModelSelector] Failed to read folder:', result.error);
+                const msg = `❌ 폴더 읽기 실패: ${result.error}`;
+                console.log('[ModelSelector] Error message:', msg);
+                if (this.liverViewer && this.liverViewer.textPanel) {
+                    try {
+                        this.liverViewer.textPanel.addLog(msg, 'error');
+                    } catch (e) {
+                        console.warn('[ModelSelector] textPanel.addLog failed:', e);
+                    }
+                }
+                return;
+            }
+
+            // Filter for model files
+            const fileNames = result.allFiles;
+            console.log('[ModelSelector] All files in folder:', fileNames);
+
+            // Create File-like objects from file paths
+            const preparedModels = [];
+            const fileGroups = new Map();
+
+            // Group files by basename
+            for (const fileName of fileNames) {
+                const ext = fileName.split('.').pop().toLowerCase();
+                if (['.glb', '.gltf', '.csv', '.png', '.jpg', '.jpeg'].includes('.' + ext)) {
+                    const baseName = fileName.replace(/\.(glb|gltf|csv|png|jpg|jpeg)$/i, '');
+                    
+                    if (!fileGroups.has(baseName)) {
+                        fileGroups.set(baseName, {});
+                    }
+                    
+                    const group = fileGroups.get(baseName);
+                    // Handle both Windows and Unix paths
+                    const sep = folderPath.includes('\\') ? '\\' : '/';
+                    const filePath = `${folderPath}${sep}${fileName}`;
+                    
+                    if (ext === 'glb' || ext === 'gltf') {
+                        group.model = { name: fileName, path: filePath };
+                    } else if (ext === 'csv') {
+                        group.csv = { name: fileName, path: filePath };
+                    } else if (ext === 'png' || ext === 'jpg' || ext === 'jpeg') {
+                        group.image = { name: fileName, path: filePath };
+                    }
+                }
+            }
+
+            // Create model objects for LocalFileManager format
+            for (const [baseName, group] of fileGroups) {
+                if (group.model) {
+                    const model = {
+                        name: baseName,
+                        filePath: group.model.path,
+                        csvPath: group.csv ? group.csv.path : null,
+                        imagePath: group.image ? group.image.path : null,
+                        folderPath: folderPath,
+                        hasData: !!group.csv,
+                        hasImage: !!group.image
+                    };
+                    preparedModels.push(model);
+                }
+            }
+
+            console.log('[ModelSelector] Prepared models:', preparedModels);
+
+            if (preparedModels.length === 0) {
+                console.error('[ModelSelector] No model files found');
+                const msg = '❌ 모델 파일을 찾지 못했습니다';
+                if (this.liverViewer && this.liverViewer.textPanel) {
+                    try {
+                        this.liverViewer.textPanel.addLog(msg, 'error');
+                    } catch (e) {
+                        console.warn('[ModelSelector] textPanel.addLog failed:', e);
+                    }
+                }
+                return;
+            }
+
+            // Load models using existing method
+            await this.loadLocalModels(preparedModels);
+
+            // Show model list
+            await this.displayLocalModelList();
+
+            // Auto-select first model
+            if (preparedModels.length > 0) {
+                console.log('[ModelSelector] Auto-selecting first model');
+                await this.selectLocalModel(preparedModels[0]);
+            }
+
+        } catch (error) {
+            console.error('[ModelSelector] Error loading folder path:', error);
+            const msg = `❌ 폴더 로드 오류: ${error.message}`;
+            if (this.liverViewer && this.liverViewer.textPanel) {
+                try {
+                    this.liverViewer.textPanel.addLog(msg, 'error');
+                } catch (e) {
+                    console.warn('[ModelSelector] textPanel.addLog failed:', e);
+                }
+            }
+        }
+    }
+
+    /**
      * Process models loaded from local folder/files
      * @param {Array} preparedModels - Model array prepared from LocalFileManager
      */
@@ -1848,6 +1976,7 @@ export default class ModelSelector {
     async selectLocalModel(model) {
         try {
             console.log('[ModelSelector] Local model selected:', model.name);
+            console.log('[ModelSelector] Model details:', model);
 
             // Close dialog
             if (this.dialog) {
@@ -1855,19 +1984,133 @@ export default class ModelSelector {
                 this.dialog = null;
             }
 
-            // Load model from ModelLoader
-            if (this.modelLoader) {
-                await this.modelLoader.loadModelFromLocal(model);
+            // Log to textPanel
+            if (this.liverViewer && this.liverViewer.textPanel) {
+                try {
+                    this.liverViewer.textPanel.addLog(
+                        `📂 모델 선택: ${model.name}`,
+                        'info'
+                    );
+                    if (model.hasData) {
+                        this.liverViewer.textPanel.addLog(
+                            `📋 메타데이터 포함`,
+                            'info'
+                        );
+                    }
+                    if (model.hasImage) {
+                        this.liverViewer.textPanel.addLog(
+                            `🖼️ 이미지 포함`,
+                            'info'
+                        );
+                    }
+                } catch (e) {
+                    console.warn('[ModelSelector] Failed to log to textPanel:', e);
+                }
+            }
+
+            // Load model using LiverViewer (which has proper modelLoader)
+            if (this.liverViewer) {
+                console.log('[ModelSelector] Loading model via LiverViewer');
+                // Use file:// protocol for local files
+                const fileUrl = `file://${model.filePath}`;
+                console.log('[ModelSelector] Loading from URL:', fileUrl);
+                
+                // Call LiverViewer's model loading with progress/error handlers
+                if (this.liverViewer.modelLoader) {
+                    this.liverViewer.modelLoader.load(
+                        fileUrl,
+                        (gltf) => {
+                            console.log('[ModelSelector] Model loaded successfully');
+                            // Handle loaded model
+                            const loadedModel = gltf.scene;
+                            loadedModel.name = model.name;
+                            this.liverViewer.scene.add(loadedModel);
+                            
+                            // Store meshes
+                            loadedModel.traverse((child) => {
+                                if (child.isMesh) {
+                                    this.liverViewer.meshes.set(child.uuid, child);
+                                }
+                            });
+                            
+                            // Auto-fit camera
+                            if (this.liverViewer.camera && this.liverViewer.camera.fitToScene) {
+                                this.liverViewer.camera.fitToScene(this.liverViewer.scene);
+                            }
+                            
+                            if (this.liverViewer.textPanel) {
+                                try {
+                                    this.liverViewer.textPanel.addLog(
+                                        `✅ 모델 로드 완료: ${this.liverViewer.meshes.size}개 객체`,
+                                        'success'
+                                    );
+                                } catch (e) {
+                                    console.warn('[ModelSelector] Failed to log success:', e);
+                                }
+                            }
+                            
+                            this.liverViewer.renderNeeded = true;
+                        },
+                        (progress) => {
+                            if (progress.total > 0) {
+                                const percent = (progress.loaded / progress.total * 100).toFixed(1);
+                                console.log(`[ModelSelector] Loading progress: ${percent}%`);
+                            }
+                        },
+                        (error) => {
+                            console.error('[ModelSelector] Model loading error:', error);
+                            if (this.liverViewer.textPanel) {
+                                try {
+                                    this.liverViewer.textPanel.addLog(
+                                        `❌ 모델 로드 실패: ${error.message}`,
+                                        'error'
+                                    );
+                                } catch (e) {
+                                    console.warn('[ModelSelector] Failed to log error:', e);
+                                }
+                            }
+                        }
+                    );
+                } else {
+                    console.error('[ModelSelector] ModelLoader not available');
+                }
             }
 
             // Display CSV table (if exists)
-            if (model.csvData) {
-                this.displayLocalModelTable(model);
+            if (model.csvPath) {
+                console.log('[ModelSelector] Loading CSV metadata from:', model.csvPath);
+                try {
+                    if (window.desktop && window.desktop.readFile) {
+                        const result = await window.desktop.readFile(model.csvPath);
+                        if (result.success && result.content) {
+                            const csvContent = result.content;
+                            // Parse and display CSV
+                            if (this.liverViewer.textPanel) {
+                                this.liverViewer.textPanel.addLog(
+                                    `📋 CSV 데이터: ${csvContent.substring(0, 100)}...`,
+                                    'info'
+                                );
+                            }
+                        }
+                    }
+                } catch (e) {
+                    console.warn('[ModelSelector] Failed to load CSV:', e);
+                }
             }
 
         } catch (error) {
             console.error('[ModelSelector] Local model selection error:', error);
-            alert('Error occurred while loading model: ' + error.message);
+            console.error('[ModelSelector] Error stack:', error.stack);
+            if (this.liverViewer && this.liverViewer.textPanel) {
+                try {
+                    this.liverViewer.textPanel.addLog(
+                        `❌ 모델 로드 오류: ${error.message}`,
+                        'error'
+                    );
+                } catch (e) {
+                    console.warn('[ModelSelector] Failed to log error to textPanel:', e);
+                }
+            }
         }
     }
 

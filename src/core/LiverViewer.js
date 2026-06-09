@@ -1224,38 +1224,81 @@ export default class LiverViewer {
     }
 
     /**
-     * Load models from a folder path
+     * Load models from a folder path using ModelSelector
      * @param {string} folderPath - Path to folder containing models
      */
     loadFolderPath(folderPath) {
         try {
             console.log('[Hospital Integration] Loading from folder:', folderPath);
             
-            if (!this.modelSelector) {
-                console.error('ModelSelector not initialized yet');
+            if (!folderPath) {
+                console.error('[Hospital Integration] No folder path provided');
+                if (this.textPanel) {
+                    try {
+                        this.textPanel.addLog(
+                            `❌ 폴더 경로가 없습니다`,
+                            'error'
+                        );
+                    } catch (e) {
+                        console.warn('[Hospital Integration] textPanel error:', e);
+                    }
+                }
                 return;
             }
 
-            // Trigger file browser or direct load based on folder contents
-            // For now, we'll use the modelSelector's existing logic
-            // The hospital integration should ensure the folder contains valid model files
-            
-            // Send message to console for debugging
-            console.log('[Hospital Integration] Attempting to load models from:', folderPath);
-            
-            // Note: Actual folder reading requires:
-            // 1. Electron environment with IPC bridge
-            // 2. Backend API to read folder contents
-            // For MVP, we'll display a message to the user
-            if (this.textPanel) {
-                this.textPanel.addLog(
-                    `준비됨: ${folderPath}`,
-                    'info'
-                );
+            if (!this.modelSelector) {
+                console.error('[Hospital Integration] ModelSelector not initialized');
+                if (this.textPanel) {
+                    try {
+                        this.textPanel.addLog(
+                            `❌ ModelSelector가 준비되지 않았습니다`,
+                            'error'
+                        );
+                    } catch (e) {
+                        console.warn('[Hospital Integration] textPanel error:', e);
+                    }
+                }
+                return;
             }
+
+            console.log('[Hospital Integration] Using ModelSelector.loadFolderPath()');
+            
+            // Use ModelSelector's existing folder loading functionality
+            this.modelSelector.loadFolderPath(folderPath)
+                .then(() => {
+                    console.log('[Hospital Integration] ✓ Folder loaded successfully');
+                    if (this.textPanel) {
+                        try {
+                            this.textPanel.addLog(
+                                `✅ 폴더 로드 완료`,
+                                'success'
+                            );
+                        } catch (e) {
+                            console.warn('[Hospital Integration] textPanel error:', e);
+                        }
+                    }
+                })
+                .catch((error) => {
+                    console.error('[Hospital Integration] Error:', error);
+                    if (this.textPanel) {
+                        try {
+                            this.textPanel.addLog(
+                                `❌ 오류: ${error.message}`,
+                                'error'
+                            );
+                        } catch (e) {
+                            console.warn('[Hospital Integration] textPanel error:', e);
+                        }
+                    }
+                });
         } catch (error) {
             console.error('[Hospital Integration] Error loading folder:', error);
-            ErrorHandler.handle(error, 'Hospital Integration Folder Load');
+            console.error('[Hospital Integration] Stack:', error.stack);
+            try {
+                ErrorHandler.handle(error, 'Hospital Integration Folder Load');
+            } catch (e) {
+                console.warn('[Hospital Integration] ErrorHandler failed:', e);
+            }
         }
     }
 
