@@ -1989,9 +1989,11 @@ export default class ModelSelector {
             
             console.log('[ModelSelector] filePath:', model.filePath, 'modelPath:', model.modelPath);
             
-            // If using filePath (from Electron), add file:// protocol
+            // If using filePath (from Electron), convert Windows path to proper file:// URL
+            // Windows: C:\Users\... → file:///C:/Users/...
             if (model.filePath && !model.filePath.startsWith('blob:') && !model.filePath.startsWith('file://')) {
-                modelUrl = `file://${model.filePath}`;
+                const normalized = model.filePath.replace(/\\/g, '/');
+                modelUrl = `file:///${normalized}`;
             }
             
             // Safety check
