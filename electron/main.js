@@ -1,31 +1,91 @@
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 
 // Set userData path to avoid cache permission issues on Windows
 app.setPath('userData', path.join(app.getPath('userData'), 'cache'));
 
+// Log file for debugging
+const logFile = path.join(os.tmpdir(), 'liveraiz-viewer-debug.log');
+const debugLog = (message) => {
+    const timestamp = new Date().toISOString();
+    const logMessage = `[${timestamp}] ${message}\n`;
+    console.log(message);
+    try {
+        fs.appendFileSync(logFile, logMessage);
+    } catch (e) {
+        console.error('Failed to write log:', e);
+    }
+};
+
+debugLog('=== LiverAiz3D Viewer Started ===');
+debugLog(`Full process.argv: ${JSON.stringify(process.argv)}`);
+
 // Get file path from command line arguments
-// Format: "LiverAiz3D Viewer.exe C:\path\to\file.zip"
+// Supports: 
+// 1. "LiverAiz3D Viewer.exe C:\path\to\folder"
+// 2. "LiverAiz3D Viewer.exe C:\path\to\file.zip"
+// 3. "LiverAiz3D Viewer.exe --file=C:\path\to\folder"
 const getCliFilePath = () => {
-    const args = process.argv.slice(1);
+    debugLog('[CLI] Starting argument parsing...');
     
-    // In production, args[0] might be the file path
-    // In dev, skip first arg (which is the app path)
-    for (const arg of args) {
-        // Check if it looks like a file path (ends with .zip or contains path separators)
-        if ((arg.endsWith('.zip') || arg.includes('\\') || arg.includes('/')) 
-            && !arg.startsWith('--')) {
-            if (fs.existsSync(arg)) {
-                return arg;
+    // Check for --file= format
+    for (const arg of process.argv) {
+        if (arg.startsWith('--file=')) {
+            const filePath = arg.substring(7);
+            debugLog(`[CLI] Found --file= argument: ${filePath}`);
+            if (fs.existsSync(filePath)) {
+                debugLog(`[CLI] ✓ Path exists: ${filePath}`);
+                return filePath;
             }
         }
     }
+    
+    // Check for positional arguments (paths with \ or /)
+    // In packaged app: argv[1] is the resource path, user args start from argv[2]
+    // In dev: user args start after the executable path
+    const startIndex = process.argv[1]?.includes('resources') ? 2 : 1;
+    
+    debugLog(`[CLI] Checking arguments starting from index ${startIndex}`);
+    
+    for (let i = startIndex; i < process.argv.length; i++) {
+        const arg = process.argv[i];
+        debugLog(`[CLI] Arg[${i}]: ${arg}`);
+        
+        // Skip flags and check for path-like arguments
+        if (!arg.startsWith('-') && (arg.includes('\\') || arg.includes('/'))) {
+            debugLog(`[CLI] Potential path: ${arg}`);
+            
+            try {
+                if (fs.existsSync(arg)) {
+                    const stats = fs.statSync(arg);
+                    const isDirectory = stats.isDirectory();
+                    const isZip = arg.endsWith('.zip');
+                    
+                    debugLog(`[CLI] Path stats - Exists: true | Directory: ${isDirectory} | Zip: ${isZip}`);
+                    
+                    if (isDirectory || isZip) {
+                        debugLog(`[CLI] ✓✓✓ VALID PATH FOUND: ${arg}`);
+                        return arg;
+                    }
+                } else {
+                    debugLog(`[CLI] Path does not exist: ${arg}`);
+                }
+            } catch (error) {
+                debugLog(`[CLI] Error checking path ${arg}: ${error.message}`);
+            }
+        }
+    }
+    
+    debugLog('[CLI] No valid CLI file path found');
+    debugLog(`Log file: ${logFile}`);
     return null;
 };
 
 let mainWindow;
 const cliFilePath = getCliFilePath();
+debugLog(`CLI file path resolved to: ${cliFilePath}`);
 
 function createWindow() {
     mainWindow = new BrowserWindow({
@@ -43,33 +103,50 @@ function createWindow() {
 
     const devServerUrl = process.env.VITE_DEV_SERVER_URL;
     if (devServerUrl) {
+        debugLog('[Window] Development mode - loading dev server');
         mainWindow.loadURL(devServerUrl);
         mainWindow.webContents.openDevTools({ mode: 'detach' });
     } else {
+        debugLog('[Window] Production mode - loading build');
         mainWindow.loadFile(path.join(__dirname, '..', 'build', 'index.html'));
+        
+        // For debugging: uncomment next line to open DevTools in production
+        // mainWindow.webContents.openDevTools({ mode: 'detach' });
     }
 
     // Send CLI file path to renderer process when ready
     if (cliFilePath) {
+        debugLog(`[IPC] Will send load-file message with: ${cliFilePath}`);
         mainWindow.webContents.on('did-finish-load', () => {
+            debugLog('[IPC] Sending load-file to renderer');
             mainWindow.webContents.send('load-file', cliFilePath);
         });
+    } else {
+        debugLog('[IPC] No CLI file path, manual file selection will be used');
     }
 }
 
 app.whenReady().then(() => {
+    debugLog('[App] Application ready');
     createWindow();
 
     app.on('activate', () => {
-        if (BrowserWindow.getAllWindows().length === 0) createWindow();
+        if (BrowserWindow.getAllWindows().length === 0) {
+            debugLog('[App] Reactivating - creating new window');
+            createWindow();
+        }
     });
 });
 
 app.on('window-all-closed', () => {
+    debugLog('[App] All windows closed');
     if (process.platform !== 'darwin') app.quit();
 });
 
 // Handle file path from hospital integration
 ipcMain.handle('get-cli-file', () => {
+    debugLog('[IPC] get-cli-file requested');
     return cliFilePath;
 });
+
+debugLog('=== Startup Complete ===');

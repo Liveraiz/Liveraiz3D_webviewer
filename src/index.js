@@ -27,11 +27,34 @@ const initializeApp = () => {
         
         // Electron에서 CLI 파일 경로 확인
         if (window.desktop && window.desktop.onLoadFile) {
+            console.log('[Hospital Integration] Listening for load-file event...');
             window.desktop.onLoadFile((filePath) => {
-                console.log('[Hospital Integration] Auto-loading file:', filePath);
+                console.log('[Hospital Integration] ✓ Auto-loading file:', filePath);
                 if (viewer && viewer.loadFile) {
                     viewer.loadFile(filePath);
+                } else {
+                    console.warn('[Hospital Integration] Viewer not ready yet');
                 }
+            });
+        } else {
+            console.log('[Hospital Integration] Desktop API not available (web mode)');
+        }
+        
+        // Also try to get CLI file via IPC (in case event was missed)
+        if (window.desktop && window.desktop.getCliFile) {
+            console.log('[Hospital Integration] Checking for CLI file via IPC...');
+            window.desktop.getCliFile().then((filePath) => {
+                if (filePath) {
+                    console.log('[Hospital Integration] CLI file found via IPC:', filePath);
+                    // Give viewer a moment to fully initialize before loading
+                    setTimeout(() => {
+                        if (viewer && viewer.loadFile) {
+                            viewer.loadFile(filePath);
+                        }
+                    }, 500);
+                }
+            }).catch((err) => {
+                console.log('[Hospital Integration] No CLI file or error:', err);
             });
         }
     } catch (error) {
