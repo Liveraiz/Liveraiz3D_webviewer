@@ -1984,131 +1984,143 @@ export default class ModelSelector {
                 this.dialog = null;
             }
 
-            // Log to textPanel
-            if (this.liverViewer && this.liverViewer.textPanel) {
-                try {
-                    this.liverViewer.textPanel.addLog(
-                        `📂 모델 선택: ${model.name}`,
-                        'info'
-                    );
-                    if (model.hasData) {
-                        this.liverViewer.textPanel.addLog(
-                            `📋 메타데이터 포함`,
-                            'info'
-                        );
-                    }
-                    if (model.hasImage) {
-                        this.liverViewer.textPanel.addLog(
-                            `🖼️ 이미지 포함`,
-                            'info'
-                        );
-                    }
-                } catch (e) {
-                    console.warn('[ModelSelector] Failed to log to textPanel:', e);
-                }
+            // Determine which URL to use: filePath (Electron) or modelPath (Dev)
+            let modelUrl = model.filePath || model.modelPath;
+            
+            console.log('[ModelSelector] filePath:', model.filePath, 'modelPath:', model.modelPath);
+            
+            // If using filePath (from Electron), add file:// protocol
+            if (model.filePath && !model.filePath.startsWith('blob:') && !model.filePath.startsWith('file://')) {
+                modelUrl = `file://${model.filePath}`;
+            }
+            
+            // Safety check
+            if (!modelUrl) {
+                throw new Error(`Model URL is undefined. filePath: ${model.filePath}, modelPath: ${model.modelPath}`);
+            }
+            
+            console.log('[ModelSelector] Model URL determined:', modelUrl);
+
+            // Try to log to textPanel - but don't crash if not available
+            this.logToTextPanel(`📂 모델 선택: ${model.name}`, 'info');
+            if (model.csvFile || model.csvData) {
+                this.logToTextPanel(`📋 메타데이터 포함`, 'info');
+            }
+            if (model.imageFile || model.imageUrl) {
+                this.logToTextPanel(`🖼️ 이미지 포함`, 'info');
             }
 
-            // Load model using LiverViewer (which has proper modelLoader)
-            if (this.liverViewer) {
-                console.log('[ModelSelector] Loading model via LiverViewer');
-                // Use file:// protocol for local files
-                const fileUrl = `file://${model.filePath}`;
-                console.log('[ModelSelector] Loading from URL:', fileUrl);
-                
-                // Call LiverViewer's model loading with progress/error handlers
-                if (this.liverViewer.modelLoader) {
-                    this.liverViewer.modelLoader.load(
-                        fileUrl,
-                        (gltf) => {
-                            console.log('[ModelSelector] Model loaded successfully');
-                            // Handle loaded model
-                            const loadedModel = gltf.scene;
-                            loadedModel.name = model.name;
-                            this.liverViewer.scene.add(loadedModel);
-                            
-                            // Store meshes
-                            loadedModel.traverse((child) => {
-                                if (child.isMesh) {
-                                    this.liverViewer.meshes.set(child.uuid, child);
-                                }
-                            });
-                            
-                            // Auto-fit camera
-                            if (this.liverViewer.camera && this.liverViewer.camera.fitToScene) {
-                                this.liverViewer.camera.fitToScene(this.liverViewer.scene);
-                            }
-                            
-                            if (this.liverViewer.textPanel) {
-                                try {
-                                    this.liverViewer.textPanel.addLog(
-                                        `✅ 모델 로드 완료: ${this.liverViewer.meshes.size}개 객체`,
-                                        'success'
-                                    );
-                                } catch (e) {
-                                    console.warn('[ModelSelector] Failed to log success:', e);
-                                }
-                            }
-                            
-                            this.liverViewer.renderNeeded = true;
-                        },
-                        (progress) => {
-                            if (progress.total > 0) {
-                                const percent = (progress.loaded / progress.total * 100).toFixed(1);
-                                console.log(`[ModelSelector] Loading progress: ${percent}%`);
-                            }
-                        },
-                        (error) => {
-                            console.error('[ModelSelector] Model loading error:', error);
-                            if (this.liverViewer.textPanel) {
-                                try {
-                                    this.liverViewer.textPanel.addLog(
-                                        `❌ 모델 로드 실패: ${error.message}`,
-                                        'error'
-                                    );
-                                } catch (e) {
-                                    console.warn('[ModelSelector] Failed to log error:', e);
-                                }
-                            }
-                        }
-                    );
-                } else {
-                    console.error('[ModelSelector] ModelLoader not available');
-                }
+            // Check if modelLoader is available (use this.modelLoader directly)
+            if (!this.modelLoader) {
+                throw new Error('ModelLoader not available in ModelSelector');
             }
 
-            // Display CSV table (if exists)
-            if (model.csvPath) {
-                console.log('[ModelSelector] Loading CSV metadata from:', model.csvPath);
-                try {
-                    if (window.desktop && window.desktop.readFile) {
-                        const result = await window.desktop.readFile(model.csvPath);
-                        if (result.success && result.content) {
-                            const csvContent = result.content;
-                            // Parse and display CSV
-                            if (this.liverViewer.textPanel) {
-                                this.liverViewer.textPanel.addLog(
-                                    `📋 CSV 데이터: ${csvContent.substring(0, 100)}...`,
-                                    'info'
-                                );
-                            }
-                        }
-                    }
-                } catch (e) {
-                    console.warn('[ModelSelector] Failed to load CSV:', e);
-                }
+            // Load model using ModelSelector's modelLoader (guaranteed to exist)
+            console.log('[ModelSelector] Loading model via this.modelLoader');
+            
+            // Dev environment: model.glbFile is a File object → use loadModelFromLocal
+            // Production environment: model.filePath is a file path → use loadModel
+            if (model.glbFile) {
+                console.log('[ModelSelector] Using loadModelFromLocal (File object)');
+                await this.modelLoader.loadModelFromLocal(model);
+            } else {
+                console.log('[ModelSelector] Using loadModel (URL)');
+                this.modelLoader.loadModel(modelUrl);
             }
+
+            // Display CSV table in right panel
+            await this.loadAndDisplayCsvTable(model);
 
         } catch (error) {
             console.error('[ModelSelector] Local model selection error:', error);
             console.error('[ModelSelector] Error stack:', error.stack);
-            if (this.liverViewer && this.liverViewer.textPanel) {
-                try {
-                    this.liverViewer.textPanel.addLog(
-                        `❌ 모델 로드 오류: ${error.message}`,
-                        'error'
-                    );
-                } catch (e) {
-                    console.warn('[ModelSelector] Failed to log error to textPanel:', e);
+            this.logToTextPanel(
+                `❌ 모델 로드 오류: ${error.message}`,
+                'error'
+            );
+        }
+    }
+
+    /**
+     * Safely log to textPanel without crashing if not available
+     * @param {string} message - Message to log
+     * @param {string} level - Log level (info, success, error)
+     */
+    logToTextPanel(message, level = 'info') {
+        try {
+            if (this.liverViewer && this.liverViewer.textPanel && typeof this.liverViewer.textPanel.addLog === 'function') {
+                this.liverViewer.textPanel.addLog(message, level);
+            } else {
+                console.log(`[TextPanel] ${level.toUpperCase()}: ${message}`);
+            }
+        } catch (e) {
+            console.warn('[ModelSelector] Failed to log to textPanel:', e);
+            console.log(`[TextPanel] ${level.toUpperCase()}: ${message}`);
+        }
+    }
+
+    /**
+     * CSV 데이터를 로드하고 우측 패널에 테이블로 표시
+     * CSV가 없으면 패널 내용을 클리어
+     * Dev: model.csvFile (File object) / model.csvData (pre-loaded string)
+     * Production: model.csvPath (Electron file path)
+     */
+    async loadAndDisplayCsvTable(model) {
+        const textPanel = this.liverViewer && this.liverViewer.textPanel;
+
+        try {
+            let csvData = null;
+
+            // 1. Already pre-loaded (LocalFileManager.prepareModels에서 읽은 경우)
+            if (model.csvData) {
+                console.log('[ModelSelector] Using pre-loaded csvData for table');
+                csvData = model.csvData;
+            }
+            // 2. File object exists (Dev: webkitdirectory input)
+            else if (model.csvFile) {
+                console.log('[ModelSelector] Reading CSV from File object');
+                csvData = await new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = (e) => resolve(e.target.result);
+                    reader.onerror = () => reject(new Error('CSV 파일 읽기 실패'));
+                    reader.readAsText(model.csvFile);
+                });
+            }
+            // 3. Electron path (Production)
+            else if (model.csvPath && window.desktop && window.desktop.readFile) {
+                console.log('[ModelSelector] Reading CSV via Electron IPC:', model.csvPath);
+                const result = await window.desktop.readFile(model.csvPath);
+                if (result.success && result.content) {
+                    csvData = result.content;
+                }
+            }
+
+            if (!csvData) {
+                // CSV 없는 모델 → 기존 테이블 클리어 + 패널 닫기
+                console.log('[ModelSelector] No CSV data — clearing text panel and closing');
+                if (textPanel) {
+                    if (typeof textPanel.clearContent === 'function') {
+                        textPanel.clearContent();
+                    }
+                    if (textPanel.isOpen && typeof textPanel.togglePanel === 'function') {
+                        textPanel.togglePanel();
+                    }
+                }
+                return;
+            }
+
+            // Use displayLocalModelTable with populated csvData
+            this.displayLocalModelTable({ ...model, csvData });
+
+        } catch (e) {
+            console.warn('[ModelSelector] Failed to load/display CSV table:', e);
+            // 오류 시에도 패널 클리어 + 닫기
+            if (textPanel) {
+                if (typeof textPanel.clearContent === 'function') {
+                    textPanel.clearContent();
+                }
+                if (textPanel.isOpen && typeof textPanel.togglePanel === 'function') {
+                    textPanel.togglePanel();
                 }
             }
         }

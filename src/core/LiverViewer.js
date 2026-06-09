@@ -187,9 +187,6 @@ export default class LiverViewer {
             // CameraPlayer 초기화
             this.setupCameraPlayer();
 
-            // ModelSelector 초기화를 먼저
-            this.modelSelector = new ModelSelector(this);
-
             // ViewerState에 LiverViewer 등록 (UI 초기화 전에)
             console.log("=== Registering LiverViewer to viewerState ===");
             console.log("Before setState - viewerState:", this.viewerState);
