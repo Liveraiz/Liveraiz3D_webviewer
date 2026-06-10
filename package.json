@@ -1,7 +1,7 @@
 {
-  "name": "liveraiz_viewer",
+  "name": "liverAIz_viewer",
   "version": "1.0.1",
-  "description": "LiverAiz 3D Viewer - Desktop Application",
+  "description": "LiverAIz 3D Viewer - Desktop Application",
   "main": "electron/main.js",
   "scripts": {
     "dev": "vite",
@@ -45,8 +45,8 @@
     "wait-on": "^8.0.5"
   },
   "build": {
-    "appId": "com.liveraiz.viewer",
-    "productName": "LiverAiz3D Viewer",
+    "appId": "com.liverAIz.viewer",
+    "productName": "LiverAIz3D Viewer",
     "files": [
       "build/**/*",
       "electron/**/*",
@@ -70,7 +70,8 @@
           ]
         }
       ],
-      "icon": "icon/app.ico"
+      "icon": "icon/app.ico",
+      "executableName": "LiverAIz3D_Viewer"
     },
     "nsis": {
       "oneClick": false,

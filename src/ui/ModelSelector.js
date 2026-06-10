@@ -1555,7 +1555,7 @@ export default class ModelSelector {
 
         content.innerHTML = `
             <div style="text-align: center; margin-bottom: 25px;">
-                <h2 style="margin: 0 0 10px 0; color: white; font-size: 24px; font-weight: 300;">LiverAiz3D</h2>
+                <h2 style="margin: 0 0 10px 0; color: white; font-size: 24px; font-weight: 300;">LiverAIz3D</h2>
                 <p style="margin: 0; color: rgba(255, 255, 255, 0.8); font-size: 14px;">3D Model Viewer - Share Link</p>
             </div>
             
@@ -1894,14 +1894,39 @@ export default class ModelSelector {
                     justify-content: center;
                 `;
 
-                if (model.imageUrl) {
-                    modelThumbnail.style.backgroundImage = `url(${model.imageUrl})`;
-                    modelThumbnail.style.backgroundSize = 'cover';
-                    modelThumbnail.style.backgroundPosition = 'center';
-                } else {
-                    modelThumbnail.innerHTML = '📦';
-                    modelThumbnail.style.fontSize = '24px';
-                }
+                // Load image from imagePath (local file) or imageUrl
+                const loadThumbnail = async () => {
+                    let imageSource = model.imageUrl;
+                    
+                    // If imagePath exists (local file), read it via IPC
+                    if (!imageSource && model.imagePath && window.desktop?.readFile) {
+                        try {
+                            const result = await window.desktop.readFile(model.imagePath);
+                            if (result.success && result.content) {
+                                // Convert Uint8Array to Blob and create Object URL
+                                const imageBuffer = result.content instanceof Uint8Array 
+                                    ? result.content 
+                                    : new Uint8Array(result.content);
+                                const blob = new Blob([imageBuffer], { type: 'image/png' });
+                                imageSource = URL.createObjectURL(blob);
+                                console.log('[ModelSelector] Image loaded from:', model.imagePath);
+                            }
+                        } catch (error) {
+                            console.warn('[ModelSelector] Failed to load image:', error);
+                        }
+                    }
+                    
+                    if (imageSource) {
+                        modelThumbnail.style.backgroundImage = `url(${imageSource})`;
+                        modelThumbnail.style.backgroundSize = 'cover';
+                        modelThumbnail.style.backgroundPosition = 'center';
+                    } else {
+                        modelThumbnail.innerHTML = '📦';
+                        modelThumbnail.style.fontSize = '24px';
+                    }
+                };
+                
+                loadThumbnail();
 
                 modelButton.appendChild(modelInfo);
                 modelButton.appendChild(modelThumbnail);

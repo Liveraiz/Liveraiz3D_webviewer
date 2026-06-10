@@ -7,7 +7,7 @@ const os = require('os');
 app.setPath('userData', path.join(app.getPath('userData'), 'cache'));
 
 // Log file for debugging
-const logFile = path.join(os.tmpdir(), 'liveraiz-viewer-debug.log');
+const logFile = path.join(os.tmpdir(), 'liverAIz-viewer-debug.log');
 const debugLog = (message) => {
     const timestamp = new Date().toISOString();
     const logMessage = `[${timestamp}] ${message}\n`;
@@ -19,14 +19,14 @@ const debugLog = (message) => {
     }
 };
 
-debugLog('=== LiverAiz3D Viewer Started ===');
+debugLog('=== LiverAIz3D Viewer Started ===');
 debugLog(`Full process.argv: ${JSON.stringify(process.argv)}`);
 
 // Get file path from command line arguments
 // Supports: 
-// 1. "LiverAiz3D Viewer.exe C:\path\to\folder"
-// 2. "LiverAiz3D Viewer.exe C:\path\to\file.zip"
-// 3. "LiverAiz3D Viewer.exe --file=C:\path\to\folder"
+// 1. "LiverAIz3D Viewer.exe C:\path\to\folder"
+// 2. "LiverAIz3D Viewer.exe C:\path\to\file.zip"
+// 3. "LiverAIz3D Viewer.exe --file=C:\path\to\folder"
 const getCliFilePath = () => {
     debugLog('[CLI] Starting argument parsing...');
     
@@ -124,6 +124,26 @@ function createWindow() {
     } else {
         debugLog('[IPC] No CLI file path, manual file selection will be used');
     }
+
+    // 윈도우 종료 시 정리 로직
+    mainWindow.on('closed', () => {
+        debugLog('[Window] Window closed - cleaning up resources');
+        mainWindow = null;
+    });
+
+    mainWindow.on('close', (event) => {
+        debugLog('[Window] Close event triggered');
+        
+        // Renderer 프로세스에 정리 명령 전송
+        if (mainWindow && mainWindow.webContents) {
+            try {
+                mainWindow.webContents.send('app-close');
+                debugLog('[IPC] Sent app-close message to renderer');
+            } catch (error) {
+                debugLog(`[IPC] Error sending app-close message: ${error.message}`);
+            }
+        }
+    });
 }
 
 app.whenReady().then(() => {
@@ -139,8 +159,19 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
-    debugLog('[App] All windows closed');
-    if (process.platform !== 'darwin') app.quit();
+    debugLog('[App] All windows closed - initiating cleanup');
+    
+    // Clear mainWindow reference
+    mainWindow = null;
+    
+    // Perform cleanup
+    if (process.platform !== 'darwin') {
+        // Clear cliFilePath
+        cliFilePath = null;
+        
+        debugLog('[App] Starting app.quit()');
+        app.quit();
+    }
 });
 
 // Handle file path from hospital integration
@@ -267,14 +298,28 @@ ipcMain.handle('read-file', async (event, filePath) => {
             return { error: 'Path is not a file' };
         }
         
-        // Read file content
-        const content = fs.readFileSync(filePath, 'utf-8');
-        debugLog(`[IPC] File read successfully, size: ${content.length} bytes`);
+        // Determine file type by extension
+        const ext = path.extname(filePath).toLowerCase();
+        const isBinaryFile = ['.png', '.jpg', '.jpeg', '.glb', '.gltf'].includes(ext);
+        
+        // Read file content (binary for images, text for JSON/CSV)
+        let content;
+        if (isBinaryFile) {
+            // Read as binary buffer and convert to Array for IPC
+            const buffer = fs.readFileSync(filePath);
+            content = Array.from(buffer);
+            debugLog(`[IPC] Binary file read successfully, size: ${buffer.length} bytes`);
+        } else {
+            // Read as UTF-8 text
+            content = fs.readFileSync(filePath, 'utf-8');
+            debugLog(`[IPC] Text file read successfully, size: ${content.length} bytes`);
+        }
         
         return {
             success: true,
             content: content,
-            filePath: filePath
+            filePath: filePath,
+            isBinary: isBinaryFile
         };
     } catch (error) {
         debugLog(`[IPC] Error reading file: ${error.message}`);

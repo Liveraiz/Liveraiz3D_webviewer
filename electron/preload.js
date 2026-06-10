@@ -21,6 +21,19 @@ contextBridge.exposeInMainWorld('desktop', {
         return ipcRenderer.invoke('read-folder', folderPath);
     },
     readFile: (filePath) => {
-        return ipcRenderer.invoke('read-file', filePath);
+        return ipcRenderer.invoke('read-file', filePath).then(result => {
+            // If it's a binary file, convert Array back to Uint8Array
+            if (result.isBinary && Array.isArray(result.content)) {
+                result.content = new Uint8Array(result.content);
+            }
+            return result;
+        });
+    },
+    // App close handler for cleanup
+    onAppClose: (callback) => {
+        ipcRenderer.on('app-close', (event) => {
+            console.log('[Preload] app-close message received');
+            callback();
+        });
     },
 });

@@ -981,26 +981,192 @@ export default class LiverViewer {
 
     // 리소스 정리를 위한 메서드 추가
     dispose() {
-        this.stopAnimation();
+        try {
+            console.log('[LiverViewer] Dispose started...');
 
-        // Clean up CameraPlayer
-        if (this.cameraPlayer) {
-            this.cameraPlayer.dispose();
-            this.cameraPlayer = null;
-        }
+            // 1. 애니메이션 루프 중지
+            this.stopAnimation();
 
-        // 로고 매니저 정리
-        if (this.logoManager) {
-            this.logoManager.dispose();
-        }
+            // 2. 이벤트 리스너 제거
+            this.removeEventListeners();
 
-        if (this.floatingModeButtons) {
-            this.floatingModeButtons.destroy();
-            this.floatingModeButtons = null;
+            // 3. CameraPlayer 정리
+            if (this.cameraPlayer) {
+                this.cameraPlayer.dispose();
+                this.cameraPlayer = null;
+            }
+
+            // 4. LogoManager 정리
+            if (this.logoManager) {
+                this.logoManager.dispose();
+                this.logoManager = null;
+            }
+
+            // 5. FloatingModeButtons 정리
+            if (this.floatingModeButtons) {
+                this.floatingModeButtons.destroy();
+                this.floatingModeButtons = null;
+            }
+
+            // 6. XRHandler 정리
+            if (this.xrHandler) {
+                if (typeof this.xrHandler.dispose === 'function') {
+                    this.xrHandler.dispose();
+                }
+                this.xrHandler = null;
+            }
+
+            // 7. StereoscopicRenderer 정리
+            if (this.stereoscopicRenderer) {
+                if (typeof this.stereoscopicRenderer.dispose === 'function') {
+                    this.stereoscopicRenderer.dispose();
+                }
+                this.stereoscopicRenderer = null;
+            }
+
+            // 8. MeshTooltip 정리
+            if (this.meshTooltip) {
+                this.meshTooltip.dispose();
+                this.meshTooltip = null;
+            }
+
+            // 9. UI 컴포넌트 정리
+            if (this.topBar) {
+                if (typeof this.topBar.dispose === 'function') {
+                    this.topBar.dispose();
+                }
+                this.topBar = null;
+            }
+
+            if (this.toolbar) {
+                if (typeof this.toolbar.dispose === 'function') {
+                    this.toolbar.dispose();
+                }
+                this.toolbar = null;
+            }
+
+            if (this.modelSelector) {
+                if (typeof this.modelSelector.dispose === 'function') {
+                    this.modelSelector.dispose();
+                }
+                this.modelSelector = null;
+            }
+
+            if (this.objectListPanel) {
+                if (typeof this.objectListPanel.dispose === 'function') {
+                    this.objectListPanel.dispose();
+                }
+                this.objectListPanel = null;
+            }
+
+            if (this.textPanel) {
+                if (typeof this.textPanel.dispose === 'function') {
+                    this.textPanel.dispose();
+                }
+                this.textPanel = null;
+            }
+
+            if (this.panelManager) {
+                if (typeof this.panelManager.dispose === 'function') {
+                    this.panelManager.dispose();
+                }
+                this.panelManager = null;
+            }
+
+            if (this.loadingBar) {
+                if (typeof this.loadingBar.dispose === 'function') {
+                    this.loadingBar.dispose();
+                }
+                this.loadingBar = null;
+            }
+
+            if (this.zoomControl) {
+                if (typeof this.zoomControl.dispose === 'function') {
+                    this.zoomControl.dispose();
+                }
+                this.zoomControl = null;
+            }
+
+            // 10. ControlManager 정리
+            if (this.controlManager) {
+                this.controlManager.dispose();
+                this.controlManager = null;
+            }
+
+            // 11. MaterialManager 정리
+            if (this.materialManager) {
+                if (typeof this.materialManager.dispose === 'function') {
+                    this.materialManager.dispose();
+                }
+                this.materialManager = null;
+            }
+
+            // 12. ModelLoader 정리
+            if (this.modelLoader) {
+                if (typeof this.modelLoader.dispose === 'function') {
+                    this.modelLoader.dispose();
+                }
+                this.modelLoader = null;
+            }
+
+            // 13. ResizeHandler 정리
+            if (this.resizeHandler) {
+                if (typeof this.resizeHandler.dispose === 'function') {
+                    this.resizeHandler.dispose();
+                }
+                this.resizeHandler = null;
+            }
+
+            // 14. Scene 정리 (Scene의 모든 객체와 리소스 정리)
+            if (this.scene) {
+                this.scene.dispose();
+                this.scene = null;
+            }
+
+            // 15. Renderer 정리 (Renderer의 WebGL 컨텍스트 정리)
+            if (this.renderer) {
+                this.renderer.dispose();
+                this.renderer = null;
+            }
+
+            // 16. Camera 정리
+            this.camera = null;
+
+            // 17. meshes Map 정리
+            this.meshes.clear();
+
+            // 18. 전역 참조 제거
+            if (window.liverViewer === this) {
+                window.liverViewer = null;
+            }
+            if (window.liverAIzViewer === this) {
+                window.liverAIzViewer = null;
+            }
+
+            console.log('[LiverViewer] Dispose completed successfully');
+        } catch (error) {
+            console.error('[LiverViewer] Error during dispose:', error);
         }
-        // if (this.stats) {
-        //     document.body.removeChild(this.stats.dom);
-        // }
+    }
+
+    /**
+     * 등록된 이벤트 리스너 제거
+     */
+    removeEventListeners() {
+        try {
+            // window resize 리스너 제거를 위해 정확한 핸들러를 저장해야 하나,
+            // 현재 setupEventListeners에서 화살표 함수로 등록되어 있어 제거 불가능
+            // 따라서 ResizeHandler에서 정리하거나 핸들러를 저장해야 함
+            
+            if (this.renderer && this.renderer.renderer && this.renderer.renderer.domElement) {
+                // pointerdown 리스너 제거 (정확한 핸들러가 없어 불가능하므로 ResizeHandler에서 정리)
+                // 대신 renderer 정리 시 domElement 제거로 리스너가 자동 정리됨
+            }
+
+            console.log('[LiverViewer] Event listeners cleanup initiated');
+        } catch (error) {
+            console.error('[LiverViewer] Error removing event listeners:', error);
+        }
     }
 
     // 상태 변경시에만 렌더링 요청

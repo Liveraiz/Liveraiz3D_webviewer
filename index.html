@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LIVERAIZ 3D viewer</title>
+    <title>LIVERАIZ 3D viewer</title>
     
     <!-- 동적 오픈그래프 메타 태그 (JavaScript로 업데이트됨) -->
-    <meta property="og:title" content="LIVERAIZ 3D viewer">
+    <meta property="og:title" content="LIVERАIZ 3D viewer">
     <meta property="og:description" content="Pre-operative 3D Model for assisting the surgical planning">
     <meta property="og:image" content="https://3dviewertest.netlify.app/img/main2.png">
     <meta property="og:url" content="https://3dviewertest.netlify.app/">
@@ -160,10 +160,10 @@
                             }
                             
                             // 소스 정보 추가
-                            const sourceInfo = sourceParam === 'LiverAiz3D' ? ' - LiverAiz3D' : '';
+                            const sourceInfo = sourceParam === 'LiverAIz3D' ? ' - LiverAIz3D' : '';
                             
-                            // 폴더명만 사용 (LiverAiz3D 중복 제거)
-                            const title = folderName ? `${folderName}${sourceInfo}` : `LiverAiz3D${sourceInfo}`;
+                            // 폴더명만 사용 (LiverAIz3D 중복 제거)
+                            const title = folderName ? `${folderName}${sourceInfo}` : `LiverAIz3D${sourceInfo}`;
                             // description 무시하고 기본 설명 사용
                             const fullDescription = `Pre-operative 3D Model for assisting the surgical planning${dateInfo}${sourceInfo}`;
                             
@@ -264,8 +264,8 @@
                 const folderName = data.folderInfo?.name || '';
                 const description = data.folderInfo?.description || '';
                 
-                // 폴더명만 사용 (LiverAiz3D 중복 제거)
-                const title = folderName || 'LiverAiz3D';
+                // 폴더명만 사용 (LiverAIz3D 중복 제거)
+                const title = folderName || 'LiverAIz3D';
                 
                 // description 무시하고 기본 설명 사용
                 const fullDescription = `Pre-operative 3D Model for assisting the surgical planning`;
@@ -305,7 +305,7 @@
                 updateMetaTag('og:image', actualImageUrl);
                 updateMetaTag('og:url', window.location.href);
                 updateMetaTag('og:type', 'video.other');
-                updateMetaTag('og:site_name', 'LIVERAIZ 3D viewer');
+                updateMetaTag('og:site_name', 'LIVERАIZ 3D viewer');
                 updateMetaTag('og:image:width', '1200');
                 updateMetaTag('og:image:height', '630');
                 updateMetaTag('og:image:type', 'image/png');
@@ -322,9 +322,9 @@
                 
                 updateMetaTag('description', fullDescription);
                 updateMetaTag('keywords', '3D, model, viewer, liver, surgery, medical, ' + modelName);
-                updateMetaTag('author', 'LIVERAIZ 3D viewer');
+                updateMetaTag('author', 'LIVERАIZ 3D viewer');
                 
-                document.title = `${title} - LIVERAIZ 3D viewer`;
+                document.title = `${title} - LIVERАIZ 3D viewer`;
                 
                 console.log('동적 오픈그래프 업데이트 완료:', {
                     title,

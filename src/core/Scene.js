@@ -336,4 +336,42 @@ export default class Scene extends THREE.Scene {
     //         }
     //     });
     // }
+
+    /**
+     * 씬 리소스 정리
+     * 메모리 누수 방지를 위해 씬의 모든 객체와 리소스를 정리
+     */
+    dispose() {
+        try {
+            // 씬의 모든 자식 객체 정리
+            this.traverse((object) => {
+                // 지오메트리 정리
+                if (object.geometry) {
+                    object.geometry.dispose();
+                }
+
+                // 머티리얼 정리
+                if (object.material) {
+                    if (Array.isArray(object.material)) {
+                        object.material.forEach(mat => mat.dispose());
+                    } else {
+                        object.material.dispose();
+                    }
+                }
+            });
+
+            // CSS2D 렌더러 정리
+            if (this.css2dRenderer && this.css2dRenderer.domElement && this.css2dRenderer.domElement.parentNode) {
+                this.css2dRenderer.domElement.parentNode.removeChild(this.css2dRenderer.domElement);
+            }
+            this.css2dRenderer = null;
+
+            // 씬 초기화
+            this.clear();
+
+            console.log('[Scene] Scene disposed successfully');
+        } catch (error) {
+            console.error('[Scene] Error during dispose:', error);
+        }
+    }
 }

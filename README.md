@@ -1,9 +1,9 @@
-# Liveraiz Web Viewer
+# LiverAIz Web Viewer
 
 고해상도 간 모델을 브라우저에서 조작할 수 있는 Three.js 기반 Web Viewer입니다. Dropbox 모델 라이브러리, 측정·변형 툴, 카메라 상태 자동 기록/공유, 실시간 웹캠 배경 등 시뮬레이션·프리뷰 환경에 필요한 기능을 한데 묶었습니다.
 
 ## 목차
-- [Liveraiz Web Viewer](#liveraiz-web-viewer)
+- [LiverAIz Web Viewer](#liverAIz-web-viewer)
   - [목차](#목차)
   - [개요](#개요)
   - [주요 기능](#주요-기능)

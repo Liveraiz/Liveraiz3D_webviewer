@@ -18,7 +18,7 @@ const initializeApp = () => {
         viewer = new LiverViewer('container');
         
         // 글로벌 스코프에 viewer 노출 (Electron IPC 통신용)
-        window.liverAizViewer = viewer;
+        window.liverAIzViewer = viewer;
         
         // 애플리케이션 초기화 시간 측정 및 기록
         ErrorHandler.logPerformance('Application Initialization', startTime);
@@ -63,6 +63,62 @@ const initializeApp = () => {
     }
 };
 
+/**
+ * 애플리케이션 정리 및 종료 핸들러
+ * 윈도우나 탭이 닫힐 때 리소스를 정리하고 프로세스 종료
+ */
+const handleBeforeUnload = (event) => {
+    try {
+        console.log('=== 애플리케이션 정리 시작 ===');
+        
+        if (viewer && typeof viewer.dispose === 'function') {
+            viewer.dispose();
+        }
+        
+        viewer = null;
+        
+        console.log('=== 애플리케이션 정리 완료 ===');
+    } catch (error) {
+        console.error('Error during cleanup:', error);
+    }
+};
+
+const handleUnload = (event) => {
+    try {
+        console.log('[Index] Unload event triggered');
+        
+        if (viewer && typeof viewer.dispose === 'function') {
+            viewer.dispose();
+        }
+        
+        viewer = null;
+    } catch (error) {
+        console.error('[Index] Error during unload cleanup:', error);
+    }
+};
+
+/**
+ * Electron에서 윈도우가 닫히기 전에 호출되는 핸들러
+ */
+const notifyAppClose = () => {
+    try {
+        console.log('[Index] App close notification received');
+        
+        if (viewer && typeof viewer.dispose === 'function') {
+            viewer.dispose();
+        }
+        
+        viewer = null;
+    } catch (error) {
+        console.error('[Index] Error in close handler:', error);
+    }
+};
+
+// Electron에서 close 이벤트를 받을 수 있도록 설정
+if (window.desktop && window.desktop.onAppClose) {
+    window.desktop.onAppClose(notifyAppClose);
+}
+
 // DOM 로딩 상태에 따른 초기화 처리
 if (document.readyState === 'loading') {
     // DOM이 아직 로딩 중인 경우, DOMContentLoaded 이벤트 리스너 등록
@@ -71,3 +127,8 @@ if (document.readyState === 'loading') {
     // DOM이 이미 로드된 경우, 즉시 초기화 실행
     initializeApp();
 }
+
+// 윈도우/탭 종료 시 리소스 정리
+window.addEventListener('beforeunload', handleBeforeUnload);
+window.addEventListener('unload', handleUnload);
+window.addEventListener('pagehide', handleUnload);

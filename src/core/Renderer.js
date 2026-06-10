@@ -155,4 +155,36 @@ export default class Renderer {
             height: this.renderer.domElement.clientHeight
         };
     }
+
+    /**
+     * 렌더러 리소스 정리
+     * 메모리 누수 방지를 위해 렌더러와 관련 리소스를 정리
+     */
+    dispose() {
+        try {
+            // DOM에서 캔버스 요소 제거
+            if (this.renderer && this.renderer.domElement && this.renderer.domElement.parentNode) {
+                this.renderer.domElement.parentNode.removeChild(this.renderer.domElement);
+            }
+
+            // CSS2D 렌더러 정리
+            if (this.labelRenderer && this.labelRenderer.domElement && this.labelRenderer.domElement.parentNode) {
+                this.labelRenderer.domElement.parentNode.removeChild(this.labelRenderer.domElement);
+            }
+
+            // WebGL 컨텍스트 정리
+            if (this.renderer) {
+                this.renderer.dispose();
+                this.renderer = null;
+            }
+
+            if (this.labelRenderer) {
+                this.labelRenderer = null;
+            }
+
+            console.log('[Renderer] Renderer disposed successfully');
+        } catch (error) {
+            console.error('[Renderer] Error during dispose:', error);
+        }
+    }
 }
