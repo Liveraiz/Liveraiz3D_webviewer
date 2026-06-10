@@ -134,9 +134,10 @@ export default class LungVesselROI {
                 const isNonDesaturatedException = nonDesaturatedNames.some((name) =>
                     objectName.includes(name.toLowerCase())
                 );
+                const isTargetRegionMesh = this.isTargetRegionMesh(objectName);
 
-                if (isNonDesaturatedException) {
-                    // 예외: Nodule 메시 (항상 컬러 유지)
+                if (isNonDesaturatedException || isTargetRegionMesh) {
+                    // 예외: Nodule/Target A 메시 (항상 컬러 유지)
                     this.nodulesExceptionMeshes.push(object);
                 } else {
                     // 폐혈관 여부 확인
@@ -177,8 +178,9 @@ export default class LungVesselROI {
                     const isNonDesaturatedException = nonDesaturatedNames.some((name) =>
                         objectName.includes(name.toLowerCase())
                     );
+                    const isTargetRegionMesh = this.isTargetRegionMesh(objectName);
                     
-                    if (isNonDesaturatedException) {
+                    if (isNonDesaturatedException || isTargetRegionMesh) {
                         if (!this.nodulesExceptionMeshes.includes(object)) {
                             this.nodulesExceptionMeshes.push(object);
                         }
