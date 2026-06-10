@@ -166,9 +166,6 @@ app.on('window-all-closed', () => {
     
     // Perform cleanup
     if (process.platform !== 'darwin') {
-        // Clear cliFilePath
-        cliFilePath = null;
-        
         debugLog('[App] Starting app.quit()');
         app.quit();
     }
