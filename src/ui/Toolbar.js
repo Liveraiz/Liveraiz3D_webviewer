@@ -27,12 +27,24 @@ export default class Toolbar {
             this.renderer.renderer
         );
 
+        // ROI 색상 예외/타겟 이름 규칙
+        this.lungRoiNonDesaturatedMeshNames = [
+            // desaturated 제외할 메시 이름(소문자 비교)
+            // 예: "lymph_node", "trachea"
+        ];
+        this.lungRoiTargetRegionMeshNames = ["target a", "target_a", "target-a"];
+
         // LungVesselROI 초기화
         this.lungVesselROI = new LungVesselROI(
             this.scene,
             this.camera,
             this.renderer.renderer,
-            { roiRadius: 20, isMobile: this.isMobile }
+            {
+                roiRadius: 20,
+                isMobile: this.isMobile,
+                nonDesaturatedMeshNames: this.lungRoiNonDesaturatedMeshNames,
+                targetRegionMeshNames: this.lungRoiTargetRegionMeshNames,
+            }
         );
 
         this.seeThroughSizeControls = null;

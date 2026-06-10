@@ -9,13 +9,24 @@ export default class LungVesselROI {
         scene,
         camera,
         renderer,
-        { roiRadius = 20, isMobile = false } = {}
+        {
+            roiRadius = 20,
+            isMobile = false,
+            nonDesaturatedMeshNames = [],
+            targetRegionMeshNames = ["target a", "target_a", "target-a"],
+        } = {}
     ) {
         this.scene = scene;
         this.camera = camera;
         this.renderer = renderer;
         this.roiRadius = isMobile ? roiRadius * 1.5 : roiRadius;
         this.isMobile = isMobile;
+        this.nonDesaturatedMeshNames = nonDesaturatedMeshNames.map((name) =>
+            name.toLowerCase()
+        );
+        this.targetRegionMeshNames = targetRegionMeshNames.map((name) =>
+            name.toLowerCase().replace(/[\s_-]+/g, " ").trim()
+        );
 
         // 폐혈관 메시 저장 (타겟)
         this.lungVesselMeshes = [];
@@ -30,6 +41,17 @@ export default class LungVesselROI {
 
         // 상태 플래그
         this.isActive = false;
+    }
+
+    normalizeMeshName(meshName) {
+        return meshName.toLowerCase().replace(/[\s_-]+/g, " ").trim();
+    }
+
+    isTargetRegionMesh(meshName) {
+        const normalizedName = this.normalizeMeshName(meshName);
+        return this.targetRegionMeshNames.some((targetName) =>
+            normalizedName.includes(targetName)
+        );
     }
 
     /**
@@ -60,17 +82,25 @@ export default class LungVesselROI {
             "nodule margin",
         ];
 
-        // Step 1: "target"이 붙은 메시들을 먼저 찾고 bounding box 계산
+        // desaturated 예외 메시 이름들 (항상 컬러 유지)
+        const nonDesaturatedNames = [
+            ...nodulesExceptionNames,
+            ...this.nonDesaturatedMeshNames,
+        ];
+
+        // Step 1: Target A가 붙은 메시들만 찾아 bounding box 계산
         const combinedTargetBox = new THREE.Box3();
+        let hasTargetRegionMesh = false;
 
         this.scene.traverse((object) => {
             if (object.isMesh) {
                 const objectName = object.name.toLowerCase();
                 
-                // "target"이 붙은 메시 확인
-                if (objectName.includes("target")) {
+                // Target A 영역 메시만 타겟으로 사용
+                if (this.isTargetRegionMesh(objectName)) {
                     const box = new THREE.Box3().setFromObject(object);
                     combinedTargetBox.union(box);
+                    hasTargetRegionMesh = true;
                 }
             }
         });
@@ -91,12 +121,12 @@ export default class LungVesselROI {
                     polygonOffsetUnits: object.material.polygonOffsetUnits,
                 });
 
-                // Nodule 예외 확인 (항상 컬러 유지)
-                const isNodulesException = nodulesExceptionNames.some((name) =>
+                // desaturated 예외 확인 (항상 컬러 유지)
+                const isNonDesaturatedException = nonDesaturatedNames.some((name) =>
                     objectName.includes(name.toLowerCase())
                 );
 
-                if (isNodulesException) {
+                if (isNonDesaturatedException) {
                     // 예외: Nodule 메시 (항상 컬러 유지)
                     this.nodulesExceptionMeshes.push(object);
                 } else {
@@ -126,20 +156,20 @@ export default class LungVesselROI {
         });
 
         // 타겟 메시가 없으면 모든 메시 사용
-        if (this.lungVesselMeshes.length === 0) {
+        if (!hasTargetRegionMesh && this.lungVesselMeshes.length === 0) {
             console.warn(
-                "No lung vessel meshes intersecting with target found. Using all lung vessel meshes for ROI effect."
+                "No Target A meshes found. Using all lung vessel meshes for ROI effect."
             );
             this.scene.traverse((object) => {
                 if (object.isMesh) {
                     const objectName = object.name.toLowerCase();
                     
-                    // Nodule이 붙은 메시는 예외로 처리
-                    const isNodulesException = nodulesExceptionNames.some((name) =>
+                    // desaturated 예외 메시는 항상 컬러 유지
+                    const isNonDesaturatedException = nonDesaturatedNames.some((name) =>
                         objectName.includes(name.toLowerCase())
                     );
                     
-                    if (isNodulesException) {
+                    if (isNonDesaturatedException) {
                         if (!this.nodulesExceptionMeshes.includes(object)) {
                             this.nodulesExceptionMeshes.push(object);
                         }
