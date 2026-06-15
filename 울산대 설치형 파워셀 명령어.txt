@@ -1,0 +1,3 @@
+cd 'C:\Program Files\LiverAiz3D_Viewer'
+
+.\LiverAiz3D_Viewer.exe H:\SYL\data-LDLT\울산대병원\260608의뢰-LDLT-volu-박지은D\web

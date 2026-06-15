@@ -36,6 +36,8 @@ export default class LungVesselROI {
      * 폐혈관 ROI 모드 활성화 (See Through와 동일한 방식)
      */
     enableLungVesselROI() {
+        console.log("[LungVesselROI] enableLungVesselROI called - START");
+        
         // ROI를 적용할 메시 이름들
         const lungVesselNames = [
             "pulmonary_artery",
@@ -60,9 +62,18 @@ export default class LungVesselROI {
             "nodule margin",
         ];
 
+        // === DEBUG: 모든 메시 이름 출력 ===
+        console.log("[LungVesselROI] All meshes in scene:");
+        this.scene.traverse((object) => {
+            if (object.isMesh) {
+                console.log(`  - "${object.name}"`);
+            }
+        });
+
         // Step 1: "target"이 붙은 메시들을 먼저 찾고 bounding box 계산
         const combinedTargetBox = new THREE.Box3();
 
+        console.log("[LungVesselROI] Step 1: Finding target meshes...");
         this.scene.traverse((object) => {
             if (object.isMesh) {
                 const objectName = object.name.toLowerCase();
@@ -71,10 +82,12 @@ export default class LungVesselROI {
                 if (objectName.includes("target")) {
                     const box = new THREE.Box3().setFromObject(object);
                     combinedTargetBox.union(box);
+                    console.log(`[LungVesselROI] Found target mesh: "${object.name}"`);
                 }
             }
         });
 
+        console.log("[LungVesselROI] Step 2: Classifying all meshes...");
         // Step 2: 모든 메시를 분류: 타겟 vs 예외 vs 비타겟
         this.scene.traverse((object) => {
             if (object.isMesh) {
@@ -96,10 +109,21 @@ export default class LungVesselROI {
                     objectName.includes(name.toLowerCase())
                 );
 
-                // 메시 이름이 " A"로 끝나는 경우 예외 처리 (항상 컬러 유지)
-                const endsWithSingleA = /\sA$/i.test(object.name);
+                // 메시 이름이 " A", "A", "_A"로 끝나는 경우 예외 처리 (항상 컬러 유지)
+                // 공백+A: " A", 그냥 A: "A", 언더스코어+A: "_A"
+                const nameUpper = object.name.toUpperCase();
+                const endsWithA = nameUpper.endsWith('_A') || nameUpper.endsWith(' A') || nameUpper.endsWith('A');
+                
+                // === DEBUG: 모든 메시 확인 ===
+                if (object.name.includes('A') || object.name.includes('S') || endsWithA) {
+                    console.log(`[LungVesselROI] STEP2 Check "${object.name}": nameUpper="${nameUpper}", ends_A=${endsWithA}, isNodeException=${isNodulesException}`);
+                }
+                
+                if (endsWithA) {
+                    console.log(`[LungVesselROI] ✓✓✓ Adding to nodulesExceptionMeshes: "${object.name}"`);
+                }
 
-                if (isNodulesException || endsWithSingleA) {
+                if (isNodulesException || endsWithA) {
                     // 예외: Nodule 메시 또는 " A"로 끝나는 메시 (항상 컬러 유지)
                     this.nodulesExceptionMeshes.push(object);
                 } else {
@@ -142,10 +166,11 @@ export default class LungVesselROI {
                         objectName.includes(name.toLowerCase())
                     );
 
-                    // 메시 이름이 " A"로 끝나는 경우 예외 처리
-                    const endsWithSingleA = /\sA$/i.test(object.name);
+                    // 메시 이름이 " A", "A", "_A"로 끝나는 경우 예외 처리
+                    const nameUpper = object.name.toUpperCase();
+                    const endsWithA = nameUpper.endsWith('_A') || nameUpper.endsWith(' A') || nameUpper.endsWith('A');
                     
-                    if (isNodulesException || endsWithSingleA) {
+                    if (isNodulesException || endsWithA) {
                         if (!this.nodulesExceptionMeshes.includes(object)) {
                             this.nodulesExceptionMeshes.push(object);
                         }

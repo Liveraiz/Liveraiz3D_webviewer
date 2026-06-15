@@ -143,6 +143,13 @@ export default class ModelSelector {
                         tableText,
                         normalizedCase === "CCC" || normalizedCase.includes("CCC") ? "CCC" : model.case
                     );
+                } else if (normalizedCase === "LUNG") {
+                    // LUNG table
+                    console.log("Using LUNG Table (based on case):", model.case);
+                    tableHTML = this.tableGenerator.createLungTable(
+                        tableText,
+                        "LUNG"
+                    );
                 } else if (normalizedCase === "KT" || normalizedCase === "LDKT") {
                     tableHTML = this.tableGenerator.createKTTable(
                         tableText,
@@ -2174,6 +2181,7 @@ export default class ModelSelector {
             }
 
             // Use autoCreateTable method from TableGenerator - Auto detection based on filename
+            console.log('[ModelSelector] autoCreateTable input - model.name:', model.name, 'model.fileName:', model.fileName, 'model.case:', model.case);
             const result = this.tableGenerator.autoCreateTable(model.csvData, model.name, model.folderPath || "");
             const tableHTML = result.html;
             const surgeryType = result.surgeryType;

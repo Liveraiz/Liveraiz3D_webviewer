@@ -91,17 +91,25 @@ export class TableGenerator {
      * @returns {string} Surgery Type (HCC, CCC, KT, LDKT, LDLT 등)
      */
     detectSurgeryType(fileName, folderPath = "") {
-        if (!fileName) return null;
+        if (!fileName) {
+            console.log('[TableGenerator.detectSurgeryType] No fileName provided');
+            return null;
+        }
 
         const name = fileName.toUpperCase();
         const context = `${folderPath || ""}`.toUpperCase();
 
+        console.log(`[TableGenerator.detectSurgeryType] Checking: fileName="${fileName}", name="${name}"`);
+        console.log(`[TableGenerator.detectSurgeryType] TABLE_TYPES.LUNG exists:`, !!Constants.TABLE_TYPES['LUNG']);
+
         // LUNG을 최우선으로 확인 (파일명에 LUNG/R Lung/L Lung이 있으면 항상 LUNG 테이블 적용)
-        if (Constants.TABLE_TYPES['LUNG']) {
-            const lungConfig = Constants.TABLE_TYPES['LUNG'];
+        const lungConfig = Constants.TABLE_TYPES['LUNG'];
+        if (lungConfig && lungConfig.keywords) {
+            console.log(`[TableGenerator.detectSurgeryType] LUNG keywords:`, lungConfig.keywords);
             for (const keyword of lungConfig.keywords) {
-                if (name.includes(keyword)) {
-                    console.log(`[TableGenerator] Detected type: LUNG (keyword: ${keyword})`);
+                const keywordUpper = keyword.toUpperCase();
+                if (name.includes(keywordUpper)) {
+                    console.log(`[TableGenerator] ✓ DETECTED: LUNG (matched keyword: "${keyword}" in "${fileName}")`);
                     return 'LUNG';
                 }
             }
@@ -110,6 +118,7 @@ export class TableGenerator {
         // LDLT folders commonly contain a generic section file name.
         // Prefer LDLT over the default HCC fallback when the folder path says so.
         if (context.includes("LDLT") && name.includes("SECTION")) {
+            console.log(`[TableGenerator] ✓ DETECTED: LDLT (folder + SECTION)`);
             return "LDLT";
         }
 
@@ -118,14 +127,18 @@ export class TableGenerator {
         for (const [typeKey, typeConfig] of Object.entries(Constants.TABLE_TYPES)) {
             if (typeKey === 'LUNG') continue; // LUNG은 이미 위에서 확인했으므로 건너뛰기
             
+            if (!typeConfig || !typeConfig.keywords) continue;
+            
             for (const keyword of typeConfig.keywords) {
-                if (name.includes(keyword)) {
-                    console.log(`[TableGenerator] Detected type: ${typeKey} (keyword: ${keyword})`);
+                const keywordUpper = keyword.toUpperCase();
+                if (name.includes(keywordUpper)) {
+                    console.log(`[TableGenerator] ✓ DETECTED: ${typeKey} (matched keyword: "${keyword}" in "${fileName}")`);
                     return typeKey;
                 }
             }
         }
 
+        console.log(`[TableGenerator] ✗ NO MATCH: No type detected for "${fileName}"`);
         return null;
     }
 
@@ -272,6 +285,19 @@ export class TableGenerator {
     }
 
     _generateSegDetailTableHTML(extraColumns, volumeData, percentData) {
+        // 긴 이름 축약 헬퍼 함수
+        const abbreviateName = (name) => {
+            // "nodules_margin_10" → "margin 10"
+            // "nodules_margin_20" → "margin 20"
+            if (name.includes('_margin_')) {
+                const parts = name.split('_margin_');
+                const marginValue = parts[1];
+                return `margin ${marginValue}`;
+            }
+            // 언더스코어를 공백으로 변경
+            return name.replace(/_/g, ' ');
+        };
+
         const theme = this.isDarkMode
             ? this.getCommonStyles().dark
             : this.getCommonStyles().light;
@@ -336,7 +362,7 @@ export class TableGenerator {
 
         extraColumns.forEach((column, index) => {
             const columnName = column.trim();
-            const displayName = escapeHtml(columnName).replaceAll("_", "_<wbr>");
+            const displayName = escapeHtml(abbreviateName(columnName));
             const bgColor = SEG_DETAIL_COLORS[index % SEG_DETAIL_COLORS.length];
 
             table += "<tr>";

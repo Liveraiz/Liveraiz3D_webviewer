@@ -55,7 +55,7 @@ export const Constants = {
      */
     TABLE_TYPES: {
         LUNG: {
-            keywords: ['LUNG', 'R Lung', 'L Lung'],
+            keywords: ['LUNG', 'R_LUNG', 'L_LUNG', 'R Lung', 'L Lung', 'ROI_LUNG'],
             method: 'createLungTable',
             displayName: 'Lung Resection Plan'
         },
