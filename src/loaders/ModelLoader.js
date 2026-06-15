@@ -790,6 +790,11 @@ export default class ModelLoader {
             if (this.liverViewer) {
                 this.liverViewer.requestRender();
             }
+
+            // ROI Lung 모델에 대한 LungVesselROI 버튼 가시성 업데이트
+            if (this.liverViewer && this.liverViewer.toolbar && this.liverViewer.toolbar.updateLungROIButtonVisibility) {
+                this.liverViewer.toolbar.updateLungROIButtonVisibility();
+            }
         } catch (error) {
             console.error("Error in handleLoadSuccess:", error);
             this.handleLoadError(error, loadingElem);

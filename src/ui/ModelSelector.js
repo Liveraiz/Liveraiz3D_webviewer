@@ -2045,6 +2045,15 @@ export default class ModelSelector {
             // Load model using ModelSelector's modelLoader (guaranteed to exist)
             console.log('[ModelSelector] Loading model via this.modelLoader');
             
+            // Update current model index to track which model is selected
+            if (this.isLocalFilesMode && Array.isArray(this.localModels)) {
+                const modelIndex = this.localModels.findIndex(m => m.id === model.id || m.name === model.name);
+                if (modelIndex !== -1) {
+                    this.currentModelIndex = modelIndex;
+                    console.log('[ModelSelector] Current model index updated:', this.currentModelIndex);
+                }
+            }
+            
             // Dev environment: model.glbFile is a File object → use loadModelFromLocal
             // Production environment: model.filePath is a file path → use loadModel
             if (model.glbFile) {

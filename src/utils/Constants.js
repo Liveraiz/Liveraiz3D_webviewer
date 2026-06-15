@@ -54,6 +54,11 @@ export const Constants = {
      * 더 구체적인 것(CCC, LDKT)을 먼저 배치
      */
     TABLE_TYPES: {
+        LUNG: {
+            keywords: ['LUNG', 'R Lung', 'L Lung'],
+            method: 'createLungTable',
+            displayName: 'Lung Resection Plan'
+        },
         CCC: {
             keywords: ['CCC'],
             method: 'createHCCTable',

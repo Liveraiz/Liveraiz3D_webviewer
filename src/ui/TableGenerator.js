@@ -86,6 +86,7 @@ export class TableGenerator {
     /**
      * 파일명 기반으로 Surgery Type 감지
      * Constants.TABLE_TYPES에 정의된 매핑을 사용
+     * LUNG 키워드는 최우선으로 확인 (파일명에 lung이 있으면 case와 상관없이 lung table 적용)
      * @param {string} fileName - 파일명
      * @returns {string} Surgery Type (HCC, CCC, KT, LDKT, LDLT 등)
      */
@@ -95,15 +96,28 @@ export class TableGenerator {
         const name = fileName.toUpperCase();
         const context = `${folderPath || ""}`.toUpperCase();
 
+        // LUNG을 최우선으로 확인 (파일명에 LUNG/R Lung/L Lung이 있으면 항상 LUNG 테이블 적용)
+        if (Constants.TABLE_TYPES['LUNG']) {
+            const lungConfig = Constants.TABLE_TYPES['LUNG'];
+            for (const keyword of lungConfig.keywords) {
+                if (name.includes(keyword)) {
+                    console.log(`[TableGenerator] Detected type: LUNG (keyword: ${keyword})`);
+                    return 'LUNG';
+                }
+            }
+        }
+
         // LDLT folders commonly contain a generic section file name.
         // Prefer LDLT over the default HCC fallback when the folder path says so.
         if (context.includes("LDLT") && name.includes("SECTION")) {
             return "LDLT";
         }
 
-        // Search in the order defined in Constants.TABLE_TYPES
+        // Search in the order defined in Constants.TABLE_TYPES (LUNG 제외)
         // (object iteration order maintained as defined)
         for (const [typeKey, typeConfig] of Object.entries(Constants.TABLE_TYPES)) {
+            if (typeKey === 'LUNG') continue; // LUNG은 이미 위에서 확인했으므로 건너뛰기
+            
             for (const keyword of typeConfig.keywords) {
                 if (name.includes(keyword)) {
                     console.log(`[TableGenerator] Detected type: ${typeKey} (keyword: ${keyword})`);
@@ -1490,88 +1504,225 @@ export class TableGenerator {
         const rtLobePercent = totalLobeVolume > 0 ? ((rtLobeVolume / totalLobeVolume) * 100).toFixed(2) : "0.00";
         const ltLobePercent = totalLobeVolume > 0 ? ((ltLobeVolume / totalLobeVolume) * 100).toFixed(2) : "0.00";
 
-        table += "<tr>";
-        table += "<th class='rt-lobe'>Rt.lobe</th>";
-        table += "<th class='lt-lobe'>Lt.lobe</th>";
-        table += "</tr>";
+        return table;
+    }
 
-        table += "<tr>";
-        table += "<td class='value'>" + this.formatVolume(rtLobeVolume) + "</td>";
-        table += "<td class='value'>" + this.formatVolume(ltLobeVolume) + "</td>";
-        table += "</tr>";
+    // Lung 폐절제 계획 테이블 생성
+    createLungTable(csvData, surgeryType = "LUNG") {
+        console.log("Creating Lung table with data:", csvData);
 
-        table += "<tr>";
-        table += "<td class='value'>" + this.formatPercent(rtLobePercent) + "</td>";
-        table += "<td class='value'>" + this.formatPercent(ltLobePercent) + "</td>";
-        table += "</tr>";
+        var rows = csvData.replaceAll('"', "").split("\r\n");
+        rows = rows.filter((row) => row.trim() !== "");
 
-        // Rt.lobe 아래: RAS -> RPS, Lt.lobe 아래: LLS -> LMS -> Spigelian
-        table += "<tr>";
-        table += "<th class='ras'>RAS</th>";
-        table += "<th class='lls'>LLS</th>";
-        table += "</tr>";
+        if (rows.length === 0) return "<p>데이터가 없습니다.</p>";
 
-        table += "<tr>";
-        table += "<td class='value'>" + this.formatVolume(volumeData["RAS"]) + "</td>";
-        table += "<td class='value'>" + this.formatVolume(volumeData["LLS"]) + "</td>";
-        table += "</tr>";
+        var parsedRows = rows.map((row) => row.split(","));
+        var headers = parsedRows[0];
 
-        table += "<tr>";
-        table += "<td class='value'>" + this.formatPercent(percentData["RAS"]) + "</td>";
-        table += "<td class='value'>" + this.formatPercent(percentData["LLS"]) + "</td>";
-        table += "</tr>";
+        var volumeData = {};
+        var percentData = {};
+        var segmentOrder = []; // CSV의 순서 유지
 
-        table += "<tr>";
-        table += "<td class='grwr'>" + this.formatPercent(grwrData["RAS"]) + "</td>";
-        table += "<td class='grwr'>" + this.formatPercent(grwrData["LLS"]) + "</td>";
-        table += "</tr>";
+        // 헤더 기반 인덱스 찾기
+        let segmentIdx = -1;
+        let volumeIdx = -1;
 
-        table += "<tr>";
-        table += "<th class='rps'>RPS</th>";
-        table += "<th class='lms'>LMS</th>";
-        table += "</tr>";
+        for (let i = 0; i < headers.length; i++) {
+            const headerLower = headers[i].toLowerCase().trim();
+            if (headerLower.includes("segment") || i === 0) {
+                segmentIdx = i;
+            } else if (headerLower.includes("volume")) {
+                volumeIdx = i;
+            }
+        }
 
-        table += "<tr>";
-        table += "<td class='value'>" + this.formatVolume(volumeData["RPS"]) + "</td>";
-        table += "<td class='value'>" + this.formatVolume(volumeData["LMS"]) + "</td>";
-        table += "</tr>";
+        // 헤더만 있는 경우 처리
+        if (volumeIdx === -1 && headers.length > 1) {
+            volumeIdx = 1;
+        }
 
-        table += "<tr>";
-        table += "<td class='value'>" + this.formatPercent(percentData["RPS"]) + "</td>";
-        table += "<td class='value'>" + this.formatPercent(percentData["LMS"]) + "</td>";
-        table += "</tr>";
+        // 데이터 추출
+        if (parsedRows.length > 1) {
+            for (let i = 1; i < parsedRows.length; i++) {
+                const row = parsedRows[i];
+                const segment = row[segmentIdx]?.trim() || "";
+                const volume = row[volumeIdx]?.trim() || "";
 
-        table += "<tr>";
-        table += "<td class='grwr'>" + this.formatPercent(grwrData["RPS"]) + "</td>";
-        table += "<td class='grwr'>" + this.formatPercent(grwrData["LMS"]) + "</td>";
-        table += "</tr>";
+                if (segment && volume) {
+                    volumeData[segment] = volume;
+                    segmentOrder.push(segment); // 순서 기록
+                }
+            }
+        }
 
-        // Spigelian - 마지막 (별도행)
-        table += "<tr>";
-        table += "<th class='spigelian'></th>";
-        table += "<th class='spigelian'>Spigelian</th>";
-        table += "</tr>";
+        // 전체 폐 부피 찾기 (R_Lung, L_Lung, Right Lung, Left Lung 등)
+        let totalLungVolume = 0;
+        let lungType = "";
+        let totalLungKey = "";
 
-        table += "<tr>";
-        table += "<td class='value'></td>";
-        table += "<td class='value'>" + this.formatVolume(volumeData["Spigelian"]) + "</td>";
-        table += "</tr>";
+        if (volumeData["R_Lung"]) {
+            totalLungVolume = parseFloat(volumeData["R_Lung"].toString().replace(/[^\d.]/g, "")) || 0;
+            lungType = "R";
+            totalLungKey = "R_Lung";
+        } else if (volumeData["L_Lung"]) {
+            totalLungVolume = parseFloat(volumeData["L_Lung"].toString().replace(/[^\d.]/g, "")) || 0;
+            lungType = "L";
+            totalLungKey = "L_Lung";
+        } else if (volumeData["Right Lung"]) {
+            totalLungVolume = parseFloat(volumeData["Right Lung"].toString().replace(/[^\d.]/g, "")) || 0;
+            lungType = "R";
+            totalLungKey = "Right Lung";
+        } else if (volumeData["Left Lung"]) {
+            totalLungVolume = parseFloat(volumeData["Left Lung"].toString().replace(/[^\d.]/g, "")) || 0;
+            lungType = "L";
+            totalLungKey = "Left Lung";
+        }
 
-        table += "<tr>";
-        table += "<td class='value'></td>";
-        table += "<td class='value'>" + this.formatPercent(percentData["Spigelian"]) + "</td>";
-        table += "</tr>";
+        // 모든 항목에 대해 비율 계산 (전체 폐 항목 제외)
+        if (totalLungVolume > 0) {
+            for (const segment of segmentOrder) {
+                // 전체 폐(R_Lung, L_Lung 등)는 제외
+                if (segment !== totalLungKey) {
+                    const segmentVolume = parseFloat(volumeData[segment].toString().replace(/[^\d.]/g, "")) || 0;
+                    const percent = ((segmentVolume / totalLungVolume) * 100).toFixed(2);
+                    percentData[segment] = percent;
+                }
+            }
+        }
 
-        table += "<tr>";
-        table += "<td class='grwr'></td>";
-        table += "<td class='grwr'>" + this.formatPercent(grwrData["Spigelian"]) + "</td>";
-        table += "</tr>";
+        return this._generateLungTableHTML(volumeData, percentData, segmentOrder, totalLungKey, surgeryType);
+    }
 
-        if (recipBW) {
-            const recipBWDisplay = recipBW.toLowerCase().includes("kg") ? recipBW : recipBW + " kg";
+    // Lung 테이블 HTML 생성
+    _generateLungTableHTML(volumeData, percentData, segmentOrder, totalLungKey, surgeryType) {
+        // 긴 이름 축약 헬퍼 함수
+        const abbreviateName = (name) => {
+            // "nodules_margin_10" → "margin 10"
+            // "nodules_margin_20" → "margin 20"
+            if (name.includes('_margin_')) {
+                const parts = name.split('_margin_');
+                const marginValue = parts[1];
+                return `margin ${marginValue}`;
+            }
+            // 언더스코어를 공백으로 변경
+            return name.replace(/_/g, ' ');
+        };
+
+        const theme = this.isDarkMode
+            ? this.getCommonStyles().dark
+            : this.getCommonStyles().light;
+
+        // 폐 엽별 색상
+        const lungColors = {
+            RUL: "#FFB6C1", // 연한 핑크 (우상엽)
+            RML: "#87CEEB", // 하늘색 (우중엽)
+            RLL: "#90EE90", // 연한 초록 (우하엽)
+            LUL: "#FFD700", // 금색 (좌상엽)
+            LLL: "#FFA500", // 주황색 (좌하엽)
+        };
+
+        const style = `
+        <style>
+            .lung-table {
+                border-collapse: collapse;
+                width: 100%;
+                max-width: 600px;
+                font-family: Arial, sans-serif;
+                margin: 20px 0;
+                box-shadow: ${theme.boxShadow};
+                color: ${theme.textColor};
+                table-layout: fixed;
+            }
+            
+            .lung-table th, 
+            .lung-table td {
+                border: 1px solid ${theme.tableBorder};
+                padding: 8px;
+                text-align: center;
+                width: 50%;
+            }
+            
+            .lung-table th {
+                font-weight: bold;
+            }
+            
+            .lung-table thead th {
+                background-color: ${theme.header};
+                color: ${theme.headerText};
+            }
+            
+            .rul { background-color: ${lungColors.RUL}; }
+            .rml { background-color: ${lungColors.RML}; }
+            .rll { background-color: ${lungColors.RLL}; }
+            .lul { background-color: ${lungColors.LUL}; }
+            .lll { background-color: ${lungColors.LLL}; }
+            .value { background-color: ${theme.valueBg}; }
+            .percent-row { background-color: #E5E5E5; }
+            .surgery-header {
+                background-color: ${theme.header};
+                color: ${theme.headerText};
+                text-align: center;
+                font-weight: bold;
+                padding: 10px;
+            }
+        </style>
+        `;
+
+        let table = style + "<table class='lung-table'>";
+
+        // 헤더
+        table += "<thead><tr>";
+        table += "<th colspan='2' class='surgery-header'>" + surgeryType + "</th>";
+        table += "</tr></thead>";
+
+        table += "<tbody>";
+
+        // 전체 폐 항목(R_Lung, L_Lung)을 제외한 항목들 표시
+        const dataItems = segmentOrder.filter(segment => segment !== totalLungKey);
+        
+        for (let i = 0; i < dataItems.length; i += 2) {
+            const item1 = dataItems[i];
+            const item2 = dataItems[i + 1] || null;
+
+            // 항목 이름 행 (축약된 이름으로 표시)
             table += "<tr>";
-            table += "<th class='recip-bw'>Recip BW</th>";
-            table += "<td class='value'>" + recipBWDisplay + "</td>";
+            table += `<th style='background-color: #E8E8E8;'>${abbreviateName(item1)}</th>`;
+            if (item2) {
+                table += `<th style='background-color: #E8E8E8;'>${abbreviateName(item2)}</th>`;
+            } else {
+                table += "<th></th>";
+            }
+            table += "</tr>";
+
+            // 부피 행
+            table += "<tr>";
+            table += `<td class='value'>${this.formatVolume(volumeData[item1] || "")}</td>`;
+            if (item2) {
+                table += `<td class='value'>${this.formatVolume(volumeData[item2] || "")}</td>`;
+            } else {
+                table += "<td class='value'></td>";
+            }
+            table += "</tr>";
+
+            // 백분율 행
+            table += "<tr>";
+            table += `<td class='percent-row'>${percentData[item1] || "0.00"}%</td>`;
+            if (item2) {
+                table += `<td class='percent-row'>${percentData[item2] || "0.00"}%</td>`;
+            } else {
+                table += "<td class='percent-row'></td>";
+            }
+            table += "</tr>";
+        }
+
+        // 전체 폐 항목 표시 (R_Lung, L_Lung 등)
+        if (totalLungKey && volumeData[totalLungKey]) {
+            table += "<tr>";
+            table += `<th style='background-color: #D0D0D0;' colspan='2'>${totalLungKey}</th>`;
+            table += "</tr>";
+
+            table += "<tr>";
+            table += `<td class='value' colspan='2'>${this.formatVolume(volumeData[totalLungKey])}</td>`;
             table += "</tr>";
         }
 
