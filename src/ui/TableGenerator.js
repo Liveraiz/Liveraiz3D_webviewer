@@ -1552,6 +1552,7 @@ export class TableGenerator {
         // 헤더 기반 인덱스 찾기
         let segmentIdx = -1;
         let volumeIdx = -1;
+        let percentIdx = -1;
 
         for (let i = 0; i < headers.length; i++) {
             const headerLower = headers[i].toLowerCase().trim();
@@ -1559,12 +1560,17 @@ export class TableGenerator {
                 segmentIdx = i;
             } else if (headerLower.includes("volume")) {
                 volumeIdx = i;
+            } else if (headerLower.includes("percent") || headerLower.includes("%")) {
+                percentIdx = i;
             }
         }
 
         // 헤더만 있는 경우 처리
         if (volumeIdx === -1 && headers.length > 1) {
             volumeIdx = 1;
+        }
+        if (percentIdx === -1 && headers.length > 2) {
+            percentIdx = 2;
         }
 
         // 데이터 추출
@@ -1573,9 +1579,13 @@ export class TableGenerator {
                 const row = parsedRows[i];
                 const segment = row[segmentIdx]?.trim() || "";
                 const volume = row[volumeIdx]?.trim() || "";
+                const percent = percentIdx >= 0 ? row[percentIdx]?.trim() || "" : "";
 
                 if (segment && volume) {
                     volumeData[segment] = volume;
+                    if (percent) {
+                        percentData[segment] = percent;
+                    }
                     segmentOrder.push(segment); // 순서 기록
                 }
             }
@@ -1586,7 +1596,15 @@ export class TableGenerator {
         let lungType = "";
         let totalLungKey = "";
 
-        if (volumeData["R_Lung"]) {
+        if (volumeData["R Lung"]) {
+            totalLungVolume = parseFloat(volumeData["R Lung"].toString().replace(/[^\d.]/g, "")) || 0;
+            lungType = "R";
+            totalLungKey = "R Lung";
+        } else if (volumeData["L Lung"]) {
+            totalLungVolume = parseFloat(volumeData["L Lung"].toString().replace(/[^\d.]/g, "")) || 0;
+            lungType = "L";
+            totalLungKey = "L Lung";
+        } else if (volumeData["R_Lung"]) {
             totalLungVolume = parseFloat(volumeData["R_Lung"].toString().replace(/[^\d.]/g, "")) || 0;
             lungType = "R";
             totalLungKey = "R_Lung";
@@ -1604,8 +1622,8 @@ export class TableGenerator {
             totalLungKey = "Left Lung";
         }
 
-        // 모든 항목에 대해 비율 계산 (전체 폐 항목 제외)
-        if (totalLungVolume > 0) {
+        // CSV에 퍼센트가 없으면 계산 (전체 폐 항목 제외)
+        if (Object.keys(percentData).length === 0 && totalLungVolume > 0) {
             for (const segment of segmentOrder) {
                 // 전체 폐(R_Lung, L_Lung 등)는 제외
                 if (segment !== totalLungKey) {
@@ -1732,9 +1750,9 @@ export class TableGenerator {
 
             // 백분율 행
             table += "<tr>";
-            table += `<td class='percent-row'>${percentData[item1] || "0.00"}%</td>`;
+            table += `<td class='percent-row'>${this.formatPercent(percentData[item1] || "0.00")}</td>`;
             if (item2) {
-                table += `<td class='percent-row'>${percentData[item2] || "0.00"}%</td>`;
+                table += `<td class='percent-row'>${this.formatPercent(percentData[item2] || "0.00")}</td>`;
             } else {
                 table += "<td class='percent-row'></td>";
             }
@@ -1750,6 +1768,13 @@ export class TableGenerator {
             table += "<tr>";
             table += `<td class='value' colspan='2'>${this.formatVolume(volumeData[totalLungKey])}</td>`;
             table += "</tr>";
+
+            // 전체 폐의 퍼센트 (있으면 표시)
+            if (percentData[totalLungKey]) {
+                table += "<tr>";
+                table += `<td class='percent-row' colspan='2'>${this.formatPercent(percentData[totalLungKey])}</td>`;
+                table += "</tr>";
+            }
         }
 
         table += "</tbody></table>";
