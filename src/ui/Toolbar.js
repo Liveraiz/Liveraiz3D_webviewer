@@ -1042,8 +1042,8 @@ export default class Toolbar {
 
         this.lungVesselROIButton.onclick = () => {
             const currentModelName = this.modelSelector?.getCurrentModelName?.() || "";
-            if (!currentModelName || currentModelName.toUpperCase() !== "ROI_LUNG") {
-                console.warn("[Toolbar] Lung Vessel ROI is available only for the ROI_Lung model.");
+            if (!currentModelName || !["ROI_LUNG", "R_ROI_LUNG", "L_ROI_LUNG"].includes(currentModelName.toUpperCase())) {
+                console.warn("[Toolbar] Lung Vessel ROI is available only for ROI Lung models.");
                 return;
             }
 
