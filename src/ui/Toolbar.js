@@ -1308,7 +1308,7 @@ export default class Toolbar {
         }
 
         const currentModelName = this.modelSelector?.getCurrentModelName?.() || "";
-        const isROIModel = currentModelName.toUpperCase() === "ROI_LUNG";
+        const isROIModel = ["ROI_LUNG", "R_ROI_LUNG", "L_ROI_LUNG"].includes(currentModelName.toUpperCase());
 
         this.lungVesselROIButton.dataset.roiVisibility = isROIModel ? "visible" : "hidden";
         this.lungVesselROIButton.style.display = isROIModel ? "flex" : "none";
