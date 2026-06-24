@@ -31,6 +31,7 @@ import ZoomControl from "../ui/ZoomControl";
 import FloatingModeButtons from "../ui/FloatingModeButtons";
 import XRHandler from "../functions/XRHandler";
 import StereoscopicRenderer from "../functions/StereoscopicRenderer";
+import { RenderManager } from "./RenderManager";
 
 export default class LiverViewer {
     constructor(containerId) {
@@ -225,6 +226,18 @@ export default class LiverViewer {
 
             // Floating Mode Buttons 초기화
             this.setupFloatingModeButtons();
+
+            // RenderManager 초기화 - 모든 매니저 설정 후
+            this.renderManager = new RenderManager(
+                this.renderer.renderer,
+                this.scene,
+                this.camera,
+                this.viewerState,
+                this.renderer.labelRenderer,
+                this.labelManager,
+                this.materialManager
+            );
+            // console.log('[LiverViewer] RenderManager initialized with materialManager');
 
             // Event listeners
             this.setupEventListeners();
@@ -945,6 +958,19 @@ export default class LiverViewer {
 
             // Render only when needed - single pass rendering
             if (renderNeeded && this.renderer && this.scene && this.camera) {
+                // 투명 메시 렌더 순서 업데이트 (매 프레임)
+                // 이것이 depthWrite conflict 해결의 핵심
+                if (this.materialManager && this.scene) {
+                    const allMeshes = [];
+                    this.scene.traverse(obj => {
+                        if (obj.isMesh) {
+                            allMeshes.push(obj);
+                        }
+                    });
+                    this.materialManager.updateTransparentMeshRenderOrder(this.camera, allMeshes);
+                    // console.log('[LiverViewer.tick] Transparent mesh renderOrder updated');
+                }
+
                 // Update mesh label positions before rendering
                 if (this.labelManager) {
                     this.labelManager.updateAllLabelsPosition();
@@ -1308,6 +1334,7 @@ export default class LiverViewer {
 
             if (this.floatingModeButtons) {
                 this.floatingModeButtons.setStereoscopicActive(true, this.stereoscopicRenderer.getMode(), this.stereoscopicAnamorphic);
+                // this.floatingModeButtons.hide(); // 버튼이 비활성화되어 있으므로 주석 처리
             }
 
             this.requestRender();
@@ -1340,6 +1367,7 @@ export default class LiverViewer {
 
             if (this.floatingModeButtons) {
                 this.floatingModeButtons.setStereoscopicActive(false, null, this.stereoscopicAnamorphic ?? true);
+                // this.floatingModeButtons.show(); // 버튼이 비활성화되어 있으므로 주석 처리
             }
 
             this.requestRender();

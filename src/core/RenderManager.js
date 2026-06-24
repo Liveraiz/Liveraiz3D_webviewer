@@ -8,16 +8,23 @@ export class RenderManager {
      * @param {Object} state - 상태 관리 객체
      * @param {CSS2DRenderer} css2dRenderer - CSS2D 렌더러 (옵션)
      * @param {MeshLabelManager} labelManager - 메시 라벨 매니저 (옵션)
+     * @param {MaterialManager} materialManager - 메시지얼 매니저 (옵션, 투명 메시 정렬용)
      */
-    constructor(renderer, scene, camera, state, css2dRenderer = null, labelManager = null) {
+    constructor(renderer, scene, camera, state, css2dRenderer = null, labelManager = null, materialManager = null) {
         this.renderer = renderer;
         this.scene = scene;
         this.camera = camera;
         this.state = state;
         this.css2dRenderer = css2dRenderer;
         this.labelManager = labelManager;
+        this.materialManager = materialManager;
         this.lastTime = performance.now();
         this.frameInterval = 1000 / state.state.fps.target;
+        
+        // renderer의 sortObjects 설정 (투명 객체 정렬 활성화)
+        if (this.renderer) {
+            this.renderer.sortObjects = true;
+        }
     }
 
     /**
@@ -42,9 +49,22 @@ export class RenderManager {
      * 씬 렌더링
      * 현재 씬과 카메라 상태를 렌더링
      * CSS2DRenderer를 사용하여 메시 라벨도 함께 렌더링
+     * 투명 메시들의 renderOrder를 카메라 거리 기반으로 업데이트
      */
     render() {
         if (this.renderer && this.scene && this.camera) {
+            // 투명 메시의 renderOrder 업데이트 (매 프레임)
+            // back-to-front 렌더링 보장
+            if (this.materialManager && this.scene) {
+                const allMeshes = [];
+                this.scene.traverse(obj => {
+                    if (obj.isMesh) {
+                        allMeshes.push(obj);
+                    }
+                });
+                this.materialManager.updateTransparentMeshRenderOrder(this.camera, allMeshes);
+            }
+
             // 메시 라벨 위치 업데이트 (매 프레임)
             if (this.labelManager) {
                 this.labelManager.updateAllLabelsPosition();

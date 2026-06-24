@@ -54,59 +54,61 @@ export default class FloatingModeButtons {
     }
 
     createButtons() {
-        // Enter XR Mode 버튼
-        // this.xrButton = this.createButton({
-        //     id: 'enter-xr-button',
-        //     label: 'Enter XR',
-        //     icon: 'XR',
-        //     onClick: () => this.handleXRModeClick()
+        // 현재 stereoscopic 기능을 사용하지 않으므로 버튼 생성 비활성화
+        
+        // // Enter XR Mode 버튼
+        // // this.xrButton = this.createButton({
+        // //     id: 'enter-xr-button',
+        // //     label: 'Enter XR',
+        // //     icon: 'XR',
+        // //     onClick: () => this.handleXRModeClick()
+        // // });
+
+        // // 3D SBS 버튼
+        // this.sbsButton = this.createButton({
+        //     id: '3d-sbs-button',
+        //     label: '3D SBS',
+        //     icon: '3D',
+        //     stereoMode: Constants.STEREOSCOPIC.MODES?.SIDE_BY_SIDE || 'side-by-side',
+        //     onClick: () => this.handleStereoModeClick(Constants.STEREOSCOPIC.MODES?.SIDE_BY_SIDE || 'side-by-side')
         // });
 
-        // 3D SBS 버튼
-        this.sbsButton = this.createButton({
-            id: '3d-sbs-button',
-            label: '3D SBS',
-            icon: '3D',
-            stereoMode: Constants.STEREOSCOPIC.MODES?.SIDE_BY_SIDE || 'side-by-side',
-            onClick: () => this.handleStereoModeClick(Constants.STEREOSCOPIC.MODES?.SIDE_BY_SIDE || 'side-by-side')
-        });
+        // // 3D Top/Bottom 버튼
+        // this.topBottomButton = this.createButton({
+        //     id: '3d-top-bottom-button',
+        //     label: '3D TB',
+        //     icon: '3D',
+        //     stereoMode: Constants.STEREOSCOPIC.MODES?.TOP_BOTTOM || 'top-bottom',
+        //     onClick: () => this.handleStereoModeClick(Constants.STEREOSCOPIC.MODES?.TOP_BOTTOM || 'top-bottom')
+        // });
 
-        // 3D Top/Bottom 버튼
-        this.topBottomButton = this.createButton({
-            id: '3d-top-bottom-button',
-            label: '3D TB',
-            icon: '3D',
-            stereoMode: Constants.STEREOSCOPIC.MODES?.TOP_BOTTOM || 'top-bottom',
-            onClick: () => this.handleStereoModeClick(Constants.STEREOSCOPIC.MODES?.TOP_BOTTOM || 'top-bottom')
-        });
-
-        // Anamorphic toggle button
-        this.anamorphicButton = this.createButton({
-            id: '3d-anamorphic-button',
-            label: 'AM',
-            icon: 'AN',
-            stereoAspect: 'anamorphic',
-            onClick: () => this.handleStereoAspectClick()
-        });
+        // // Anamorphic toggle button
+        // this.anamorphicButton = this.createButton({
+        //     id: '3d-anamorphic-button',
+        //     label: 'AM',
+        //     icon: 'AN',
+        //     stereoAspect: 'anamorphic',
+        //     onClick: () => this.handleStereoAspectClick()
+        // });
 
         // // 3D Line-by-Line 버튼 (비활성화)
-        // this.lineByLineButton = this.createButton({
-        //     id: '3d-line-button',
-        //     label: '3D LBL',
-        //     icon: '3D',
-        //     onClick: () => this.handleStereoModeClick('line-by-line')
-        // });
+        // // this.lineByLineButton = this.createButton({
+        // //     id: '3d-line-button',
+        // //     label: '3D LBL',
+        // //     icon: '3D',
+        // //     onClick: () => this.handleStereoModeClick('line-by-line')
+        // // });
 
-        // this.container.appendChild(this.xrButton);
-        this.container.appendChild(this.sbsButton);
-        this.container.appendChild(this.topBottomButton);
-        this.container.appendChild(this.anamorphicButton);
-        // this.container.appendChild(this.lineByLineButton);
+        // // this.container.appendChild(this.xrButton);
+        // this.container.appendChild(this.sbsButton);
+        // this.container.appendChild(this.topBottomButton);
+        // this.container.appendChild(this.anamorphicButton);
+        // // this.container.appendChild(this.lineByLineButton);
 
-        // this.applyButtonStyles(this.xrButton);
-        this.applyButtonStyles(this.sbsButton);
-        this.applyButtonStyles(this.topBottomButton);
-        // this.applyButtonStyles(this.lineByLineButton);
+        // // this.applyButtonStyles(this.xrButton);
+        // this.applyButtonStyles(this.sbsButton);
+        // this.applyButtonStyles(this.topBottomButton);
+        // // this.applyButtonStyles(this.lineByLineButton);
     }
 
     createButton(options) {
@@ -232,10 +234,11 @@ export default class FloatingModeButtons {
     }
 
     updateTheme() {
-        this.applyButtonStyles(this.xrButton);
-        this.applyButtonStyles(this.sbsButton);
-        this.applyButtonStyles(this.topBottomButton);
-        this.applyButtonStyles(this.anamorphicButton);
+        // 버튼 생성이 비활성화되어 있으므로 updateTheme도 비활성화
+        // this.applyButtonStyles(this.xrButton);
+        // this.applyButtonStyles(this.sbsButton);
+        // this.applyButtonStyles(this.topBottomButton);
+        // this.applyButtonStyles(this.anamorphicButton);
         // this.applyButtonStyles(this.lineByLineButton);
     }
 
@@ -256,6 +259,25 @@ export default class FloatingModeButtons {
     setDarkMode(isDarkMode) {
         this.isDarkMode = isDarkMode;
         this.updateTheme();
+    }
+
+    /**
+     * FloatingModeButtons 숨기기
+     * Stereoscopic 모드나 기타 전체화면 모드에서 호출
+     */
+    hide() {
+        if (this.container) {
+            this.container.style.display = 'none';
+        }
+    }
+
+    /**
+     * FloatingModeButtons 보이기
+     */
+    show() {
+        if (this.container) {
+            this.container.style.display = 'flex';
+        }
     }
 
     destroy() {

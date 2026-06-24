@@ -364,10 +364,16 @@ export const LUNG_RESECTION_KEYWORDS = [
 
 ];
 
+// PCD 관련 메시 키워드
+export const PCD_KEYWORDS = [
+    "subcutaneous_Fat", "small_bowel_ROI", "colon_ROI"
+];
+
 // 투명도 조절 가능한 mesh 이름 키워드 (통합 관리)
 export const OPACITY_CONTROLLABLE_KEYWORDS = [
     ...LIVER_KEYWORDS,
     ...LUNG_RESECTION_KEYWORDS,
+    ...PCD_KEYWORDS,
     "myometrium","uterus", "recipient_cavity", "pancreas", "Pancreas",
     "bladder", "tumor", "cancer", "glissonean_pedicle", "fibroid", "body",
     "stomach wall"

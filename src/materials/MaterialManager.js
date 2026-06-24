@@ -352,6 +352,12 @@ export default class MaterialManager {
         // opacity 변경
         mesh.material.opacity = Math.max(0, Math.min(1, opacity));
         mesh.material.needsUpdate = true;
+        
+        // 투명 메시를 위한 깊이 설정
+        if (mesh.material.transparent === true) {
+            mesh.material.depthWrite = false;
+            mesh.material.depthTest = true;
+        }
 
         // MeshTooltip에 opacity 변경 알림
         if (this.meshTooltip) {
@@ -359,6 +365,77 @@ export default class MaterialManager {
         }
 
         console.log(`[MaterialManager] ${mesh.name} opacity changed to ${opacity}`);
+    }
+
+    /**
+     * 카메라 거리 기반 back-to-front 렌더링 순서 업데이트
+     * 투명 메시들을 카메라 거리에 따라 정렬하고 renderOrder 설정
+     * @param {THREE.Camera} camera - 현재 카메라
+     * @param {Array<THREE.Mesh>} meshes - 대상 메시 배열 (옵션)
+     */
+    updateTransparentMeshRenderOrder(camera, meshes = null) {
+        if (!camera) return;
+        
+        // meshes 파라미터가 없으면 현재 자동으로 탐색
+        let transparentMeshes = [];
+        
+        if (meshes && Array.isArray(meshes)) {
+            // 제공된 메시 배열에서 투명한 메시 필터링
+            transparentMeshes = meshes.filter(mesh => 
+                mesh.isMesh && mesh.material && 
+                (mesh.material.transparent === true || mesh.material.opacity < 1)
+            );
+        }
+        
+        if (transparentMeshes.length === 0) return;
+        
+        // 메시-카메라 거리 계산
+        const meshDistances = transparentMeshes.map(mesh => {
+            const meshWorldPos = new THREE.Vector3();
+            mesh.getWorldPosition(meshWorldPos);
+            const distToCamera = camera.position.distanceTo(meshWorldPos);
+            return { mesh, distance: distToCamera };
+        });
+        
+        // 거리 기준 내림차순 정렬 (카메라에서 먼 순서)
+        meshDistances.sort((a, b) => b.distance - a.distance);
+        
+        // renderOrder 할당 (먼 것부터 작은 값)
+        meshDistances.forEach((item, index) => {
+            item.mesh.renderOrder = index;
+            
+            // 배열인 경우 모든 material에 적용
+            if (Array.isArray(item.mesh.material)) {
+                item.mesh.material.forEach(mat => {
+                    mat.depthWrite = false;
+                    mat.depthTest = true;
+                });
+            } else if (item.mesh.material) {
+                item.mesh.material.depthWrite = false;
+                item.mesh.material.depthTest = true;
+            }
+        });
+    }
+
+    /**
+     * 메시에 투명도 최적화 설정 적용 (depthWrite, depthTest, renderOrder)
+     * @param {THREE.Mesh} mesh - 대상 메시
+     */
+    applyTransparencyOptimization(mesh) {
+        if (!mesh || !mesh.material) return;
+        
+        const applyToMaterial = (material) => {
+            if (material.transparent === true) {
+                material.depthWrite = false;
+                material.depthTest = true;
+            }
+        };
+        
+        if (Array.isArray(mesh.material)) {
+            mesh.material.forEach(applyToMaterial);
+        } else {
+            applyToMaterial(mesh.material);
+        }
     }
 
     /**
@@ -377,19 +454,25 @@ export default class MaterialManager {
                 color: 0xffffff,
                 side: THREE.DoubleSide,
                 transparent: true,
-                opacity: 0.8
+                opacity: 0.8,
+                depthWrite: false,
+                depthTest: true
             }),
             'phong': new THREE.MeshPhongMaterial({ 
                 color: 0xffffff,
                 side: THREE.DoubleSide,
                 transparent: true,
-                opacity: 0.8
+                opacity: 0.8,
+                depthWrite: false,
+                depthTest: true
             }),
             'basic': new THREE.MeshBasicMaterial({ 
                 color: 0xffffff,
                 side: THREE.DoubleSide,
                 transparent: true,
-                opacity: 0.8
+                opacity: 0.8,
+                depthWrite: false,
+                depthTest: true
             })
         };
         
