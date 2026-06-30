@@ -1533,6 +1533,180 @@ export class TableGenerator {
         return table;
     }
 
+    // CCC 테이블 생성 (Segment, Volume, Percentage 형식)
+    createCCCTable(csvData, surgeryType = "CCC") {
+        console.log("Creating CCC table with data:", csvData);
+
+        var rows = csvData.replaceAll('"', "").split("\r\n");
+        rows = rows.filter((row) => row.trim() !== "");
+
+        if (rows.length === 0) return "<p>데이터가 없습니다.</p>";
+
+        var parsedRows = rows.map((row) => row.split(","));
+        var headers = parsedRows[0];
+
+        // 헤더 인덱스 찾기
+        let segmentIdx = 0;
+        let volumeIdx = 1;
+        let percentIdx = 2;
+
+        // 헤더 기반으로 정확한 인덱스 찾기
+        for (let i = 0; i < headers.length; i++) {
+            const headerLower = headers[i].toLowerCase().trim();
+            if (headerLower.includes("segment")) {
+                segmentIdx = i;
+            } else if (headerLower.includes("volume")) {
+                volumeIdx = i;
+            } else if (headerLower.includes("percent") || headerLower.includes("%")) {
+                percentIdx = i;
+            }
+        }
+
+        var volumeData = {};
+        var percentData = {};
+
+        // 데이터 추출
+        if (parsedRows.length > 1) {
+            for (let i = 1; i < parsedRows.length; i++) {
+                const row = parsedRows[i];
+                const segment = row[segmentIdx]?.trim() || "";
+                const volume = row[volumeIdx]?.trim() || "";
+                const percent = row[percentIdx]?.trim() || "";
+
+                if (segment && volume) {
+                    volumeData[segment] = volume;
+                    percentData[segment] = percent;
+                }
+            }
+        }
+
+        return this._generateCCCTableHTML(volumeData, percentData, surgeryType);
+    }
+
+    // CCC 테이블 HTML 생성
+    _generateCCCTableHTML(volumeData, percentData, surgeryType) {
+        const theme = this.isDarkMode
+            ? this.getCommonStyles().dark
+            : this.getCommonStyles().light;
+
+        const colors = COLOR.CCC || {
+            "Whole Liver": "#BFBFBF",
+            "Rt.lobe": "#FFDFC1",
+            "Lt.lobe": "#FFFFD5",
+            "Spleen": "#E6CCEF",
+            "cyst": "#B8E6B8",
+            "Cancer": "#FFCCCC",
+        };
+
+        const style = `
+        <style>
+            .ccc-table {
+                border-collapse: collapse;
+                width: 100%;
+                max-width: 600px;
+                font-family: Arial, sans-serif;
+                margin: 20px 0;
+                box-shadow: ${theme.boxShadow};
+                color: ${theme.textColor};
+                table-layout: fixed;
+            }
+            
+            .ccc-table th, 
+            .ccc-table td {
+                border: 1px solid ${theme.tableBorder};
+                padding: 8px;
+                text-align: center;
+                width: 50%;
+            }
+            
+            .ccc-table th {
+                font-weight: bold;
+            }
+            
+            .ccc-table thead th {
+                background-color: ${theme.header};
+                color: ${theme.headerText};
+            }
+            
+            .value { background-color: ${theme.valueBg}; }
+            
+            .surgery-header {
+                background-color: ${theme.header};
+                color: ${theme.headerText};
+                text-align: center;
+                font-weight: bold;
+                padding: 10px;
+            }
+        </style>
+        `;
+
+        let table = style + "<table class='ccc-table'>";
+
+        // 헤더행
+        table += "<thead><tr>";
+        table += "<th colspan='2' class='surgery-header'>" + surgeryType + "</th>";
+        table += "</tr></thead>";
+
+        table += "<tbody>";
+
+        // Whole Liver 행
+        const wholeLiverBg = colors["Whole Liver"];
+        table += "<tr>";
+        table += `<th colspan='2' style='background-color: ${wholeLiverBg};'>Whole Liver</th>`;
+        table += "</tr>";
+        table += "<tr>";
+        table += `<td colspan='2' class='value'>${this.formatVolume(volumeData["Whole Liver"])}</td>`;
+        table += "</tr>";
+
+        // Spleen / cyst 행
+        table += "<tr>";
+        table += `<th style='background-color: ${colors["Spleen"]};'>Spleen</th>`;
+        table += `<th style='background-color: ${colors["cyst"]};'>cyst</th>`;
+        table += "</tr>";
+        table += "<tr>";
+        table += `<td class='value'>${this.formatVolume(volumeData["Spleen"])}</td>`;
+        table += `<td class='value'>${this.formatVolume(volumeData["cyst"])}</td>`;
+        table += "</tr>";
+        table += "<tr>";
+        table += `<td class='value'>${this.formatPercent(percentData["Spleen"])}</td>`;
+        table += `<td class='value'>${this.formatPercent(percentData["cyst"])}</td>`;
+        table += "</tr>";
+
+        // Rt.lobe / Lt.lobe 행
+        table += "<tr>";
+        table += `<th style='background-color: ${colors["Rt.lobe"]};'>Rt.lobe</th>`;
+        table += `<th style='background-color: ${colors["Lt.lobe"]};'>Lt.lobe</th>`;
+        table += "</tr>";
+        table += "<tr>";
+        table += `<td class='value'>${this.formatVolume(volumeData["Rt.lobe"])}</td>`;
+        table += `<td class='value'>${this.formatVolume(volumeData["Lt.lobe"])}</td>`;
+        table += "</tr>";
+        table += "<tr>";
+        table += `<td class='value'>${this.formatPercent(percentData["Rt.lobe"])}</td>`;
+        table += `<td class='value'>${this.formatPercent(percentData["Lt.lobe"])}</td>`;
+        table += "</tr>";
+
+        // Cancer 행 (있는 경우만)
+        if (volumeData["Cancer"]) {
+            table += "<tr>";
+            table += `<th style='background-color: ${colors["Cancer"]};'>Cancer</th>`;
+            table += "<th style='background-color: #FFFFFF;'></th>";
+            table += "</tr>";
+            table += "<tr>";
+            table += `<td class='value'>${this.formatVolume(volumeData["Cancer"])}</td>`;
+            table += "<td class='value'></td>";
+            table += "</tr>";
+            table += "<tr>";
+            table += `<td class='value'>${this.formatPercent(percentData["Cancer"])}</td>`;
+            table += "<td class='value'></td>";
+            table += "</tr>";
+        }
+
+        table += "</tbody></table>";
+
+        return table;
+    }
+
     // Lung 폐절제 계획 테이블 생성
     createLungTable(csvData, surgeryType = "LUNG") {
         console.log("Creating Lung table with data:", csvData);

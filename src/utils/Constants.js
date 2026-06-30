@@ -61,7 +61,7 @@ export const Constants = {
         },
         CCC: {
             keywords: ['CCC'],
-            method: 'createHCCTable',
+            method: 'createCCCTable',
             displayName: 'CCC Surgery'
         },
         HCC: {
