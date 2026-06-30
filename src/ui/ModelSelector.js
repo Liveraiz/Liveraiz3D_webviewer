@@ -137,11 +137,17 @@ export default class ModelSelector {
                 const modelName = model.name ? model.name.trim().toUpperCase() : "";
                 console.log("Table display - model.case:", model.case, "normalized:", normalizedCase, "model.name:", model.name);
 
-                if (normalizedCase === "HCC" || normalizedCase === "CCC" || normalizedCase.includes("CCC")) {
-                    // Use HCC table format for CCC too, pass CCC to surgeryType
+                if (normalizedCase === "HCC") {
+                    // HCC table
                     tableHTML = this.tableGenerator.createHCCTable(
                         tableText,
-                        normalizedCase === "CCC" || normalizedCase.includes("CCC") ? "CCC" : model.case
+                        model.case
+                    );
+                } else if (normalizedCase === "CCC" || normalizedCase.includes("CCC")) {
+                    // CCC table (2-column format)
+                    tableHTML = this.tableGenerator.createCCCTable(
+                        tableText,
+                        "CCC"
                     );
                 } else if (normalizedCase === "LUNG") {
                     // LUNG table
