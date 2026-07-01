@@ -999,7 +999,7 @@ export class TableGenerator {
         table += "<tr>";
         table +=
             "<td class='value'>" +
-            this.formatPercent(percentData["LLS"]) +
+            this.formatPercent(percentData["RPS"]) +
             "</td>";
         table +=
             "<td class='value'>" +
