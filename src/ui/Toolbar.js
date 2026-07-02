@@ -740,6 +740,11 @@ export default class Toolbar {
                     this.activeMeasurementButton === this.seeThroughButton
                 ) {
                     this.seeThrough.disableSeeThroughMode();
+                } else if (
+                    this.activeMeasurementButton === this.lungVesselROIButton
+                ) {
+                    // ✅ ROI vessel 버튼 비활성화 처리 추가
+                    this.lungVesselROI.disableLungVesselROI();
                 }
             }
             button.classList.add("active");
@@ -1606,6 +1611,9 @@ export default class Toolbar {
                 this.measurementTool.disableMeasurementMode();
             } else if (this.activeMeasurementButton === this.seeThroughButton) {
                 this.seeThrough.disableSeeThroughMode();
+            } else if (this.activeMeasurementButton === this.lungVesselROIButton) {
+                // ✅ ROI vessel 버튼 비활성화 처리 추가
+                this.lungVesselROI.disableLungVesselROI();
             }
 
             this.activeMeasurementButton = null;
@@ -1673,6 +1681,13 @@ export default class Toolbar {
             const isActive = this.activeMeasurementButton === this.angleMeasurementButton;
             this.applyButtonStyle(this.angleMeasurementButton, isActive, currentIsDarkMode);
             this.angleMeasurementButton.innerHTML = this.getAngleIcon(currentIsDarkMode);
+        }
+        
+        // ✅ LungVesselROI 버튼도 업데이트
+        if (this.lungVesselROIButton) {
+            const isActive = this.activeMeasurementButton === this.lungVesselROIButton;
+            this.applyButtonStyle(this.lungVesselROIButton, isActive, currentIsDarkMode);
+            this.lungVesselROIButton.innerHTML = this.getLungVesselROIIcon();
         }
         
         // 애니메이션 버튼도 업데이트
