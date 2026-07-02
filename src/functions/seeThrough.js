@@ -1,4 +1,9 @@
 import * as THREE from "three";
+import {
+    LIVER_KEYWORDS,
+    LUNG_RESECTION_KEYWORDS,
+    PCD_KEYWORDS,
+} from "../utils/Constants";
 
 export default class SeeThrough {
     constructor(
@@ -51,39 +56,38 @@ export default class SeeThrough {
     }
 
     enableSeeThroughMode() {
-        // Seethrough를 적용할 Mesh 이름들의 배열
-        const liverNames = [
-            "liver",
-            "lhvt",
-            "mhvt",
-            "v58t",
-            "v5t",
-            "v8t",
-            "rhvt",
-            "v4t",
-            "v4at",
-            "v4bt",
-            "rihvat",
-            "rihvpt",
-            "rihvt",
-            "spigelian",
-            "rshvt",
-            "ltlobe",
-            "rtlobe",
-            "lls",
-            "lms",
-            "ras",
-            "rps",
-            "ctap_livera",
-            "myometrium",
-            "uterus"
+        // ✅ 장기별로 분류된 See-through 대상 메시들
+        const seeThroughTargetsByProcedure = {
+            // LDLT (간이식 수술)
+            LDLT: LIVER_KEYWORDS,
+            // LUNG (폐암 절제술)
+            LUNG: LUNG_RESECTION_KEYWORDS,
+            // PCD (폐쇄성 담관 질환)
+            PCD: PCD_KEYWORDS,
+            // GYNECOLOGY (부인과 - 자궁 관련)
+            GYNECOLOGY: [
+                "myometrium",
+                "uterus"
+            ]
+        };
+
+        // 모든 키워드 통합 (중복 제거)
+        const allSeeThroughNames = [
+            ...new Set([
+                ...seeThroughTargetsByProcedure.LDLT,
+                ...seeThroughTargetsByProcedure.LUNG,
+                ...seeThroughTargetsByProcedure.GYNECOLOGY
+            ])
         ];
+
+        console.log('[SeeThrough] See-through targets by procedure:', seeThroughTargetsByProcedure);
+        console.log(`[SeeThrough] Total see-through target keywords: ${allSeeThroughNames.length}`);
 
         // 모든 매칭되는 Mesh를 배열에 저장
         this.scene.traverse((object) => {
             if (object.isMesh) {
                 const objectName = object.name.toLowerCase();
-                const isMatchingMesh = liverNames.some((name) =>
+                const isMatchingMesh = allSeeThroughNames.some((name) =>
                     objectName.includes(name.toLowerCase())
                 );
 
@@ -204,10 +208,11 @@ export default class SeeThrough {
                     float normalizedDist = dist / (seeThroughRadius * 1.15);
                     
                     // 내부에서 외부로 갈수록 불투명해지는 그라데이션
-                    float alpha = smoothstep(0.0, 1.0, normalizedDist);
+                    // float alpha = smoothstep(0.0, 1.0, normalizedDist);
                     
                     if (dist < seeThroughRadius) {
-                        gl_FragColor.a *= alpha;
+                        // gl_FragColor.a *= alpha;
+                        discard;
                     }
                     #include <dithering_fragment>
                     `
