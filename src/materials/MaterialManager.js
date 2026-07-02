@@ -340,6 +340,7 @@ export default class MaterialManager {
 
     /**
      * 메시의 opacity를 변경하고 MeshTooltip에 알림을 보냅니다.
+     * ✅ opacity 값에 따라 depthWrite/transparent 동적 설정
      * @param {THREE.Mesh} mesh - opacity를 변경할 메시
      * @param {number} opacity - 새로운 opacity 값
      */
@@ -350,21 +351,28 @@ export default class MaterialManager {
         }
 
         // opacity 변경
-        mesh.material.opacity = Math.max(0, Math.min(1, opacity));
+        const newOpacity = Math.max(0, Math.min(1, opacity));
+        mesh.material.opacity = newOpacity;
         mesh.material.needsUpdate = true;
         
-        // 투명 메시를 위한 깊이 설정
-        if (mesh.material.transparent === true) {
+        // ✅ opacity 값에 따라 depthWrite/transparent 설정
+        // opacity >= 1.0: 완전 불투명 → depthWrite=true, transparent=false
+        // opacity < 1.0: 반투명 → depthWrite=false, transparent=true
+        if (newOpacity >= 1.0) {
+            mesh.material.depthWrite = true;
+            mesh.material.transparent = false;
+        } else {
             mesh.material.depthWrite = false;
-            mesh.material.depthTest = true;
+            mesh.material.transparent = true;
         }
+        mesh.material.depthTest = true;
 
         // MeshTooltip에 opacity 변경 알림
         if (this.meshTooltip) {
-            this.meshTooltip.updateMeshOpacity(mesh.name, opacity);
+            this.meshTooltip.updateMeshOpacity(mesh.name, newOpacity);
         }
 
-        console.log(`[MaterialManager] ${mesh.name} opacity changed to ${opacity}`);
+        console.log(`[MaterialManager] ${mesh.name} opacity changed to ${newOpacity}`);
     }
 
     /**
@@ -400,18 +408,35 @@ export default class MaterialManager {
         // 거리 기준 내림차순 정렬 (카메라에서 먼 순서)
         meshDistances.sort((a, b) => b.distance - a.distance);
         
-        // renderOrder 할당 (먼 것부터 작은 값)
+        // renderOrder 할당 및 material 설정
+        // ✅ 핵심: opacity 값에 따라 depthWrite를 동적으로 설정
         meshDistances.forEach((item, index) => {
             item.mesh.renderOrder = index;
             
             // 배열인 경우 모든 material에 적용
             if (Array.isArray(item.mesh.material)) {
                 item.mesh.material.forEach(mat => {
-                    mat.depthWrite = false;
+                    // opacity >= 1.0: 완전 불투명 → depthWrite=true, transparent=false
+                    // opacity < 1.0: 반투명 → depthWrite=false, transparent=true
+                    const opacity = mat.opacity || 1.0;
+                    if (opacity >= 1.0) {
+                        mat.depthWrite = true;
+                        mat.transparent = false;
+                    } else {
+                        mat.depthWrite = false;
+                        mat.transparent = true;
+                    }
                     mat.depthTest = true;
                 });
             } else if (item.mesh.material) {
-                item.mesh.material.depthWrite = false;
+                const opacity = item.mesh.material.opacity || 1.0;
+                if (opacity >= 1.0) {
+                    item.mesh.material.depthWrite = true;
+                    item.mesh.material.transparent = false;
+                } else {
+                    item.mesh.material.depthWrite = false;
+                    item.mesh.material.transparent = true;
+                }
                 item.mesh.material.depthTest = true;
             }
         });
@@ -419,16 +444,23 @@ export default class MaterialManager {
 
     /**
      * 메시에 투명도 최적화 설정 적용 (depthWrite, depthTest, renderOrder)
+     * ✅ opacity 값에 따라 depthWrite/transparent 동적 설정
      * @param {THREE.Mesh} mesh - 대상 메시
      */
     applyTransparencyOptimization(mesh) {
         if (!mesh || !mesh.material) return;
         
         const applyToMaterial = (material) => {
-            if (material.transparent === true) {
+            // opacity 값에 따라 동적 설정
+            const opacity = material.opacity || 1.0;
+            if (opacity >= 1.0) {
+                material.depthWrite = true;
+                material.transparent = false;
+            } else {
                 material.depthWrite = false;
-                material.depthTest = true;
+                material.transparent = true;
             }
+            material.depthTest = true;
         };
         
         if (Array.isArray(mesh.material)) {
