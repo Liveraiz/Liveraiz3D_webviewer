@@ -465,7 +465,7 @@ export const MESH_CONSTANTS = {
         // HEART: { ... }
     }
 };
-  
+
 // 폰트 스타일을 적용하는 함수
 function applyGlobalFontStyle() {
     const style = document.createElement('style');
@@ -483,4 +483,3 @@ function applyGlobalFontStyle() {
 export const initializeGlobalStyles = () => {
     applyGlobalFontStyle();
 };
-  

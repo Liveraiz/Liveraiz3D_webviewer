@@ -471,6 +471,49 @@ export default class ModelLoader {
         try {
             console.log("Model loaded successfully");
 
+            // ========== PCD 모델 판정 및 설정 ==========
+            // ✅ 로컬 파일/URL 모두 지원: gltf.userData.fileName 또는 this.modelPath 체크
+            const modelName = (gltf.userData?.fileName || this.modelPath || '').toUpperCase();
+            const isPCDModel = modelName.includes('PCD');
+            if (this.materialManager) {
+                this.materialManager.setPCDModel(isPCDModel);
+                console.log(`[ModelLoader] Model: ${modelName}, Type: ${isPCDModel ? 'PCD' : 'General'}`);
+            }
+
+            // ========== ROI 모델 판정 및 설정 ==========
+            // ✅ ROI 키워드 포함 시 자동 활성화
+            const isROIModel = modelName.includes('ROI');
+            console.log(`[ModelLoader] ROI Detection:`, {
+                modelName: modelName,
+                isROIModel: isROIModel,
+                hasToolbar: !!this.toolbar,
+                hasLungVesselROI: !!this.toolbar?.lungVesselROI
+            });
+            if (isROIModel && this.toolbar && this.toolbar.lungVesselROI) {
+                this.toolbar.lungVesselROI.enableLungVesselROI();
+                
+                // ✅ 현재 모델명을 Toolbar에 전달 (로컬 파일 로드 대응)
+                if (this.toolbar.setCurrentModel) {
+                    this.toolbar.setCurrentModel(modelName);
+                }
+                
+                // ✅ ROI 버튼 강제 표시 (display와 visibility 모두 설정)
+                if (this.toolbar.lungVesselROIButton) {
+                    this.toolbar.lungVesselROIButton.style.display = "flex";
+                    this.toolbar.lungVesselROIButton.style.visibility = "visible";
+                    this.toolbar.lungVesselROIButton.style.opacity = "1";
+                    this.toolbar.lungVesselROIButton.dataset.roiVisibility = "visible";
+                    console.log("[ModelLoader] ROI button display properties set");
+                }
+                
+                // 또는 업데이트 메서드도 호출 (백업)
+                if (this.toolbar.updateLungROIButtonVisibility) {
+                    this.toolbar.updateLungROIButtonVisibility();
+                }
+                
+                console.log(`[ModelLoader] ROI Model detected: ${modelName}, ROI enabled and button shown`);
+            }
+
             // 모델 로딩 완료 - 100%
             if (this.loadingBar) {
                 this.loadingBar.setModelProgress(100);
@@ -922,9 +965,14 @@ export default class ModelLoader {
             this.objectListPanel.clearList();
         }
 
-        // 애니메이션 컨트롤 제거
+        // 애니메이션 컨트롤 제거 또는 숨김
         if (this.toolbar) {
-            this.toolbar.removeAnimationControls();
+            // removeAnimationControls가 있으면 호출, 없으면 showAnimationControls(false) 호출
+            if (typeof this.toolbar.removeAnimationControls === 'function') {
+                this.toolbar.removeAnimationControls();
+            } else if (typeof this.toolbar.showAnimationControls === 'function') {
+                this.toolbar.showAnimationControls(false);
+            }
         }
         this.animationSlider = null;
         this.animationTimeDisplay = null;
@@ -1275,6 +1323,9 @@ export default class ModelLoader {
                 // GLTFLoader로 로컬 파일 로드
                 this.loader.parse(arrayBuffer, '', (gltf) => {
                     console.log("Local file loaded successfully");
+                    // ✅ 로컬 파일명도 저장 (PCD 판정용)
+                    gltf.userData = gltf.userData || {};
+                    gltf.userData.fileName = file.name.replace(/\.(glb|gltf)$/i, '');
                     this.handleLoadSuccess(gltf, null);
                 }, (error) => {
                     console.error("Error parsing local file:", error);
@@ -1832,6 +1883,10 @@ export default class ModelLoader {
             // GLTFLoader로 파싱
             this.loader.parse(arrayBuffer, '', (gltf) => {
                 console.log('[ModelLoader] 로컬 모델 로드 성공:', model.name);
+                
+                // ✅ 로컬 모델명 저장 (PCD 판정용)
+                gltf.userData = gltf.userData || {};
+                gltf.userData.fileName = model.name;
                 
                 // CSV 데이터와 함께 핸들러 호출
                 const modelData = {

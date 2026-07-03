@@ -220,8 +220,9 @@ export default class LiverViewer {
             console.log("Set window.liverViewer:", window.liverViewer);
 
             // ModelLoader와 나머지 UI 초기화
-            this.setupModelLoader();
-            this.setupRemainingUIWithoutObjectList();
+            // ✅ 순서 변경: Toolbar를 먼저 생성하고, ModelLoader가 toolbar를 참조하도록
+            this.setupRemainingUIWithoutObjectList();  // Toolbar 생성
+            this.setupModelLoader();                   // ModelLoader 생성 (toolbar 참조 가능)
             this.setupTopBar();
 
             // Floating Mode Buttons 초기화

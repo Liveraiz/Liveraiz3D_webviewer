@@ -18,6 +18,9 @@ export default class Toolbar {
         this.meshes = options.meshes;
         this.measurementTool = options.measurementTool;
 
+        // ✅ 현재 로드된 모델명 (로컬 파일 로드 대응)
+        this.currentLoadedModel = "";
+
         this.isPlaying = true;
         this.animationButton = null;
 
@@ -1046,7 +1049,16 @@ export default class Toolbar {
         this.lungVesselROIButton.style.display = "none";
 
         this.lungVesselROIButton.onclick = () => {
-            const currentModelName = this.modelSelector?.getCurrentModelName?.() || "";
+            // ✅ ModelSelector 또는 현재 로드된 모델명으로 확인 (로컬 파일 로드 대응)
+            const modelSelectorName = this.modelSelector?.getCurrentModelName?.() || "";
+            const currentModelName = this.currentLoadedModel || modelSelectorName;
+            
+            console.log("[Toolbar] ROI Button clicked - checking model:", {
+                currentLoadedModel: this.currentLoadedModel,
+                modelSelectorName: modelSelectorName,
+                finalModelName: currentModelName
+            });
+            
             if (!currentModelName || !["ROI_LUNG", "R_ROI_LUNG", "L_ROI_LUNG"].includes(currentModelName.toUpperCase())) {
                 console.warn("[Toolbar] Lung Vessel ROI is available only for ROI Lung models.");
                 return;
@@ -1312,7 +1324,9 @@ export default class Toolbar {
             return;
         }
 
-        const currentModelName = this.modelSelector?.getCurrentModelName?.() || "";
+        // ✅ ModelSelector 또는 현재 로드된 모델명으로 확인 (로컬 파일 로드 대응)
+        const modelSelectorName = this.modelSelector?.getCurrentModelName?.() || "";
+        const currentModelName = this.currentLoadedModel || modelSelectorName;
         const isROIModel = ["ROI_LUNG", "R_ROI_LUNG", "L_ROI_LUNG"].includes(currentModelName.toUpperCase());
 
         this.lungVesselROIButton.dataset.roiVisibility = isROIModel ? "visible" : "hidden";
@@ -1324,6 +1338,15 @@ export default class Toolbar {
             this.applyButtonStyle(this.lungVesselROIButton);
             this.activeMeasurementButton = null;
         }
+    }
+
+    /**
+     * 현재 로드된 모델명 설정 (로컬 파일 로드 시 ModelLoader에서 호출)
+     * @param {string} modelName - 모델 이름
+     */
+    setCurrentModel(modelName) {
+        this.currentLoadedModel = modelName;
+        console.log(`[Toolbar] Current model set to: ${modelName}`);
     }
 
     async loadSvgIconFromFile(button, iconPath, fallbackIcon) {
@@ -1514,6 +1537,20 @@ export default class Toolbar {
         this.animationButton.innerHTML = '▶';
         this.animationButton.classList.remove('active');
         this.animationButton.style.background = 'rgba(255, 255, 255, 0.2)';
+    }
+
+    /**
+     * 애니메이션 컨트롤 제거
+     */
+    removeAnimationControls() {
+        if (this.sliderContainer) {
+            this.sliderContainer.remove();
+            this.sliderContainer = null;
+        }
+        if (this.animationButton) {
+            this.animationButton.remove();
+            this.animationButton = null;
+        }
     }
 
     createAnimationButton() {

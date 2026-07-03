@@ -19,6 +19,7 @@ export default class MaterialManager {
         this.meshVisibility = new Map();
         this.meshOverlappings = {};
         this.meshTooltip = null; // MeshTooltip 참조 추가
+        this.isPCDModel = false; // PCD 모델 여부 플래그
         
         // 기본 머티리얼들 미리 생성 및 컴파일
         this.initializeMaterials();
@@ -339,6 +340,15 @@ export default class MaterialManager {
     }
 
     /**
+     * PCD 모델 여부 설정
+     * @param {boolean} isPCD - PCD 모델 여부
+     */
+    setPCDModel(isPCD) {
+        this.isPCDModel = isPCD;
+        console.log(`[MaterialManager] PCD Model set to: ${isPCD}`);
+    }
+
+    /**
      * 메시의 opacity를 변경하고 MeshTooltip에 알림을 보냅니다.
      * ✅ opacity 값에 따라 depthWrite/transparent 동적 설정
      * @param {THREE.Mesh} mesh - opacity를 변경할 메시
@@ -377,7 +387,9 @@ export default class MaterialManager {
 
     /**
      * 카메라 거리 기반 back-to-front 렌더링 순서 업데이트
-     * 투명 메시들을 카메라 거리에 따라 정렬하고 renderOrder 설정
+     * ✅ 모델 타입에 따라 렌더링 전략 변경
+     * - PCD 모델: 모든 메시(투명/불투명)를 back-to-front 정렬으로 렌더링
+     * - 일반 모델: 모든 메시를 일반 depth test로 렌더링 (back-to-front 정렬 미사용)
      * @param {THREE.Camera} camera - 현재 카메라
      * @param {Array<THREE.Mesh>} meshes - 대상 메시 배열 (옵션)
      */
@@ -385,59 +397,110 @@ export default class MaterialManager {
         if (!camera) return;
         
         // meshes 파라미터가 없으면 현재 자동으로 탐색
-        let transparentMeshes = [];
+        let allMeshes = [];
         
         if (meshes && Array.isArray(meshes)) {
-            // 제공된 메시 배열에서 투명한 메시 필터링
-            transparentMeshes = meshes.filter(mesh => 
-                mesh.isMesh && mesh.material && 
-                (mesh.material.transparent === true || mesh.material.opacity < 1)
-            );
+            allMeshes = meshes.filter(mesh => mesh.isMesh && mesh.material);
         }
         
-        if (transparentMeshes.length === 0) return;
+        if (allMeshes.length === 0) return;
         
-        // 메시-카메라 거리 계산
-        const meshDistances = transparentMeshes.map(mesh => {
-            const meshWorldPos = new THREE.Vector3();
-            mesh.getWorldPosition(meshWorldPos);
-            const distToCamera = camera.position.distanceTo(meshWorldPos);
-            return { mesh, distance: distToCamera };
-        });
-        
-        // 거리 기준 내림차순 정렬 (카메라에서 먼 순서)
-        meshDistances.sort((a, b) => b.distance - a.distance);
-        
-        // renderOrder 할당 및 material 설정
-        // ✅ 핵심: opacity 값에 따라 depthWrite를 동적으로 설정
-        meshDistances.forEach((item, index) => {
-            item.mesh.renderOrder = index;
+        // ========== PCD 모델: 투명 메시만 back-to-front 정렬 (불투명은 일반 depth) ==========
+        // 목표: 투명 메시끼리 겹쳐도 뒤가 보이고, 불투명 메시는 blinking 없음
+        if (this.isPCDModel) {
+            const opaqueMetadata = [];      // 불투명 메시 (depthWrite=true)
+            const transparentMetadata = [];  // 투명 메시 (back-to-front 정렬)
             
-            // 배열인 경우 모든 material에 적용
-            if (Array.isArray(item.mesh.material)) {
-                item.mesh.material.forEach(mat => {
-                    // opacity >= 1.0: 완전 불투명 → depthWrite=true, transparent=false
-                    // opacity < 1.0: 반투명 → depthWrite=false, transparent=true
-                    const opacity = mat.opacity || 1.0;
+            allMeshes.forEach(mesh => {
+                // material의 opacity 확인
+                const opacity = Array.isArray(mesh.material) 
+                    ? (mesh.material[0]?.opacity || 1.0)
+                    : (mesh.material.opacity || 1.0);
+                
+                const meshWorldPos = new THREE.Vector3();
+                mesh.getWorldPosition(meshWorldPos);
+                const distToCamera = camera.position.distanceTo(meshWorldPos);
+                
+                if (opacity >= 1.0) {
+                    // 불투명: renderOrder 미설정, depthWrite=true
+                    opaqueMetadata.push({ mesh, distance: distToCamera });
+                } else {
+                    // 투명: back-to-front 정렬 대상, depthWrite=false
+                    transparentMetadata.push({ mesh, distance: distToCamera });
+                }
+            });
+            
+            // 불투명 메시 처리 (blinking 방지)
+            opaqueMetadata.forEach(item => {
+                if (Array.isArray(item.mesh.material)) {
+                    item.mesh.material.forEach(mat => {
+                        mat.depthWrite = true;
+                        mat.transparent = false;
+                        mat.depthTest = true;
+                    });
+                } else {
+                    item.mesh.material.depthWrite = true;
+                    item.mesh.material.transparent = false;
+                    item.mesh.material.depthTest = true;
+                }
+            });
+            
+            // 투명 메시 처리 (back-to-front 정렬)
+            if (transparentMetadata.length > 0) {
+                transparentMetadata.sort((a, b) => b.distance - a.distance);
+                
+                transparentMetadata.forEach((item, index) => {
+                    item.mesh.renderOrder = -(index + 1);
+                    
+                    if (Array.isArray(item.mesh.material)) {
+                        item.mesh.material.forEach(mat => {
+                            mat.depthWrite = false;
+                            mat.transparent = true;
+                            mat.depthTest = true;
+                        });
+                    } else {
+                        item.mesh.material.depthWrite = false;
+                        item.mesh.material.transparent = true;
+                        item.mesh.material.depthTest = true;
+                    }
+                });
+            }
+            return;
+        }
+
+        // ========== 일반 모델: 모든 메시를 일반 depth test로 렌더링 ==========
+        // renderOrder를 건드리지 않음 (기본값 0 유지) → depth test 정상 작동
+        // ✅ 투명 메시도 depthWrite=true로 설정하여 뒤의 투명 메시 블로킹
+        allMeshes.forEach(mesh => {
+            // material의 opacity 확인
+            const opacity = Array.isArray(mesh.material) 
+                ? (mesh.material[0]?.opacity || 1.0)
+                : (mesh.material.opacity || 1.0);
+            
+            if (Array.isArray(mesh.material)) {
+                mesh.material.forEach(mat => {
                     if (opacity >= 1.0) {
+                        // 불투명
                         mat.depthWrite = true;
                         mat.transparent = false;
                     } else {
-                        mat.depthWrite = false;
+                        // 반투명 (일반 모델: 정상 depth test, 뒤의 투명 메시 안 보임)
+                        mat.depthWrite = true;  // ✅ PCD와 다른 점: true로 설정
                         mat.transparent = true;
                     }
                     mat.depthTest = true;
                 });
-            } else if (item.mesh.material) {
-                const opacity = item.mesh.material.opacity || 1.0;
+            } else {
                 if (opacity >= 1.0) {
-                    item.mesh.material.depthWrite = true;
-                    item.mesh.material.transparent = false;
+                    // 불투명
+                    mesh.material.depthWrite = true;
+                    mesh.material.transparent = false;
                 } else {
-                    item.mesh.material.depthWrite = false;
-                    item.mesh.material.transparent = true;
+                    // 반투명 (일반 모델: 정상 depth test, 뒤의 투명 메시 안 보임)
+                    mesh.material.depthWrite = true;  // ✅ PCD와 다른 점: true로 설정
+                    mesh.material.transparent = true;
                 }
-                item.mesh.material.depthTest = true;
+                mesh.material.depthTest = true;
             }
         });
     }
