@@ -403,8 +403,13 @@ export const isMeshNameMatchingKeyword = (meshName, keyword) => {
     return !!normalizedKeyword && normalizedMeshName.includes(normalizedKeyword);
 };
 
-export const isOpacityControllableMeshName = (meshName) =>
-    EXACT_OPACITY_CONTROLLABLE_MESH_NAMES.some(
+export const isOpacityControllableMeshName = (meshName) => {
+    // T_ 접두사가 있으면 투명도 적용 가능
+    if (String(meshName).startsWith('T_')) {
+        return true;
+    }
+    
+    return EXACT_OPACITY_CONTROLLABLE_MESH_NAMES.some(
         (exactMeshName) =>
             normalizeForMeshKeywordMatch(meshName) ===
             normalizeForMeshKeywordMatch(exactMeshName)
@@ -412,6 +417,7 @@ export const isOpacityControllableMeshName = (meshName) =>
     OPACITY_CONTROLLABLE_KEYWORDS.some((keyword) =>
         isMeshNameMatchingKeyword(meshName, keyword)
     );
+};
 
 export const VESSEL_KEYWORDS = [
     "ha",     // hepatic artery
