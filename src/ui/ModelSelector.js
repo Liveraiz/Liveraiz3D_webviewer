@@ -120,8 +120,10 @@ export default class ModelSelector {
 
             // Update UI or save data
             // Model list must be updated even when isDirectLoad to display in UI
+            console.log("📋 Calling updateModelList with data:", data);
             await this.updateModelList(data);
             this.lastLoadedModels = data.models || [];
+            console.log("✅ lastLoadedModels set to:", this.lastLoadedModels.length, "models");
 
             return data;
         } catch (error) {
@@ -293,8 +295,9 @@ export default class ModelSelector {
                 overflowX: "auto",
                 overflowY: "hidden",
                 width: `${containerWidth}px`,
+                height: `${cardWidth + 80}px`, // Ensure container has visible height
                 boxSizing: "border-box",
-                scrollSnapType: "x mandatory", // Restored for normal carousel operation
+                scrollSnapType: "x mandatory",
                 position: "relative",
                 paddingLeft: `${(containerWidth - cardWidth) / 2}px`,
                 paddingRight: `${(containerWidth - cardWidth) / 2}px`,
@@ -302,7 +305,7 @@ export default class ModelSelector {
                 msOverflowStyle: "none",
                 WebkitOverflowScrolling: "touch",
                 scrollBehavior: "smooth",
-                scrollSnapStop: "always", // Restored for normal carousel operation
+                scrollSnapStop: "always",
             });
 
             // Update tile definition
@@ -485,7 +488,11 @@ export default class ModelSelector {
             Object.assign(wrapper.style, {
                 position: "relative",
                 width: "100%",
+                height: `${cardWidth + 80}px`, // Ensure wrapper has height for content
                 paddingBottom: "45px",
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "center",
             });
 
             const prevButton = createNavigationButton("left");
@@ -656,6 +663,7 @@ export default class ModelSelector {
                 Object.assign(item.style, {
                     flex: `0 0 ${cardWidth}px`,
                     width: `${cardWidth}px`,
+                    height: `${cardWidth + 80}px`, // Explicit height for model card
                     backgroundColor: "rgba(255, 255, 255, 0.1)",
                     borderRadius: "8px",
                     cursor: "pointer",
@@ -1136,8 +1144,11 @@ export default class ModelSelector {
         this.dialog.appendChild(listTitle);
 
         // 마지막으로 로드된 모델이 있다면 보여주기
-        if (this.lastLoadedModels) {
+        if (this.lastLoadedModels && Array.isArray(this.lastLoadedModels) && this.lastLoadedModels.length > 0) {
+            console.log("✅ Rendering model list with", this.lastLoadedModels.length, "models");
             this.updateModelList(this.lastLoadedModels);
+        } else {
+            console.warn("⚠️ No models available to display. lastLoadedModels:", this.lastLoadedModels);
         }
 
         document.body.appendChild(this.dialog);
