@@ -147,6 +147,9 @@ export default class ModelLoader {
         this.hdriLoaded = false;
         this.modelLoaded = false;
         this.hdriTexture = null;
+        
+        // Model name for ROI detection (especially for Dropbox models)
+        this.currentModelName = null;
 
         // Initialize LocalFileManager
         this.localFileManager = new LocalFileManager();
@@ -288,8 +291,14 @@ export default class ModelLoader {
         return mesh;
     }
 
-    loadModel(dropboxUrl = null) {
+    loadModel(dropboxUrl = null, modelName = null) {
         try {
+            // Store model name for ROI detection (especially for Dropbox models)
+            if (modelName) {
+                this.currentModelName = modelName;
+                console.log('[ModelLoader] Model name stored for ROI detection:', modelName);
+            }
+
             // 기존 모델과 메시들을 제거
             this.resetScene();
 
@@ -473,7 +482,8 @@ export default class ModelLoader {
 
             // ========== PCD 모델 판정 및 설정 ==========
             // ✅ 로컬 파일/URL 모두 지원: gltf.userData.fileName 또는 this.modelPath 체크
-            const modelName = (gltf.userData?.fileName || this.modelPath || '').toUpperCase();
+            // ✅ Dropbox 모델의 경우: this.currentModelName 사용 (ModelSelector에서 전달됨)
+            const modelName = (this.currentModelName || gltf.userData?.fileName || this.modelPath || '').toUpperCase();
             const isPCDModel = modelName.includes('PCD');
             if (this.materialManager) {
                 this.materialManager.setPCDModel(isPCDModel);
@@ -1869,6 +1879,10 @@ export default class ModelLoader {
      */
     async loadModelFromLocal(model) {
         try {
+            // Store model name for ROI detection
+            this.currentModelName = model.name;
+            console.log('[ModelLoader] Model name stored for ROI detection:', model.name);
+
             // 기존 모델과 메시들을 제거
             this.resetScene();
 

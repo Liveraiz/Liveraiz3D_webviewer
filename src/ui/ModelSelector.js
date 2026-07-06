@@ -796,7 +796,8 @@ export default class ModelSelector {
                             item.appendChild(loadingIndicator);
 
                             // Load model (loadModel will handle validation)
-                            await this.loadModel(directGlbUrl, index);
+                            // Pass model name for ROI detection
+                            await this.loadModel(directGlbUrl, index, model.name);
                             console.log("Model loading successful");
 
                             // Remove loading indicator
@@ -1243,8 +1244,8 @@ export default class ModelSelector {
         }
     }
 
-    async loadModel(modelUrl, modelIndex = null) {
-        console.log("loadModel called with URL:", modelUrl, "modelIndex:", modelIndex);
+    async loadModel(modelUrl, modelIndex = null, modelName = null) {
+        console.log("loadModel called with URL:", modelUrl, "modelIndex:", modelIndex, "modelName:", modelName);
 
         try {
             // 현재 선택된 모델 인덱스 저장
@@ -1300,7 +1301,8 @@ export default class ModelSelector {
             }
 
             console.log("✅ Using modelLoader, starting model load");
-            await modelLoader.loadModel(modelUrl);
+            // Pass model name to ModelLoader for proper ROI detection (especially for Dropbox models)
+            await modelLoader.loadModel(modelUrl, modelName);
             console.log("✅ Model loaded successfully");
 
             if (this.liverViewer?.toolbar?.updateLungROIButtonVisibility) {
@@ -2098,7 +2100,8 @@ export default class ModelSelector {
                 await this.modelLoader.loadModelFromLocal(model);
             } else {
                 console.log('[ModelSelector] Using loadModel (URL)');
-                this.modelLoader.loadModel(modelUrl);
+                // Pass model name for ROI detection
+                this.modelLoader.loadModel(modelUrl, null, model.name);
             }
 
             // Display CSV table in right panel
