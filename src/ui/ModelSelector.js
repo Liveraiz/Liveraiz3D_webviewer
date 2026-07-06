@@ -7,16 +7,28 @@ import { Constants } from "../utils/Constants";
 import { LocalFileManager } from "../services/LocalFileManager";
 
 export default class ModelSelector {
-    constructor(liverViewer) {
+    constructor(options) {
+        // Support both old-style (liverViewer) and new-style (options object) initialization
+        if (options && typeof options === 'object' && !options.isLiverViewer && options.liverViewer) {
+            // New style: constructor({ liverViewer, dropboxService, textPanel, objectListPanel })
+            this.liverViewer = options.liverViewer;
+            this.dropboxService = options.dropboxService || new DropboxService();
+            this.textPanel = options.textPanel || null;
+            this.objectListPanel = options.objectListPanel || null;
+        } else {
+            // Old style: constructor(liverViewer)
+            this.liverViewer = options;
+            this.dropboxService = new DropboxService();
+            this.textPanel = null;
+            this.objectListPanel = null;
+        }
+
         // Initialize basic properties
-        this.liverViewer = liverViewer;
-        this.isDarkMode = liverViewer.isDarkMode;
+        this.isDarkMode = this.liverViewer?.isDarkMode || false;
         this.dialog = null;
-        this.dropboxService = new DropboxService();
         this.localFileManager = new LocalFileManager();
         this.modelLoader = null;
         this.lastLoadedModels = null;
-        this.textPanel = null;
         this.patientInfoUrl = null; // Patient information URL saved
         this.lastJsonUrl = null; // JSON URL saved
         this.isLoading = false; // Loading state tracking
@@ -43,7 +55,9 @@ export default class ModelSelector {
         console.log("ModelSelector initialized:", {
             isDarkMode: this.isDarkMode,
             liverViewer: !!this.liverViewer,
-            textPanel: !!this.liverViewer?.textPanel,
+            textPanel: !!this.textPanel,
+            objectListPanel: !!this.objectListPanel,
+            dropboxService: !!this.dropboxService,
         });
     }
 
@@ -747,76 +761,71 @@ export default class ModelSelector {
                             const directGlbUrl = this.dropboxService.getDirectDownloadUrl(model.glbUrl);
                             console.log("Attempting to load model:", directGlbUrl);
 
-                            if (this.liverViewer && this.liverViewer.modelLoader) {
-                                // Disable all carousel events
-                                if (this.disableScroll) {
-                                    this.disableScroll();
-                                }
-                                
-                                // Temporarily disable touch events
-                                container.style.pointerEvents = 'none';
-                                
-                                // Completely disable scroll behavior
-                                container.style.scrollBehavior = 'auto';
-                                container.style.overflowX = 'hidden';
-                                
-                                // Start loading state
-                                this.isLoading = true;
-                                item.classList.add('loading');
-                                
-                                // Show loading state
-                                const loadingIndicator = document.createElement("div");
-                                loadingIndicator.textContent = "Loading...";
-                                loadingIndicator.style.position = "absolute";
-                                loadingIndicator.style.top = "50%";
-                                loadingIndicator.style.left = "50%";
-                                loadingIndicator.style.transform = "translate(-50%, -50%)";
-                                loadingIndicator.style.color = this.isDarkMode ? "white" : "black";
-                                item.appendChild(loadingIndicator);
-
-                                // Load model
-                                await this.loadModel(directGlbUrl, index);
-                                console.log("Model loading successful");
-
-                                // Remove loading indicator
-                                loadingIndicator.remove();
-                                
-                                // End loading state
-                                this.isLoading = false;
-                                item.classList.remove('loading');
-                                
-                                // Re-enable all carousel events
-                                if (this.enableScroll) {
-                                    this.enableScroll();
-                                }
-                                
-                                // Re-enable touch events
-                                container.style.pointerEvents = 'auto';
-                                
-                                // Re-enable scroll behavior
-                                container.style.scrollBehavior = 'smooth';
-                                container.style.overflowX = 'auto';
-                                
-                                console.log("Model loading complete - Re-enable carousel events");
-
-                                // Close TextPanel
-                                if (this.liverViewer.textPanel) {
-                                    this.liverViewer.textPanel.close();
-                                }
-
-                                await this.handleTableDisplay(model);
-
-                                // Close ModelSelector
-                                this.close();
-
-                                // Update URL (optional)
-                                const currentUrl = new URL(window.location.href);
-                                currentUrl.searchParams.set("model", model.name);
-                                window.history.pushState({}, "", currentUrl);
-                            } else {
-                                console.error("modelLoader not set");
-                                throw new Error("modelLoader not set");
+                            // Disable all carousel events
+                            if (this.disableScroll) {
+                                this.disableScroll();
                             }
+                            
+                            // Temporarily disable touch events
+                            container.style.pointerEvents = 'none';
+                            
+                            // Completely disable scroll behavior
+                            container.style.scrollBehavior = 'auto';
+                            container.style.overflowX = 'hidden';
+                            
+                            // Start loading state
+                            this.isLoading = true;
+                            item.classList.add('loading');
+                            
+                            // Show loading state
+                            const loadingIndicator = document.createElement("div");
+                            loadingIndicator.textContent = "Loading...";
+                            loadingIndicator.style.position = "absolute";
+                            loadingIndicator.style.top = "50%";
+                            loadingIndicator.style.left = "50%";
+                            loadingIndicator.style.transform = "translate(-50%, -50%)";
+                            loadingIndicator.style.color = this.isDarkMode ? "white" : "black";
+                            item.appendChild(loadingIndicator);
+
+                            // Load model (loadModel will handle validation)
+                            await this.loadModel(directGlbUrl, index);
+                            console.log("Model loading successful");
+
+                            // Remove loading indicator
+                            loadingIndicator.remove();
+                            
+                            // End loading state
+                            this.isLoading = false;
+                            item.classList.remove('loading');
+                            
+                            // Re-enable all carousel events
+                            if (this.enableScroll) {
+                                this.enableScroll();
+                            }
+                            
+                            // Re-enable touch events
+                            container.style.pointerEvents = 'auto';
+                            
+                            // Re-enable scroll behavior
+                            container.style.scrollBehavior = 'smooth';
+                            container.style.overflowX = 'auto';
+                            
+                            console.log("Model loading complete - Re-enable carousel events");
+
+                            // Close TextPanel
+                            if (this.liverViewer && this.liverViewer.textPanel) {
+                                this.liverViewer.textPanel.close();
+                            }
+
+                            await this.handleTableDisplay(model);
+
+                            // Close ModelSelector
+                            this.close();
+
+                            // Update URL (optional)
+                            const currentUrl = new URL(window.location.href);
+                            currentUrl.searchParams.set("model", model.name);
+                            window.history.pushState({}, "", currentUrl);
                         } catch (error) {
                             console.error("Failed to load model:", error);
                             // End loading state (even on error)
@@ -959,8 +968,12 @@ export default class ModelSelector {
     }
 
     show() {
+        // 기존 dialog가 있다면 먼저 제거
         if (this.dialog) {
-            return;
+            if (document.body.contains(this.dialog)) {
+                document.body.removeChild(this.dialog);
+            }
+            this.dialog = null;
         }
 
         // Variable to preserve carousel scroll position
@@ -1199,23 +1212,20 @@ export default class ModelSelector {
 
     close() {
         try {
-            if (this.dialog && document.body.contains(this.dialog)) {
-                // carousel 스크롤 위치 보존을 위한 지연
-                setTimeout(() => {
-                    // 🔴 제거 전에 다시 한 번 존재 여부 확인
-                    if (this.dialog && this.dialog.parentNode) {
-                        this.dialog.parentNode.removeChild(this.dialog);
+            if (this.dialog) {
+                // DOM에서 dialog 제거
+                if (document.body.contains(this.dialog)) {
+                    document.body.removeChild(this.dialog);
+                }
+                this.dialog = null;
+                
+                // carousel 스크롤 위치 복원
+                if (this.savedScrollPosition !== undefined) {
+                    const container = document.querySelector('#model-list');
+                    if (container) {
+                        container.scrollLeft = this.savedScrollPosition;
                     }
-                    this.dialog = null;
-                    
-                    // carousel 스크롤 위치 복원
-                    if (this.savedScrollPosition !== undefined) {
-                        const container = document.querySelector('#model-list');
-                        if (container) {
-                            container.scrollLeft = this.savedScrollPosition;
-                        }
-                    }
-                }, 50);
+                }
             }
         } catch (error) {
             console.error("Error closing dialog:", error);
@@ -1233,68 +1243,71 @@ export default class ModelSelector {
             }
 
             // 드롭박스 URL인 경우, 폴더 URL 추출 시도
-            // modelUrl이 드롭박스 공유 링크인 경우 lastJsonUrl 업데이트
             if (modelUrl && (modelUrl.includes('dropbox.com') || modelUrl.includes('dropboxusercontent.com'))) {
                 try {
-                    // 개별 파일 URL에서 폴더 URL 추출
                     const url = new URL(modelUrl);
                     const pathParts = url.pathname.split('/').filter(part => part);
                     const sclIndex = pathParts.indexOf('scl');
                     if (sclIndex !== -1) {
-                        const sclType = pathParts[sclIndex + 1]; // 'fo' 또는 'fi'
+                        const sclType = pathParts[sclIndex + 1];
                         if (sclType === 'fo' || sclType === 'fi') {
                             const folderId = pathParts[sclIndex + 2];
                             if (folderId) {
-                                // 폴더 URL 생성 (model.json이 있는 폴더)
                                 const folderUrl = `https://www.dropbox.com/scl/${sclType}/${folderId}/?dl=0`;
-                                
-                                // lastJsonUrl이 없거나 다른 폴더인 경우에만 업데이트
                                 if (!this.lastJsonUrl || !this.lastJsonUrl.includes(folderId)) {
                                     this.lastJsonUrl = folderUrl;
-                                    console.log("📋 lastJsonUrl 업데이트 (모델 URL에서 추출):", this.lastJsonUrl);
+                                    console.log("📋 lastJsonUrl updated:", this.lastJsonUrl);
                                 }
                             }
                         }
                     }
                 } catch (error) {
-                    console.warn("모델 URL에서 폴더 URL 추출 실패:", error);
+                    console.warn("Failed to extract folder URL from model URL:", error);
                 }
             }
 
-            if (this.liverViewer && this.liverViewer.modelLoader) {
-                console.log("Starting model load");
-                await this.liverViewer.modelLoader.loadModel(modelUrl);
-                console.log("Model loaded successfully");
-
-                if (this.liverViewer?.toolbar?.updateLungROIButtonVisibility) {
-                    this.liverViewer.toolbar.updateLungROIButtonVisibility();
-                }
-
-                // 카메라 상태 기록기는 삭제되었으므로 제거
-                // if (this.liverViewer.controlManager && this.liverViewer.controlManager.getCameraStateRecorder) {
-                //     const recorder = this.liverViewer.controlManager.getCameraStateRecorder();
-                //     if (recorder) {
-                //         recorder.setModelSelector(this);
-                //         recorder.updateDropboxUrl();
-                //     }
-                // }
-
-                console.log("Model and patient info load completed");
-                this.close();
-            } else {
-                console.error("ModelLoader not available:", {
-                    hasLiverViewer: !!this.liverViewer,
-                    hasModelLoader: !!this.liverViewer?.modelLoader,
+            // Get modelLoader: 우선순위: this.modelLoader > this.liverViewer.modelLoader
+            const modelLoader = this.modelLoader || (this.liverViewer && this.liverViewer.modelLoader);
+            
+            if (!this.liverViewer) {
+                console.error("❌ Initialization Error Details:", {
+                    liverViewerExists: !!this.liverViewer,
+                    modelSelectorModelLoader: !!this.modelLoader,
+                    liverViewerHasModelLoader: !!this.liverViewer,
                 });
-                throw new Error("modelLoader가 설정되지 않았습니다.");
+                throw new Error("❌ LiverViewer가 초기화되지 않았습니다. 페이지를 새로고침하고 다시 시도하세요.");
             }
+
+            if (!modelLoader) {
+                console.error("❌ ModelLoader Initialization Error:", {
+                    hasLiverViewer: !!this.liverViewer,
+                    hasModelSelectorModelLoader: !!this.modelLoader,
+                    hasLiverViewerModelLoader: !!this.liverViewer.modelLoader,
+                    liverViewerKeys: Object.keys(this.liverViewer).filter(k => k.includes('loader') || k.includes('Loader')),
+                });
+                throw new Error("❌ ModelLoader가 초기화되지 않았습니다. LiverViewer.setupModelLoader()가 호출되었는지 확인하세요.\n\n[진단]\n- setModelLoader() 호출됨: " + (!!this.modelLoader) + "\n- LiverViewer.modelLoader 존재: " + (!!this.liverViewer.modelLoader));
+            }
+
+            console.log("✅ Using modelLoader, starting model load");
+            await modelLoader.loadModel(modelUrl);
+            console.log("✅ Model loaded successfully");
+
+            if (this.liverViewer?.toolbar?.updateLungROIButtonVisibility) {
+                this.liverViewer.toolbar.updateLungROIButtonVisibility();
+            }
+
+            console.log("✅ Model and UI updates completed");
+            this.close();
         } catch (error) {
-            console.error("Model load failed:", error);
+            console.error("❌ Model load failed:", error);
             console.error("Error details:", {
                 message: error.message,
                 stack: error.stack,
+                liverViewer: !!this.liverViewer,
+                modelSelectorLoader: !!this.modelLoader,
+                liverViewerLoader: !!this.liverViewer?.modelLoader,
             });
-            alert("모델을 로드하는데 실패했습니다: " + error.message);
+            alert("모델을 로드하는데 실패했습니다:\n\n" + error.message);
         }
     }
 

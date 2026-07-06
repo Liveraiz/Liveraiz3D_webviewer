@@ -468,33 +468,32 @@ export default class LiverViewer {
                 modelPath: "./models/251218-dangam.glb",
             });
 
-            // MeshTransform에 ModelLoader 연결
-            // if (this.meshTransform) {
-            //     this.meshTransform.setModelLoader(this.modelLoader);
-            // }
+            console.log("✅ ModelLoader created successfully");
 
-            // ModelSelector 초기화
-            this.modelSelector = new ModelSelector(this);
-
-            // ModelSelector에 ModelLoader 설정
+            // ✅ ModelSelector는 이미 constructor에서 생성되었으므로, ModelLoader를 설정하기만 함
+            // 기존 ModelSelector 인스턴스 재사용
             if (this.modelSelector && this.modelLoader) {
                 this.modelSelector.setModelLoader(this.modelLoader);
-                console.log("[LiverViewer] ModelLoader 설정 완료");
+                console.log("✅ [LiverViewer] ModelLoader 설정 완료");
+            } else {
+                console.warn("⚠️ ModelSelector or ModelLoader not available for linking");
             }
 
             // ModelSelector에서 JSON 파일을 로드한 후 로고 데이터 처리를 위한 콜백 추가
-            this.modelSelector.onJsonLoaded = (jsonData) => {
-                if (jsonData && jsonData.logo) {
-                    console.log("JSON에서 로고 데이터 발견:", jsonData.logo);
-                    // LogoManager에 dropboxService 연결 후 로고 로드
-                    if (this.modelSelector.dropboxService) {
-                        this.logoManager.setDropboxService(
-                            this.modelSelector.dropboxService
-                        );
+            if (this.modelSelector) {
+                this.modelSelector.onJsonLoaded = (jsonData) => {
+                    if (jsonData && jsonData.logo) {
+                        console.log("JSON에서 로고 데이터 발견:", jsonData.logo);
+                        // LogoManager에 dropboxService 연결 후 로고 로드
+                        if (this.modelSelector.dropboxService) {
+                            this.logoManager.setDropboxService(
+                                this.modelSelector.dropboxService
+                            );
+                        }
+                        this.logoManager.loadFromDropbox(jsonData.logo);
                     }
-                    this.logoManager.loadFromDropbox(jsonData.logo);
-                }
-            };
+                };
+            }
 
             // URL 파라미터로 전달된 모델 처리
             if (this.onModelSelectorReady) {
@@ -512,13 +511,8 @@ export default class LiverViewer {
                 this.topBar.setModelSelector(this.modelSelector);
             }
 
-            console.log("ModelLoader 및 ModelSelector 초기화 완료");
+            console.log("✅ ModelLoader 및 ModelSelector 초기화 완료");
 
-            // 카메라 상태 자동 기록 설정
-            if (this.controlManager) {
-                // 카메라 상태 기록기는 삭제되었으므로 제거
-                // this.controlManager.setupCameraStateRecorder(this.modelLoader, this.modelSelector);
-            }
         } catch (error) {
             console.error("ModelLoader 설정 중 에러:", error);
             ErrorHandler.handle(error, "ModelLoader Setup");
