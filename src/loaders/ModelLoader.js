@@ -522,6 +522,18 @@ export default class ModelLoader {
                 }
                 
                 console.log(`[ModelLoader] ROI Model detected: ${modelName}, ROI enabled and button shown`);
+            } else {
+                // ROI 모델이 아닌 경우 - ROI 버튼 숨김 및 현재 모델명 업데이트
+                if (this.toolbar && this.toolbar.lungVesselROIButton) {
+                    this.toolbar.lungVesselROIButton.style.display = "none";
+                    this.toolbar.lungVesselROIButton.dataset.roiVisibility = "hidden";
+                    console.log("[ModelLoader] Non-ROI model loaded - ROI button hidden");
+                }
+                
+                if (this.toolbar && this.toolbar.setCurrentModel) {
+                    this.toolbar.setCurrentModel(modelName);
+                    console.log(`[ModelLoader] Current model updated to: ${modelName}`);
+                }
             }
 
             // 모델 로딩 완료 - 100%
@@ -940,6 +952,20 @@ export default class ModelLoader {
     }
 
     resetScene() {
+        // ROI Vessel 기능 비활성화 (다른 모델 로드 시 자동 해제)
+        if (this.toolbar && this.toolbar.lungVesselROI && this.toolbar.lungVesselROI.isActive) {
+            console.log('[ModelLoader] Disabling ROI Vessel feature during scene reset');
+            this.toolbar.lungVesselROI.disableLungVesselROI();
+            
+            // ROI 버튼도 비활성화 상태로 변경
+            if (this.toolbar.lungVesselROIButton) {
+                this.toolbar.lungVesselROIButton.classList.remove('active');
+                this.toolbar.applyButtonStyle(this.toolbar.lungVesselROIButton, false);
+                this.toolbar.activeMeasurementButton = null;
+                console.log('[ModelLoader] ROI button deactivated');
+            }
+        }
+
         // 기존 메시들을 제거하고 리소스 해제
         if (this.meshes) {
             this.meshes.forEach((mesh) => {
