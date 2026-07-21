@@ -1956,6 +1956,210 @@ export class TableGenerator {
         return table;
     }
 
+    // Other 테이블 생성 (Lung 포맷과 동일 - 모든 수술 유형에 적용 가능)
+    createOtherTable(csvData, surgeryType = "OTHER") {
+        console.log("Creating Other table with data:", csvData);
+
+        var rows = csvData.replaceAll('"', "").split("\r\n");
+        rows = rows.filter((row) => row.trim() !== "");
+
+        if (rows.length === 0) return "<p>데이터가 없습니다.</p>";
+
+        var parsedRows = rows.map((row) => row.split(","));
+        var headers = parsedRows[0];
+
+        var volumeData = {};
+        var percentData = {};
+        var segmentOrder = []; // CSV의 순서 유지
+
+        // 헤더 기반 인덱스 찾기
+        let segmentIdx = -1;
+        let volumeIdx = -1;
+        let percentIdx = -1;
+
+        for (let i = 0; i < headers.length; i++) {
+            const headerLower = headers[i].toLowerCase().trim();
+            if (headerLower.includes("segment") || i === 0) {
+                segmentIdx = i;
+            } else if (headerLower.includes("volume")) {
+                volumeIdx = i;
+            } else if (headerLower.includes("percent") || headerLower.includes("%")) {
+                percentIdx = i;
+            }
+        }
+
+        // 헤더만 있는 경우 처리
+        if (volumeIdx === -1 && headers.length > 1) {
+            volumeIdx = 1;
+        }
+        if (percentIdx === -1 && headers.length > 2) {
+            percentIdx = 2;
+        }
+
+        // 데이터 추출
+        if (parsedRows.length > 1) {
+            for (let i = 1; i < parsedRows.length; i++) {
+                const row = parsedRows[i];
+                const segment = row[segmentIdx]?.trim() || "";
+                const volume = row[volumeIdx]?.trim() || "";
+                const percent = percentIdx >= 0 ? row[percentIdx]?.trim() || "" : "";
+
+                if (segment && volume) {
+                    volumeData[segment] = volume;
+                    if (percent) {
+                        percentData[segment] = percent;
+                    }
+                    segmentOrder.push(segment); // 순서 기록
+                }
+            }
+        }
+
+        // 첫 번째 항목을 total로 간주 (R_Lung, L_Lung 같은 전체 항목)
+        let totalKey = segmentOrder[0] || "";
+        let totalVolume = totalKey ? parseFloat(volumeData[totalKey].toString().replace(/[^\d.]/g, "")) || 0 : 0;
+
+        // CSV에 퍼센트가 없으면 계산 (첫 번째 항목 제외)
+        if (Object.keys(percentData).length === 0 && totalVolume > 0) {
+            for (const segment of segmentOrder) {
+                if (segment !== totalKey) {
+                    const segmentVolume = parseFloat(volumeData[segment].toString().replace(/[^\d.]/g, "")) || 0;
+                    const percent = ((segmentVolume / totalVolume) * 100).toFixed(2);
+                    percentData[segment] = percent;
+                }
+            }
+        }
+
+        return this._generateOtherTableHTML(volumeData, percentData, segmentOrder, totalKey, surgeryType);
+    }
+
+    // Other 테이블 HTML 생성
+    _generateOtherTableHTML(volumeData, percentData, segmentOrder, totalKey, surgeryType) {
+        // 긴 이름 축약 헬퍼 함수
+        const abbreviateName = (name) => {
+            if (name.includes('_margin_')) {
+                const parts = name.split('_margin_');
+                const marginValue = parts[1];
+                return `margin ${marginValue}`;
+            }
+            return name.replace(/_/g, ' ');
+        };
+
+        const theme = this.isDarkMode
+            ? this.getCommonStyles().dark
+            : this.getCommonStyles().light;
+
+        const style = `
+        <style>
+            .other-table {
+                border-collapse: collapse;
+                width: 100%;
+                max-width: 600px;
+                font-family: Arial, sans-serif;
+                margin: 20px 0;
+                box-shadow: ${theme.boxShadow};
+                color: ${theme.textColor};
+                table-layout: fixed;
+            }
+            
+            .other-table th, 
+            .other-table td {
+                border: 1px solid ${theme.tableBorder};
+                padding: 8px;
+                text-align: center;
+                width: 50%;
+            }
+            
+            .other-table th {
+                font-weight: bold;
+            }
+            
+            .other-table thead th {
+                background-color: ${theme.header};
+                color: ${theme.headerText};
+            }
+            
+            .value { background-color: ${theme.valueBg}; }
+            .percent-row { background-color: #E5E5E5; }
+            .surgery-header {
+                background-color: ${theme.header};
+                color: ${theme.headerText};
+                text-align: center;
+                font-weight: bold;
+                padding: 10px;
+            }
+        </style>
+        `;
+
+        let table = style + "<table class='other-table'>";
+
+        // 헤더
+        table += "<thead><tr>";
+        table += "<th colspan='2' class='surgery-header'>" + surgeryType + "</th>";
+        table += "</tr></thead>";
+
+        table += "<tbody>";
+
+        // 전체 항목(첫 항목)을 제외한 항목들 표시
+        const dataItems = segmentOrder.filter(segment => segment !== totalKey);
+        
+        for (let i = 0; i < dataItems.length; i += 2) {
+            const item1 = dataItems[i];
+            const item2 = dataItems[i + 1] || null;
+
+            // 항목 이름 행 (축약된 이름으로 표시)
+            table += "<tr>";
+            table += `<th style='background-color: #E8E8E8;'>${abbreviateName(item1)}</th>`;
+            if (item2) {
+                table += `<th style='background-color: #E8E8E8;'>${abbreviateName(item2)}</th>`;
+            } else {
+                table += "<th></th>";
+            }
+            table += "</tr>";
+
+            // 부피 행
+            table += "<tr>";
+            table += `<td class='value'>${this.formatVolume(volumeData[item1] || "")}</td>`;
+            if (item2) {
+                table += `<td class='value'>${this.formatVolume(volumeData[item2] || "")}</td>`;
+            } else {
+                table += "<td class='value'></td>";
+            }
+            table += "</tr>";
+
+            // 백분율 행
+            table += "<tr>";
+            table += `<td class='percent-row'>${this.formatPercent(percentData[item1] || "0.00")}</td>`;
+            if (item2) {
+                table += `<td class='percent-row'>${this.formatPercent(percentData[item2] || "0.00")}</td>`;
+            } else {
+                table += "<td class='percent-row'></td>";
+            }
+            table += "</tr>";
+        }
+
+        // 전체 항목 표시 (첫 항목)
+        if (totalKey && volumeData[totalKey]) {
+            table += "<tr>";
+            table += `<th style='background-color: #D0D0D0;' colspan='2'>${totalKey}</th>`;
+            table += "</tr>";
+
+            table += "<tr>";
+            table += `<td class='value' colspan='2'>${this.formatVolume(volumeData[totalKey])}</td>`;
+            table += "</tr>";
+
+            // 전체 항목의 퍼센트 (있으면 표시)
+            if (percentData[totalKey]) {
+                table += "<tr>";
+                table += `<td class='percent-row' colspan='2'>${this.formatPercent(percentData[totalKey])}</td>`;
+                table += "</tr>";
+            }
+        }
+
+        table += "</tbody></table>";
+
+        return table;
+    }
+
     // HVT 테이블을 이미지로 변환 (Canvas 사용)
     async createHVTTableImage(csvData, surgeryType = "LDLT") {
         // 먼저 HTML 테이블 생성

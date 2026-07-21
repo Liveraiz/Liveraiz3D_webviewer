@@ -172,19 +172,33 @@ export default class ModelSelector {
                         tableText,
                         "LUNG"
                     );
+                } else if (modelName.includes("OTHER")) {
+                    // OTHER table format - applies to any surgery type with OTHER in model name
+                    console.log("Using OTHER Table (based on model name):", model.name);
+                    tableHTML = this.tableGenerator.createOtherTable(
+                        tableText,
+                        model.case || "OTHER"
+                    );
                 } else if (normalizedCase === "KT" || normalizedCase === "LDKT") {
                     tableHTML = this.tableGenerator.createKTTable(
                         tableText,
                         model.case
                     );
                 } else if (normalizedCase === "LDLT" || normalizedCase === "LDLT RL" || normalizedCase.includes("LDLT")) {
-                    // For LDLT, check model name to select left/HVT/RL/5-Section table
+                    // For LDLT, check model name to select left/HVT/RL/5-Section/OTHER table
                     if (modelName.includes("SECTION") || modelName.includes("5-SECTION")) {
                         // Liver 5-Section Table
                         console.log("Using Liver 5-Section Table (based on model name):", model.name);
                         tableHTML = this.tableGenerator.createLiver5SectionTable(
                             tableText,
                             model.case || "Liver 5-Section"
+                        );
+                    } else if (modelName.includes("RL")) {
+                        // RL Table (explicitly specified)
+                        console.log("Using LDLT RL Table (based on model name):", model.name);
+                        tableHTML = this.tableGenerator.createLDLTTable(
+                            tableText,
+                            model.case || "LDLT"
                         );
                     } else if (modelName.includes("LEFT")) {
                         // Create left model table
@@ -202,7 +216,7 @@ export default class ModelSelector {
                         );
                     } else {
                         // RL Table (default LDLT table)
-                        console.log("Using LDLT RL Table (based on model name):", model.name);
+                        console.log("Using LDLT RL Table (default):", model.name);
                         tableHTML = this.tableGenerator.createLDLTTable(
                             tableText,
                             model.case
