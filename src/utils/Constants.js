@@ -59,6 +59,11 @@ export const Constants = {
             method: 'createLungTable',
             displayName: 'Lung Resection Plan'
         },
+        LT_OTHER: {
+            keywords: ['LT_OTHER', 'LT_Other'],
+            method: 'createLungTable',
+            displayName: 'LT Other'
+        },
         CCC: {
             keywords: ['CCC'],
             method: 'createCCCTable',
