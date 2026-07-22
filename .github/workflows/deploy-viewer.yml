@@ -23,6 +23,9 @@ jobs:
   deploy:
     name: Build and deploy viewer
     runs-on: ubuntu-latest
+    environment: Production
+    env:
+      VITE_API_URL: ${{ vars.VITE_API_URL }}
 
     steps:
       - name: Checkout source
@@ -36,6 +39,9 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Verify build environment
+        run: test -n "$VITE_API_URL"
 
       - name: Build viewer
         run: npm run build
