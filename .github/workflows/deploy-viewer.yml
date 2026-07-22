@@ -1,4 +1,4 @@
-name: Deploy Liveraiz3D Viewer
+name: 웹뷰어 자동화배포
 
 on:
   workflow_dispatch:
