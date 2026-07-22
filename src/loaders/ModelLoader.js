@@ -19,6 +19,7 @@ export default class ModelLoader {
         renderer,
         toolbar,
         hdriPath, // ADDED: Path for lighting HDRI
+        autoLoad = true,
     }) {
         this.scene = scene;
         this.camera = camera;
@@ -273,7 +274,9 @@ export default class ModelLoader {
         this._pendingGltfGltfGltfGltfGltfGltfGltfGltfGltfGltfGltfGltfGltfGltfGltfGltfGltfGltfGltfVisibilityUpdates = null;
         this._pendingGltfGltfGltfGltfGltfGltfGltfGltfGltfGltfGltfGltfGltfGltfGltfGltfGltfGltfGltfModel = null;
         this._pendingGltfGltfGltfGltfGltfGltfGltfGltfGltfGltfGltfGltfGltfGltfGltfGltfGltfGltfGltfGltf = null;
-        this.loadModel();
+        if (autoLoad) {
+            this.loadModel();
+        }
     }
 
     createMesh(geometry, material, name) {

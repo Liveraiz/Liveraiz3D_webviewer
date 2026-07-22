@@ -6,7 +6,7 @@ export default defineConfig({
   base: "./", // Electron과 웹 모두 호환
   server: {
     host: '0.0.0.0',
-    port: 3000,
+    port: 5175,
     open: false,
     usePolling: true,  // 파일 변경 감지를 위한 폴링 활성화
     proxy: {
@@ -37,4 +37,3 @@ export default defineConfig({
   },
   assetsInclude: ['**/*.gltf', '**/*.glb', '**/*.hdr']
 });
-
