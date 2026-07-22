@@ -2,6 +2,9 @@ name: Deploy Liveraiz3D Viewer
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
 
 permissions:
   contents: read
