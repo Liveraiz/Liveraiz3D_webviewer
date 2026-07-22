@@ -32,6 +32,13 @@ import FloatingModeButtons from "../ui/FloatingModeButtons";
 import XRHandler from "../functions/XRHandler";
 import StereoscopicRenderer from "../functions/StereoscopicRenderer";
 import { RenderManager } from "./RenderManager";
+import {
+    clearLaunchTokenFromUrl,
+    isS3DownloadUrlError,
+    parseViewerEntry,
+    VIEWER_PROVIDER,
+} from "../services/ViewerEntryService";
+import { fetchViewerProjectManifest } from "../services/ViewerProjectManifestService";
 
 export default class LiverViewer {
     constructor(containerId) {
@@ -64,23 +71,10 @@ export default class LiverViewer {
             this.stereoscopicRenderer = null;
             this.floatingModeButtons = null;
 
-            // URL 파라미터 처리 추가
-            const urlParams = new URLSearchParams(window.location.search);
-            const jsonUrl = urlParams.get("json");
-
-            if (jsonUrl) {
-                console.log("Found JSON URL in params:", jsonUrl);
-                this.onModelSelectorReady = async (modelSelector) => {
-                    try {
-                        await modelSelector.loadDropboxFolderContents(
-                            decodeURIComponent(jsonUrl),
-                            true
-                        );
-                    } catch (error) {
-                        console.error("Error loading JSON from URL:", error);
-                    }
-                };
-            }
+            this.viewerEntry = parseViewerEntry(window.location);
+            this.externalModelRequest = this.viewerEntry.externalModelRequest;
+            this.externalModelProvider = this.viewerEntry.provider;
+            this.onModelSelectorReady = this.createModelSelectorReadyHandler(this.viewerEntry);
 
             // Stats 초기화
             // this.stats = new Stats();
@@ -466,6 +460,7 @@ export default class LiverViewer {
                     this.handleLoadError(error);
                 },
                 modelPath: "./models/251218-dangam.glb",
+                autoLoad: !this.externalModelRequest,
             });
 
             console.log("✅ ModelLoader created successfully");
@@ -498,11 +493,13 @@ export default class LiverViewer {
             // URL 파라미터로 전달된 모델 처리
             if (this.onModelSelectorReady) {
                 console.log("Executing onModelSelectorReady callback");
-                this.onModelSelectorReady(this.modelSelector).then(() => {
-                    console.log(
-                        "Model loading completed, showing ModelSelector"
-                    );
-                    this.modelSelector.show(); // 로딩 완료 후 UI 표시
+                this.onModelSelectorReady(this.modelSelector).then((result) => {
+                    if (result?.showSelector !== false) {
+                        console.log(
+                            "Model manifest loaded, showing ModelSelector"
+                        );
+                        this.modelSelector.show(); // 로딩 완료 후 UI 표시
+                    }
                 });
             }
 
@@ -517,6 +514,46 @@ export default class LiverViewer {
             console.error("ModelLoader 설정 중 에러:", error);
             ErrorHandler.handle(error, "ModelLoader Setup");
         }
+    }
+
+    createModelSelectorReadyHandler(entry) {
+        if (!entry?.provider) {
+            return null;
+        }
+
+        if (entry.provider === VIEWER_PROVIDER.S3) {
+            return async (modelSelector) => {
+                try {
+                    const manifest = await fetchViewerProjectManifest(entry.projectId, entry.launchToken);
+                    await modelSelector.loadManifest(manifest, VIEWER_PROVIDER.S3);
+                    clearLaunchTokenFromUrl();
+                    return { showSelector: true };
+                } catch (error) {
+                    console.error("Error loading S3 viewer manifest:", error);
+                    ErrorHandler.showErrorMessage(
+                        "S3 viewer link has expired or could not be loaded. Please restart the viewer from the portal."
+                    );
+                    return { showSelector: false };
+                }
+            };
+        }
+
+        if (entry.provider === VIEWER_PROVIDER.DROPBOX) {
+            return async (modelSelector) => {
+                try {
+                    await modelSelector.loadDropboxFolderContents(entry.jsonUrl, true);
+                } catch (error) {
+                    console.error("Error loading JSON from URL:", error);
+                    ErrorHandler.showErrorMessage("Dropbox model information could not be loaded. Please check the link and try again.");
+                }
+                return { showSelector: true };
+            };
+        }
+
+        return async () => {
+            ErrorHandler.showErrorMessage("Unsupported viewer source. Please restart the viewer from the portal.");
+            return { showSelector: false };
+        };
     }
 
     setupMeshTooltip() {
@@ -819,6 +856,12 @@ export default class LiverViewer {
 
     handleLoadError(error) {
         ErrorHandler.handle(error, "Model Loading");
+        if (this.externalModelProvider === VIEWER_PROVIDER.S3 && isS3DownloadUrlError(error)) {
+            ErrorHandler.showErrorMessage(
+                "The S3 download URL has expired. Please restart the viewer from the portal."
+            );
+            return;
+        }
         const loadingElement = document.getElementById("loading");
         if (loadingElement) {
             loadingElement.textContent = "Error loading model";
