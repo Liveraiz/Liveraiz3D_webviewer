@@ -376,7 +376,7 @@ export const LUNG_RESECTION_KEYWORDS = [
 
 // PCD 관련 메시 키워드
 export const PCD_KEYWORDS = [
-    "subcutaneous_Fat", "small_bowel_ROI", "colon_ROI"
+    "subcutaneous_Fat", "fluid_collection", "colon_ROI"
 ];
 
 // 투명도 조절 가능한 mesh 이름 키워드 (통합 관리)
