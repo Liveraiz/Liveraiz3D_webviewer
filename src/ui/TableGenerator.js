@@ -142,6 +142,45 @@ export class TableGenerator {
         return null;
     }
 
+    inferSurgeryTypeFromCsv(csvData) {
+        if (!csvData || typeof csvData !== "string") return null;
+
+        const rows = csvData
+            .replaceAll('"', "")
+            .split(/\r?\n/)
+            .filter((row) => row.trim() !== "");
+
+        if (rows.length < 2) return null;
+
+        const splitRow = (row) => row.split(/\t|,/).map((value) => value.trim());
+        const headers = splitRow(rows[0]).map((value) => value.toLowerCase());
+
+        const hasSegmentHeader = headers.some((value) => value.includes("segment"));
+        const hasVolumeHeader = headers.some((value) => value.includes("volume"));
+        const hasPercentHeader = headers.some((value) => value.includes("percent") || value.includes("%"));
+        const hasGrwrHeader = headers.some((value) => value.includes("grwr"));
+
+        if (!(hasSegmentHeader && hasVolumeHeader && hasPercentHeader)) {
+            return null;
+        }
+
+        const segmentNames = new Set(
+            rows.slice(1).map((row) => (splitRow(row)[0] || "").toUpperCase())
+        );
+
+        const hasFiveSectionSegments =
+            segmentNames.has("RAS") &&
+            segmentNames.has("RPS") &&
+            segmentNames.has("LMS") &&
+            segmentNames.has("LLS");
+
+        if (hasFiveSectionSegments && hasGrwrHeader) {
+            return "LDLT_SECTION";
+        }
+
+        return null;
+    }
+
     /**
      * 파일명과 CSV 데이터를 기반으로 자동 테이블 생성
      * @param {string} csvData - CSV 데이터
@@ -150,14 +189,35 @@ export class TableGenerator {
      */
     autoCreateTable(csvData, fileName, folderPath = "") {
         const surgeryType = this.detectSurgeryType(fileName, folderPath);
+        const inferredSurgeryType = this.inferSurgeryTypeFromCsv(csvData);
+        const normalizedFileName = String(fileName || "").toUpperCase();
+        const isSectionModel =
+            normalizedFileName.includes("SECTION") ||
+            normalizedFileName.includes("5-SECTION");
         let tableHTML = '';
+
+        if (!surgeryType && inferredSurgeryType === "LDLT_SECTION") {
+            tableHTML = this.createLiver5SectionTable(csvData, "LDLT");
+            return {
+                html: tableHTML,
+                surgeryType: "LDLT",
+            };
+        }
 
         if (surgeryType && Constants.TABLE_TYPES[surgeryType]) {
             const typeConfig = Constants.TABLE_TYPES[surgeryType];
             const methodName = typeConfig.method;
+
+            // Keep SECTION behavior consistent with handleTableDisplay().
+            if (surgeryType === "LDLT" && isSectionModel) {
+                tableHTML = this.createLiver5SectionTable(
+                    csvData,
+                    surgeryType || "Liver 5-Section"
+                );
+            }
             
             // Check if method exists and call it
-            if (typeof this[methodName] === 'function') {
+            else if (typeof this[methodName] === 'function') {
                 tableHTML = this[methodName](csvData, surgeryType);
             } else {
                 console.warn(`[TableGenerator] Method not found: ${methodName}`);
@@ -1368,7 +1428,7 @@ export class TableGenerator {
     createLiver5SectionTable(csvData, surgeryType = "Liver 5-Section") {
         console.log("Creating Liver 5-Section table with data:", csvData);
 
-        var rows = csvData.replaceAll('"', "").split("\r\n");
+        var rows = csvData.replaceAll('"', "").split(/\r?\n/);
         rows = rows.filter((row) => row.trim() !== "");
 
         if (rows.length === 0) return "<p>데이터가 없습니다.</p>";
@@ -1379,10 +1439,16 @@ export class TableGenerator {
         var headers = parsedRows[0];
 
         // CSV 헤더 분석: Segment, Volume (cm³), Percentage (%), GRWR (%)
-        const segIdx = headers.findIndex(h => h.toLowerCase().includes("segment"));
-        const volIdx = headers.findIndex(h => h.toLowerCase().includes("volume"));
-        const pctIdx = headers.findIndex(h => h.toLowerCase().includes("percent") && !h.toLowerCase().includes("grwr"));
-        const grwrIdx = headers.findIndex(h => h.toLowerCase().includes("grwr"));
+        const segIdxRaw = headers.findIndex(h => h.toLowerCase().includes("segment"));
+        const volIdxRaw = headers.findIndex(h => h.toLowerCase().includes("volume"));
+        const pctIdxRaw = headers.findIndex(h => h.toLowerCase().includes("percent") && !h.toLowerCase().includes("grwr"));
+        const grwrIdxRaw = headers.findIndex(h => h.toLowerCase().includes("grwr"));
+
+        // Fallback to common 4-column format when headers are missing.
+        const segIdx = segIdxRaw >= 0 ? segIdxRaw : 0;
+        const volIdx = volIdxRaw >= 0 ? volIdxRaw : 1;
+        const pctIdx = pctIdxRaw >= 0 ? pctIdxRaw : 2;
+        const grwrIdx = grwrIdxRaw;
 
         var volumeData = {};
         var percentData = {};
@@ -1412,7 +1478,9 @@ export class TableGenerator {
             if (segment) {
                 volumeData[segment] = row[volIdx]?.trim() || "0";
                 percentData[segment] = row[pctIdx]?.trim() || "0";
-                grwrData[segment] = row[grwrIdx]?.trim() || "0";
+                if (grwrIdx >= 0) {
+                    grwrData[segment] = row[grwrIdx]?.trim() || "0";
+                }
             }
 
             const firstCol = row[0]?.trim() || "";
@@ -1529,6 +1597,102 @@ export class TableGenerator {
         const totalLobeVolume = rtLobeVolume + ltLobeVolume;
         const rtLobePercent = totalLobeVolume > 0 ? ((rtLobeVolume / totalLobeVolume) * 100).toFixed(2) : "0.00";
         const ltLobePercent = totalLobeVolume > 0 ? ((ltLobeVolume / totalLobeVolume) * 100).toFixed(2) : "0.00";
+        const rtLobeGrwr = sumValues(grwrData["RAS"], grwrData["RPS"]).toFixed(2);
+        const ltLobeGrwr = sumValues(grwrData["LMS"], grwrData["LLS"], grwrData["Spigelian"]).toFixed(2);
+
+        const getGrwr = (key) => {
+            const value = grwrData[key];
+            if (value === undefined || value === null || value === "") return "";
+            return this.formatPercent(value);
+        };
+
+        table += "<tr>";
+        table += "<th class='rt-lobe'>Rt.lobe</th>";
+        table += "<th class='lt-lobe'>Lt.lobe</th>";
+        table += "</tr>";
+
+        table += "<tr>";
+        table += `<td class='value'>${this.formatVolume(rtLobeVolume.toFixed(1))}</td>`;
+        table += `<td class='value'>${this.formatVolume(ltLobeVolume.toFixed(1))}</td>`;
+        table += "</tr>";
+
+        table += "<tr>";
+        table += `<td class='value'>${this.formatPercent(rtLobePercent)}</td>`;
+        table += `<td class='value'>${this.formatPercent(ltLobePercent)}</td>`;
+        table += "</tr>";
+
+        table += "<tr>";
+        table += `<td class='value'>GRWR ${this.formatPercent(rtLobeGrwr)}</td>`;
+        table += `<td class='value'>GRWR ${this.formatPercent(ltLobeGrwr)}</td>`;
+        table += "</tr>";
+
+        table += "<tr>";
+        table += "<th class='ras'>RAS</th>";
+        table += "<th class='lls'>LLS</th>";
+        table += "</tr>";
+
+        table += "<tr>";
+        table += `<td class='value'>${this.formatVolume(volumeData["RAS"])}</td>`;
+        table += `<td class='value'>${this.formatVolume(volumeData["LLS"])}</td>`;
+        table += "</tr>";
+
+        table += "<tr>";
+        table += `<td class='value'>${this.formatPercent(percentData["RAS"])}</td>`;
+        table += `<td class='value'>${this.formatPercent(percentData["LLS"])}</td>`;
+        table += "</tr>";
+
+        table += "<tr>";
+        table += `<td class='value'>GRWR ${getGrwr("RAS")}</td>`;
+        table += `<td class='value'>GRWR ${getGrwr("LLS")}</td>`;
+        table += "</tr>";
+
+        table += "<tr>";
+        table += "<th class='rps'>RPS</th>";
+        table += "<th class='lms'>LMS</th>";
+        table += "</tr>";
+
+        table += "<tr>";
+        table += `<td class='value'>${this.formatVolume(volumeData["RPS"])}</td>`;
+        table += `<td class='value'>${this.formatVolume(volumeData["LMS"])}</td>`;
+        table += "</tr>";
+
+        table += "<tr>";
+        table += `<td class='value'>${this.formatPercent(percentData["RPS"])}</td>`;
+        table += `<td class='value'>${this.formatPercent(percentData["LMS"])}</td>`;
+        table += "</tr>";
+
+        table += "<tr>";
+        table += `<td class='value'>GRWR ${getGrwr("RPS")}</td>`;
+        table += `<td class='value'>GRWR ${getGrwr("LMS")}</td>`;
+        table += "</tr>";
+
+        table += "<tr>";
+        table += "<th class='spigelian'>Spigelian</th>";
+        table += "<th class='recip-bw'>Recip BW</th>";
+        table += "</tr>";
+
+        table += "<tr>";
+        table += `<td class='value'>${this.formatVolume(volumeData["Spigelian"])}</td>`;
+
+        const recipBWDisplay = recipBW
+            ? (String(recipBW).toLowerCase().includes("kg")
+                ? recipBW
+                : `${recipBW} kg`)
+            : "";
+        table += `<td class='value'>${recipBWDisplay}</td>`;
+        table += "</tr>";
+
+        table += "<tr>";
+        table += `<td class='value'>${this.formatPercent(percentData["Spigelian"])}</td>`;
+        table += "<td class='value'></td>";
+        table += "</tr>";
+
+        table += "<tr>";
+        table += `<td class='value'>GRWR ${getGrwr("Spigelian")}</td>`;
+        table += "<td class='value'></td>";
+        table += "</tr>";
+
+        table += "</tbody></table>";
 
         return table;
     }

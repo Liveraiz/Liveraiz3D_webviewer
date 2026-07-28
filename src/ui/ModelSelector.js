@@ -2250,9 +2250,26 @@ export default class ModelSelector {
                 return;
             }
 
+            const detectionFileName =
+                model.fileName ||
+                model.csvFile?.name ||
+                (model.csvPath ? model.csvPath.split(/[/\\]/).pop() : "") ||
+                model.name ||
+                "";
+
+            const detectionFolderPath =
+                model.folderPath ||
+                (model.csvFile?.webkitRelativePath
+                    ? model.csvFile.webkitRelativePath.split(/[\\/]/).slice(0, -1).join("/")
+                    : "") ||
+                (model.csvPath
+                    ? model.csvPath.split(/[/\\]/).slice(0, -1).join("/")
+                    : "") ||
+                "";
+
             // Use autoCreateTable method from TableGenerator - Auto detection based on filename
-            console.log('[ModelSelector] autoCreateTable input - model.name:', model.name, 'model.fileName:', model.fileName, 'model.case:', model.case);
-            const result = this.tableGenerator.autoCreateTable(model.csvData, model.name, model.folderPath || "");
+            console.log('[ModelSelector] autoCreateTable input - model.name:', model.name, 'detectionFileName:', detectionFileName, 'detectionFolderPath:', detectionFolderPath, 'model.case:', model.case);
+            const result = this.tableGenerator.autoCreateTable(model.csvData, detectionFileName, detectionFolderPath);
             const tableHTML = result.html;
             const surgeryType = result.surgeryType;
 
