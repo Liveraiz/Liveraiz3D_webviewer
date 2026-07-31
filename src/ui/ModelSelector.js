@@ -170,14 +170,20 @@ export default class ModelSelector {
                 // Normalize case value (case-insensitive, trim whitespace)
                 const normalizedCase = this.resolveEffectiveCase(model);
                 // Also check model name (to distinguish HVT, RL, etc.)
-                const modelName = model.name ? model.name.trim().toUpperCase() : "";
+                const modelName = this.getModelDisplayName(model).trim().toUpperCase();
                 console.log("Table display - model.case:", model.case, "normalized:", normalizedCase, "model.name:", model.name);
 
-                if (normalizedCase === "HCC") {
+                if (modelName.includes("CUSTOM")) {
+                    console.log("Using LUNG Table for CUSTOM model before case routing:", model.name);
+                    tableHTML = this.tableGenerator.createLungTable(
+                        tableText,
+                        modelName || normalizedCase || model.case || "HCC"
+                    );
+                } else if (normalizedCase === "HCC") {
                     // HCC table
                     tableHTML = this.tableGenerator.createHCCTable(
                         tableText,
-                        model.case
+                        modelName || model.case || "HCC"
                     );
                 } else if (normalizedCase === "CCC" || normalizedCase.includes("CCC")) {
                     // CCC table (2-column format)
@@ -829,7 +835,7 @@ export default class ModelSelector {
 
                             // Load model (loadModel will handle validation)
                             // Pass model name for ROI detection
-                            await this.loadModel(directGlbUrl, index, model.name);
+                            await this.loadModel(directGlbUrl, index, this.getModelDisplayName(model));
                             console.log("Model loading successful");
 
                             // Remove loading indicator
@@ -1238,6 +1244,33 @@ export default class ModelSelector {
 
     getModelName(path) {
         return path.split("/").pop().replace(".glb", "");
+    }
+
+    getModelDisplayName(model) {
+        const candidates = [
+            model?.name,
+            model?.fileName,
+            model?.glbUrl,
+            model?.glbPath,
+            model?.tableUrl,
+            model?.csvUrl,
+            model?.csvPath,
+            model?.modelPath,
+            model?.url,
+        ];
+
+        for (const candidate of candidates) {
+            if (!candidate) continue;
+
+            const rawValue = String(candidate);
+            const withoutQuery = rawValue.split("?")[0].split("#")[0];
+            const fileName = withoutQuery.split(/[/\\]/).pop() || rawValue;
+            if (fileName) {
+                return fileName;
+            }
+        }
+
+        return "";
     }
 
     getCurrentModel() {
@@ -2223,7 +2256,7 @@ export default class ModelSelector {
             }
 
             // Use displayLocalModelTable with populated csvData
-            this.displayLocalModelTable({ ...model, csvData });
+            this.displayLocalModelTable({ ...model, csvData, fileName: detectionFileName });
 
         } catch (e) {
             console.warn('[ModelSelector] Failed to load/display CSV table:', e);

@@ -194,6 +194,7 @@ export class TableGenerator {
         const isSectionModel =
             normalizedFileName.includes("SECTION") ||
             normalizedFileName.includes("5-SECTION");
+        const isCustomHccModel = normalizedFileName.includes("CUSTOM");
         let tableHTML = '';
 
         if (!surgeryType && inferredSurgeryType === "LDLT_SECTION") {
@@ -204,7 +205,13 @@ export class TableGenerator {
             };
         }
 
-        if (surgeryType && Constants.TABLE_TYPES[surgeryType]) {
+        if (isCustomHccModel) {
+            tableHTML = this.createLungTable(csvData, fileName || surgeryType || "HCC");
+            return {
+                html: tableHTML,
+                surgeryType: surgeryType || "HCC",
+            };
+        } else if (surgeryType && Constants.TABLE_TYPES[surgeryType]) {
             const typeConfig = Constants.TABLE_TYPES[surgeryType];
             const methodName = typeConfig.method;
 
@@ -218,7 +225,10 @@ export class TableGenerator {
             
             // Check if method exists and call it
             else if (typeof this[methodName] === 'function') {
-                tableHTML = this[methodName](csvData, surgeryType);
+                tableHTML =
+                    surgeryType === "HCC"
+                        ? this[methodName](csvData, fileName || surgeryType)
+                        : this[methodName](csvData, surgeryType);
             } else {
                 console.warn(`[TableGenerator] Method not found: ${methodName}`);
                 tableHTML = `<pre style="white-space: pre-wrap; word-wrap: break-word; font-family: monospace;">${csvData}</pre>`;
