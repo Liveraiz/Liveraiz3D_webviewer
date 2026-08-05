@@ -68,6 +68,15 @@ export default class Toolbar {
         this.setupTransformControls();
     }
 
+    isSafariBrowser() {
+        const ua = navigator.userAgent;
+        return /Safari/i.test(ua) && !/Chrome|Chromium|CriOS|Edg|OPR|SamsungBrowser|Android/i.test(ua);
+    }
+
+    getButtonGroupDisplayStyle() {
+        return this.isSafariBrowser() ? "flex" : "contents";
+    }
+
     /**
      * 버튼에 기본 스타일을 적용하는 함수
      * @param {HTMLElement} button - 스타일을 적용할 버튼 요소
@@ -137,7 +146,7 @@ export default class Toolbar {
             width: this.isMobile ? "44px" : "34px",
             height: this.isMobile ? "44px" : "34px",
             transition: "all 0.15s cubic-bezier(0.4, 0, 0.2, 1)",
-            margin: this.iMobile ? "2px" : "2px",
+            margin: this.isMobile ? "2px" : "2px",
             flexShrink: 0,
             zIndex: "901",
             position: "relative",
@@ -259,6 +268,7 @@ export default class Toolbar {
             zIndex: "900",
             backgroundColor: "rgba(0, 0, 0, 0.5)",
             backdropFilter: "blur(4px)",
+            WebkitBackdropFilter: "blur(4px)",
             borderRadius: "0.5rem",
             padding: "0.5rem",
             boxShadow: "0 2px 5px rgba(0, 0, 0, 0.2)",
@@ -370,6 +380,7 @@ export default class Toolbar {
             zIndex: "900",
             backgroundColor: "rgba(0, 0, 0, 0.5)",
             backdropFilter: "blur(4px)",
+            WebkitBackdropFilter: "blur(4px)",
             borderRadius: "0.5rem",
             padding: "0.5rem",
             boxShadow: "0 2px 5px rgba(0, 0, 0, 0.2)",
@@ -760,10 +771,10 @@ export default class Toolbar {
     // Add new methods to control button visibility
     showAllButtons() {
         if (this.buttonContainer) {
-            this.buttonContainer.style.display = "contents";
+            this.buttonContainer.style.display = this.getButtonGroupDisplayStyle();
         }
         if (this.measurementContainer) {
-            this.measurementContainer.style.display = "contents";
+            this.measurementContainer.style.display = this.getButtonGroupDisplayStyle();
         }
     }
 
@@ -806,6 +817,7 @@ export default class Toolbar {
             gap: "5px",
             backgroundColor: "rgba(0, 0, 0, 0.5)",
             backdropFilter: "blur(4px)",
+            WebkitBackdropFilter: "blur(4px)",
             borderRadius: "0.5rem",
             padding: "0.5rem",
             boxShadow: "0 2px 5px rgba(0, 0, 0, 0.2)",
@@ -943,7 +955,9 @@ export default class Toolbar {
     initializeButtons() {
         const buttonContainer = document.createElement("div");
         Object.assign(buttonContainer.style, {
-            display: "contents",
+            display: this.getButtonGroupDisplayStyle(),
+            alignItems: "center",
+            flexWrap: "wrap",
             gap: "5px",
         });
 
@@ -979,7 +993,9 @@ export default class Toolbar {
         // Measurement Container 생성
         const measurementContainer = document.createElement("div");
         Object.assign(measurementContainer.style, {
-            display: "contents",
+            display: this.getButtonGroupDisplayStyle(),
+            alignItems: "center",
+            flexWrap: "wrap",
             gap: "5px",
         });
 
@@ -1283,8 +1299,7 @@ export default class Toolbar {
     }
 
     getLungROIIcon() {
-        return `<?xml version="1.0" encoding="UTF-8"?>
-<svg id="a" xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 24 24" stroke="#121212" stroke-width="0.15" stroke-linecap="round" stroke-linejoin="round">
+        return `<svg id="a" xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 24 24" stroke="#121212" stroke-width="0.15" stroke-linecap="round" stroke-linejoin="round">
   <defs>
     <style>
       .st0 {
@@ -1764,12 +1779,14 @@ export default class Toolbar {
                 // 다크모드: 완전 투명한 글래스
                 this.toolbar.style.backgroundColor = "rgba(0, 0, 0, 0.1)";
                 this.toolbar.style.backdropFilter = "blur(15px) saturate(120%)";
+                this.toolbar.style.WebkitBackdropFilter = "blur(15px) saturate(120%)";
                 this.toolbar.style.border = "1px solid rgba(255, 255, 255, 0.05)";
                 this.toolbar.style.boxShadow = "0 4px 16px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.1)";
             } else {
                 // 라이트모드: 완전 투명한 글래스
                 this.toolbar.style.backgroundColor = "rgba(255, 255, 255, 0.08)";
                 this.toolbar.style.backdropFilter = "blur(15px) saturate(120%)";
+                this.toolbar.style.WebkitBackdropFilter = "blur(15px) saturate(120%)";
                 this.toolbar.style.border = "1px solid rgba(255, 255, 255, 0.08)";
                 this.toolbar.style.boxShadow = "0 4px 16px rgba(0, 0, 0, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.2)";
             }
@@ -1781,12 +1798,14 @@ export default class Toolbar {
                 // 다크모드: 완전 투명한 글래스
                 this.transformControlsContainer.style.backgroundColor = "rgba(0, 0, 0, 0.1)";
                 this.transformControlsContainer.style.backdropFilter = "blur(15px) saturate(120%)";
+                this.transformControlsContainer.style.WebkitBackdropFilter = "blur(15px) saturate(120%)";
                 this.transformControlsContainer.style.border = "1px solid rgba(255, 255, 255, 0.05)";
                 this.transformControlsContainer.style.boxShadow = "0 4px 16px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.1)";
             } else {
                 // 라이트모드: 완전 투명한 글래스
                 this.transformControlsContainer.style.backgroundColor = "rgba(255, 255, 255, 0.08)";
                 this.transformControlsContainer.style.backdropFilter = "blur(15px) saturate(120%)";
+                this.transformControlsContainer.style.WebkitBackdropFilter = "blur(15px) saturate(120%)";
                 this.transformControlsContainer.style.border = "1px solid rgba(255, 255, 255, 0.08)";
                 this.transformControlsContainer.style.boxShadow = "0 4px 16px rgba(0, 0, 0, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.2)";
             }
