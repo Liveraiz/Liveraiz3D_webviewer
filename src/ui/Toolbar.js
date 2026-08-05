@@ -56,6 +56,15 @@ export default class Toolbar {
         this.activeModeButton = null;
         this.activeMeasurementButton = null;
         this.transformControlsContainer = null;
+        this.mobileToolbarRow = null;
+        this.mobileToolbarButtons = [];
+        this.mobileButtonMetrics = {
+            size: 44,
+            padding: "0.4rem",
+            iconSize: 24,
+            gap: 5,
+        };
+        this.handleToolbarResize = null;
 
         this.initialize();
     }
@@ -64,6 +73,7 @@ export default class Toolbar {
         this.toolbar = this.createToolbarContainer();
         this.initializeButtons();
         this.updateLungROIButtonVisibility();
+        this.updateMobileToolbarLayout();
         document.body.appendChild(this.toolbar);
         this.setupTransformControls();
     }
@@ -77,12 +87,37 @@ export default class Toolbar {
         return this.isSafariBrowser() ? "flex" : "contents";
     }
 
+    getMobileButtonMetrics() {
+        return this.mobileButtonMetrics || {
+            size: 44,
+            padding: "0.4rem",
+            iconSize: 24,
+            gap: 5,
+        };
+    }
+
+    applyButtonIconStyle(button) {
+        if (!button) {
+            return;
+        }
+
+        const { iconSize } = this.getMobileButtonMetrics();
+        const icons = button.querySelectorAll("svg");
+        icons.forEach((icon) => {
+            icon.style.width = `${this.isMobile ? iconSize : 24}px`;
+            icon.style.height = `${this.isMobile ? iconSize : 24}px`;
+            icon.style.flexShrink = "0";
+        });
+    }
+
     /**
      * 버튼에 기본 스타일을 적용하는 함수
      * @param {HTMLElement} button - 스타일을 적용할 버튼 요소
      * @param {boolean} isActive - 버튼의 활성화 상태
      */
     applyButtonStyle(button, isActive = false, isDarkMode = null) {
+        const mobileMetrics = this.getMobileButtonMetrics();
+
         // 다크모드 상태 확인 - 여러 방법으로 확인
         let currentIsDarkMode = false;
         
@@ -136,17 +171,17 @@ export default class Toolbar {
         }
         
         const baseStyle = {
-            padding: this.isMobile ? "0.4rem" : "0.3rem",
+            padding: this.isMobile ? mobileMetrics.padding : "0.3rem",
             border: "none",
             borderRadius: "0.375rem",
             cursor: "pointer",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            width: this.isMobile ? "44px" : "34px",
-            height: this.isMobile ? "44px" : "34px",
+            width: this.isMobile ? `${mobileMetrics.size}px` : "34px",
+            height: this.isMobile ? `${mobileMetrics.size}px` : "34px",
             transition: "all 0.15s cubic-bezier(0.4, 0, 0.2, 1)",
-            margin: this.isMobile ? "2px" : "2px",
+            margin: this.isMobile ? "0" : "2px",
             flexShrink: 0,
             zIndex: "901",
             position: "relative",
@@ -196,6 +231,8 @@ export default class Toolbar {
             // 일반 버튼들은 기존 스타일 적용
             Object.assign(button.style, isActive ? activeStyle : inactiveStyle);
         }
+
+        this.applyButtonIconStyle(button);
 
         if (button.id === "lung-vessel-roi" && button.dataset.roiVisibility !== "visible") {
             button.style.display = "none";
@@ -276,35 +313,34 @@ export default class Toolbar {
         });
 
         // 반응형 레이아웃을 위한 스타일 적용 함수
-        const applyResponsiveLayout = () => {
-            const windowWidth = window.innerWidth;
-
-            if (windowWidth <= 480) {
+        this.handleToolbarResize = () => {
+            if (this.isMobile) {
                 Object.assign(container.style, {
-                    display: "grid",
-                    gridTemplateColumns: "repeat(4, 1fr)",
-                    gap: "6px",
-                    maxWidth: "calc(100vw - 2rem)",
-                });
-            } else if (windowWidth <= 768) {
-                Object.assign(container.style, {
-                    display: "grid",
-                    gridTemplateColumns: "repeat(4, 1fr)",
-                    gap: "10px",
-                    maxWidth: "90vw",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                    width: "fit-content",
+                    maxWidth: "calc(100vw - 1rem)",
+                    overflow: "hidden",
                 });
             } else {
                 Object.assign(container.style, {
                     display: "flex",
                     flexDirection: "row",
+                    alignItems: "center",
                     gap: "20px",
+                    width: "auto",
                     maxWidth: "none",
+                    overflow: "visible",
                 });
             }
+
+            this.updateMobileToolbarLayout();
         };
 
-        applyResponsiveLayout();
-        window.addEventListener("resize", applyResponsiveLayout);
+        this.handleToolbarResize();
+        window.addEventListener("resize", this.handleToolbarResize);
 
         this.sliderContainer = document.createElement("div");
         Object.assign(this.sliderContainer.style, {
@@ -313,7 +349,7 @@ export default class Toolbar {
             marginBottom: "0.5rem",
             display: "none",
             position: "relative",
-            gridColumn: "1 / -1",
+            alignSelf: "stretch",
         });
 
         this.timeSlider = document.createElement("input");
@@ -766,10 +802,16 @@ export default class Toolbar {
             this.activeMeasurementButton = button;
             enableFn();
         }
+
+        this.updateMobileToolbarLayout();
     }
 
     // Add new methods to control button visibility
     showAllButtons() {
+        if (this.mobileToolbarRow) {
+            this.mobileToolbarRow.style.display = "flex";
+            this.updateMobileToolbarLayout();
+        }
         if (this.buttonContainer) {
             this.buttonContainer.style.display = this.getButtonGroupDisplayStyle();
         }
@@ -779,6 +821,9 @@ export default class Toolbar {
     }
 
     hideAllButtons() {
+        if (this.mobileToolbarRow) {
+            this.mobileToolbarRow.style.display = "none";
+        }
         if (this.buttonContainer) {
             this.buttonContainer.style.display = "none";
         }
@@ -952,13 +997,73 @@ export default class Toolbar {
         }
     }
 
+    getVisibleToolbarButtons() {
+        return (this.mobileToolbarButtons || []).filter(
+            (button) => button && button.style.display !== "none"
+        );
+    }
+
+    updateMobileToolbarLayout() {
+        if (!this.isMobile || !this.toolbar || !this.mobileToolbarRow) {
+            return;
+        }
+
+        const visibleButtons = this.getVisibleToolbarButtons();
+        const buttonCount = Math.max(visibleButtons.length, 1);
+        const viewportWidth = window.innerWidth;
+        const horizontalInset = viewportWidth <= 480 ? 16 : 24;
+        const innerPadding = viewportWidth <= 480 ? 8 : 10;
+        const gap = buttonCount >= 6 ? 3 : buttonCount >= 5 ? 4 : 5;
+        const availableWidth = Math.max(
+            viewportWidth - horizontalInset - innerPadding * 2,
+            180
+        );
+        const computedSize = Math.floor(
+            (availableWidth - gap * Math.max(buttonCount - 1, 0)) / buttonCount
+        );
+        const size = Math.max(28, Math.min(44, computedSize));
+        const iconSize = Math.max(16, Math.min(24, Math.floor(size * 0.58)));
+
+        this.mobileButtonMetrics = {
+            size,
+            padding: size <= 32 ? "0.15rem" : size <= 36 ? "0.2rem" : size <= 40 ? "0.3rem" : "0.4rem",
+            iconSize,
+            gap,
+        };
+
+        Object.assign(this.mobileToolbarRow.style, {
+            display: this.mobileToolbarRow.style.display === "none" ? "none" : "flex",
+            width: "fit-content",
+            maxWidth: "100%",
+            alignItems: "center",
+            justifyContent: "center",
+            alignSelf: "center",
+            flexWrap: "nowrap",
+            gap: `${gap}px`,
+            minWidth: "0",
+        });
+
+        this.mobileToolbarButtons.forEach((button) => {
+            const isActive = button.classList.contains("active");
+            this.applyButtonStyle(button, isActive, this.liverViewer?.isDarkMode);
+        });
+    }
+
     initializeButtons() {
         const buttonContainer = document.createElement("div");
         Object.assign(buttonContainer.style, {
-            display: this.getButtonGroupDisplayStyle(),
+            display: this.isMobile ? "none" : this.getButtonGroupDisplayStyle(),
             alignItems: "center",
-            flexWrap: "wrap",
+            flexWrap: this.isMobile ? "nowrap" : "wrap",
             gap: "5px",
+        });
+
+        this.mobileToolbarRow = document.createElement("div");
+        Object.assign(this.mobileToolbarRow.style, {
+            display: this.isMobile ? "flex" : "none",
+            alignItems: "center",
+            flexWrap: "nowrap",
+            minWidth: "0",
         });
 
         const modelLoaderButton = this.createButton(
@@ -993,9 +1098,9 @@ export default class Toolbar {
         // Measurement Container 생성
         const measurementContainer = document.createElement("div");
         Object.assign(measurementContainer.style, {
-            display: this.getButtonGroupDisplayStyle(),
+            display: this.isMobile ? "none" : this.getButtonGroupDisplayStyle(),
             alignItems: "center",
-            flexWrap: "wrap",
+            flexWrap: this.isMobile ? "nowrap" : "wrap",
             gap: "5px",
         });
 
@@ -1189,8 +1294,23 @@ export default class Toolbar {
         //     }
         // };
 
-        this.toolbar.appendChild(buttonContainer);
-        this.toolbar.appendChild(measurementContainer);
+        this.mobileToolbarButtons = [
+            modelLoaderButton,
+            this.seeThroughButton,
+            this.lungVesselROIButton,
+            this.distanceMeasurementButton,
+            this.angleMeasurementButton,
+        ];
+
+        if (this.isMobile) {
+            this.mobileToolbarButtons.forEach((button) => {
+                this.mobileToolbarRow.appendChild(button);
+            });
+            this.toolbar.appendChild(this.mobileToolbarRow);
+        } else {
+            this.toolbar.appendChild(buttonContainer);
+            this.toolbar.appendChild(measurementContainer);
+        }
 
         // Store containers for later access
         this.buttonContainer = buttonContainer;
@@ -1353,6 +1473,8 @@ export default class Toolbar {
             this.applyButtonStyle(this.lungVesselROIButton);
             this.activeMeasurementButton = null;
         }
+
+        this.updateMobileToolbarLayout();
     }
 
     /**
@@ -1374,11 +1496,13 @@ export default class Toolbar {
             const svgText = await response.text();
             if (button) {
                 button.innerHTML = svgText;
+                this.applyButtonIconStyle(button);
             }
         } catch (error) {
             console.warn(`[Toolbar] ${error.message}`);
             if (button && fallbackIcon) {
                 button.innerHTML = fallbackIcon;
+                this.applyButtonIconStyle(button);
             }
         }
     }
@@ -1637,8 +1761,9 @@ export default class Toolbar {
         if (this.meshTransform) {
             this.meshTransform.onSelect = null;
         }
-        window.removeEventListener("resize", this.applyTransformControlsLayout);
-        window.removeEventListener("resize", this.applyResponsiveLayout);
+        if (this.handleToolbarResize) {
+            window.removeEventListener("resize", this.handleToolbarResize);
+        }
     }
 
     // 측정 도구 활성화 메서드
@@ -1817,6 +1942,8 @@ export default class Toolbar {
                 button.style.transition = originalTransitions[index];
             }
         });
+
+        this.updateMobileToolbarLayout();
         
     }
     
