@@ -65,6 +65,8 @@ export default class Toolbar {
             gap: 5,
         };
         this.handleToolbarResize = null;
+        this.handleWindowLoadForLayout = null;
+        this.hasRetriedMobileLayout = false;
 
         this.initialize();
     }
@@ -73,8 +75,9 @@ export default class Toolbar {
         this.toolbar = this.createToolbarContainer();
         this.initializeButtons();
         this.updateLungROIButtonVisibility();
-        this.updateMobileToolbarLayout();
         document.body.appendChild(this.toolbar);
+        this.updateMobileToolbarLayout();
+        this.scheduleInitialMobileLayoutStabilization();
         this.setupTransformControls();
     }
 
@@ -85,6 +88,28 @@ export default class Toolbar {
 
     getButtonGroupDisplayStyle() {
         return this.isSafariBrowser() ? "flex" : "contents";
+    }
+
+    scheduleInitialMobileLayoutStabilization() {
+        if (!this.isMobile) {
+            return;
+        }
+
+        requestAnimationFrame(() => {
+            this.updateMobileToolbarLayout();
+            requestAnimationFrame(() => {
+                this.updateMobileToolbarLayout();
+            });
+        });
+
+        if (document.readyState !== "complete") {
+            this.handleWindowLoadForLayout = () => {
+                this.updateMobileToolbarLayout();
+            };
+            window.addEventListener("load", this.handleWindowLoadForLayout, {
+                once: true,
+            });
+        }
     }
 
     getMobileButtonMetrics() {
@@ -316,11 +341,11 @@ export default class Toolbar {
         this.handleToolbarResize = () => {
             if (this.isMobile) {
                 Object.assign(container.style, {
-                    display: "flex",
+                    display: "inline-flex",
                     flexDirection: "column",
                     alignItems: "center",
                     gap: "0.5rem",
-                    width: "fit-content",
+                    width: "auto",
                     maxWidth: "calc(100vw - 1rem)",
                     overflow: "hidden",
                 });
@@ -809,7 +834,7 @@ export default class Toolbar {
     // Add new methods to control button visibility
     showAllButtons() {
         if (this.mobileToolbarRow) {
-            this.mobileToolbarRow.style.display = "flex";
+            this.mobileToolbarRow.style.display = "inline-flex";
             this.updateMobileToolbarLayout();
         }
         if (this.buttonContainer) {
@@ -1032,8 +1057,8 @@ export default class Toolbar {
         };
 
         Object.assign(this.mobileToolbarRow.style, {
-            display: this.mobileToolbarRow.style.display === "none" ? "none" : "flex",
-            width: "fit-content",
+            display: this.mobileToolbarRow.style.display === "none" ? "none" : "inline-flex",
+            width: "auto",
             maxWidth: "100%",
             alignItems: "center",
             justifyContent: "center",
@@ -1047,6 +1072,19 @@ export default class Toolbar {
             const isActive = button.classList.contains("active");
             this.applyButtonStyle(button, isActive, this.liverViewer?.isDarkMode);
         });
+
+        const rowWidth = this.mobileToolbarRow.getBoundingClientRect().width;
+        if (rowWidth > 0) {
+            this.hasRetriedMobileLayout = false;
+            return;
+        }
+
+        if (!this.hasRetriedMobileLayout && visibleButtons.length > 0) {
+            this.hasRetriedMobileLayout = true;
+            requestAnimationFrame(() => {
+                this.updateMobileToolbarLayout();
+            });
+        }
     }
 
     initializeButtons() {
@@ -1060,7 +1098,7 @@ export default class Toolbar {
 
         this.mobileToolbarRow = document.createElement("div");
         Object.assign(this.mobileToolbarRow.style, {
-            display: this.isMobile ? "flex" : "none",
+            display: this.isMobile ? "inline-flex" : "none",
             alignItems: "center",
             flexWrap: "nowrap",
             minWidth: "0",
@@ -1763,6 +1801,10 @@ export default class Toolbar {
         }
         if (this.handleToolbarResize) {
             window.removeEventListener("resize", this.handleToolbarResize);
+        }
+        if (this.handleWindowLoadForLayout) {
+            window.removeEventListener("load", this.handleWindowLoadForLayout);
+            this.handleWindowLoadForLayout = null;
         }
     }
 
