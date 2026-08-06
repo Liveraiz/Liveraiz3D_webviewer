@@ -87,7 +87,7 @@ export default class Toolbar {
     }
 
     getButtonGroupDisplayStyle() {
-        return this.isSafariBrowser() ? "flex" : "contents";
+        return "flex";
     }
 
     scheduleInitialMobileLayoutStabilization() {
