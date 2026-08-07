@@ -459,7 +459,7 @@ export default class LiverViewer {
                     console.error("모델 로드 에러:", error);
                     this.handleLoadError(error);
                 },
-                modelPath: "./models/251218-dangam.glb",
+                modelPath: "./models/260807-dangam.glb",
                 autoLoad: !this.externalModelRequest,
             });
 
