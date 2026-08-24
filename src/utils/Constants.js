@@ -376,7 +376,7 @@ export const LUNG_RESECTION_KEYWORDS = [
 
 // PCD 관련 메시 키워드
 export const PCD_KEYWORDS = [
-    "subcutaneous_Fat", "small_bowel_ROI", "colon_ROI"
+    "subcutaneous_Fat", "fluid_collection", "colon_ROI"
 ];
 
 // DIEP 관련 메시 키워드 (PCD와 동일한 렌더링 설정)

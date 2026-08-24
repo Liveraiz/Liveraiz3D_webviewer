@@ -5,6 +5,12 @@ import { DeviceDetector } from "../utils/DeviceDetector";
 import { TableGenerator } from "./TableGenerator";
 import { Constants } from "../utils/Constants";
 import { LocalFileManager } from "../services/LocalFileManager";
+import { VIEWER_PROVIDER } from "../services/ViewerEntryService";
+import {
+    isS3ManifestProvider,
+    normalizeViewerManifest,
+    resolveViewerAssetUrl,
+} from "../services/ViewerModelManifestService";
 
 export default class ModelSelector {
     constructor(options) {
@@ -31,6 +37,7 @@ export default class ModelSelector {
         this.lastLoadedModels = null;
         this.patientInfoUrl = null; // Patient information URL saved
         this.lastJsonUrl = null; // JSON URL saved
+        this.currentManifestProvider = null;
         this.isLoading = false; // Loading state tracking
         this.currentModelIndex = 0; // Index of currently selected model
         this.lastScrollPosition = 0; // Last carousel scroll position
@@ -88,6 +95,7 @@ export default class ModelSelector {
     async loadDropboxFolderContents(jsonUrl, isDirectLoad = false) {
         try {
             this.lastJsonUrl = jsonUrl;
+            this.currentManifestProvider = VIEWER_PROVIDER.DROPBOX;
             console.log("Input URL:", jsonUrl);
 
             // Dropbox URL validation (dropbox.com or dropboxusercontent.com allowed)
@@ -118,18 +126,32 @@ export default class ModelSelector {
                 this.onJsonLoaded(data);
             }
 
-            // Update UI or save data
-            // Model list must be updated even when isDirectLoad to display in UI
-            console.log("📋 Calling updateModelList with data:", data);
-            await this.updateModelList(data);
-            this.lastLoadedModels = data.models || [];
-            console.log("✅ lastLoadedModels set to:", this.lastLoadedModels.length, "models");
-
-            return data;
+            return this.loadManifest(data, VIEWER_PROVIDER.DROPBOX);
         } catch (error) {
             console.error("Error during full processing:", error);
             throw error;
         }
+    }
+
+    /**
+     * Renders an already-authorized model manifest. S3 URLs are presigned and
+     * must be used as-is; legacy Dropbox URLs are converted at the point of use.
+     */
+    async loadManifest(data, provider = VIEWER_PROVIDER.S3) {
+        const { manifest, models } = normalizeViewerManifest(data, provider);
+        this.currentFolderInfo = manifest.folderInfo || null;
+        this.currentManifestProvider = provider;
+        this.lastLoadedModels = models;
+        this.currentModelIndex = 0;
+        console.log(`📋 Rendering ${provider} manifest with ${models.length} models`);
+        if (this.dialog) {
+            await this.updateModelList(manifest);
+        }
+        return manifest;
+    }
+
+    getAssetUrl(model, propertyName) {
+        return resolveViewerAssetUrl(model, propertyName, this.dropboxService);
     }
 
     async handleTableDisplay(model) {
@@ -140,9 +162,7 @@ export default class ModelSelector {
 
         if (model.tableUrl) {
             try {
-                const response = await fetch(
-                    this.dropboxService.getDirectDownloadUrl(model.tableUrl)
-                );
+                const response = await fetch(this.getAssetUrl(model, "tableUrl"));
                 const tableText = await response.text();
 
                 let tableHTML = "";
@@ -150,14 +170,20 @@ export default class ModelSelector {
                 // Normalize case value (case-insensitive, trim whitespace)
                 const normalizedCase = this.resolveEffectiveCase(model);
                 // Also check model name (to distinguish HVT, RL, etc.)
-                const modelName = model.name ? model.name.trim().toUpperCase() : "";
+                const modelName = this.getModelDisplayName(model).trim().toUpperCase();
                 console.log("Table display - model.case:", model.case, "normalized:", normalizedCase, "model.name:", model.name);
 
-                if (normalizedCase === "HCC") {
+                if (modelName.includes("CUSTOM")) {
+                    console.log("Using LUNG Table for CUSTOM model before case routing:", model.name);
+                    tableHTML = this.tableGenerator.createLungTable(
+                        tableText,
+                        modelName || normalizedCase || model.case || "HCC"
+                    );
+                } else if (normalizedCase === "HCC") {
                     // HCC table
                     tableHTML = this.tableGenerator.createHCCTable(
                         tableText,
-                        model.case
+                        modelName || model.case || "HCC"
                     );
                 } else if (normalizedCase === "CCC" || normalizedCase.includes("CCC")) {
                     // CCC table (2-column format)
@@ -704,9 +730,7 @@ export default class ModelSelector {
 
                 if (model.thumbnailUrl) {
                     const img = document.createElement("img");
-                    img.src = this.dropboxService.getDirectDownloadUrl(
-                        model.thumbnailUrl
-                    );
+                    img.src = this.getAssetUrl(model, "thumbnailUrl");
                     Object.assign(img.style, {
                         width: "100%",
                         height: "100%",
@@ -780,7 +804,7 @@ export default class ModelSelector {
                         console.log("Start model loading - Block carousel movement");
                         
                         try {
-                            const directGlbUrl = this.dropboxService.getDirectDownloadUrl(model.glbUrl);
+                            const directGlbUrl = this.getAssetUrl(model, "glbUrl");
                             console.log("Attempting to load model:", directGlbUrl);
 
                             // Disable all carousel events
@@ -811,7 +835,7 @@ export default class ModelSelector {
 
                             // Load model (loadModel will handle validation)
                             // Pass model name for ROI detection
-                            await this.loadModel(directGlbUrl, index, model.name);
+                            await this.loadModel(directGlbUrl, index, this.getModelDisplayName(model));
                             console.log("Model loading successful");
 
                             // Remove loading indicator
@@ -981,7 +1005,9 @@ export default class ModelSelector {
                 }
             };
 
-            this.dialog.appendChild(shareButton);
+            if (!isS3ManifestProvider(this.currentManifestProvider)) {
+                this.dialog.appendChild(shareButton);
+            }
         } catch (error) {
             // Log output only in development mode
             if (process.env.NODE_ENV === "development") {
@@ -1054,6 +1080,9 @@ export default class ModelSelector {
             transition: "all 0.3s ease",
         });
 
+        const provider = this.currentManifestProvider || new URLSearchParams(window.location.search).get("type")?.toLowerCase();
+        const isS3Manifest = isS3ManifestProvider(provider);
+
         // Close button
         const closeButton = document.createElement("button");
         closeButton.innerHTML = `
@@ -1077,7 +1106,7 @@ export default class ModelSelector {
 
         // Title
         const title = document.createElement("h3");
-        title.textContent = "Import 3D model";
+        title.textContent = isS3Manifest ? "Project 3D models" : "Import 3D model";
         title.style.marginBottom = "20px";
         title.style.color = textColor;
         this.dialog.appendChild(title);
@@ -1128,7 +1157,7 @@ export default class ModelSelector {
         const isShared = urlParams.get("shared") === "true" || urlParams.get("readonly") === "true" || this.lastJsonUrl;
         
         // Hide input container if in share mode
-        if (isShared) {
+        if (isShared || isS3Manifest) {
             inputContainer.style.display = "none";
         }
         
@@ -1215,6 +1244,33 @@ export default class ModelSelector {
 
     getModelName(path) {
         return path.split("/").pop().replace(".glb", "");
+    }
+
+    getModelDisplayName(model) {
+        const candidates = [
+            model?.name,
+            model?.fileName,
+            model?.glbUrl,
+            model?.glbPath,
+            model?.tableUrl,
+            model?.csvUrl,
+            model?.csvPath,
+            model?.modelPath,
+            model?.url,
+        ];
+
+        for (const candidate of candidates) {
+            if (!candidate) continue;
+
+            const rawValue = String(candidate);
+            const withoutQuery = rawValue.split("?")[0].split("#")[0];
+            const fileName = withoutQuery.split(/[/\\]/).pop() || rawValue;
+            if (fileName) {
+                return fileName;
+            }
+        }
+
+        return "";
     }
 
     getCurrentModel() {
@@ -2200,7 +2256,7 @@ export default class ModelSelector {
             }
 
             // Use displayLocalModelTable with populated csvData
-            this.displayLocalModelTable({ ...model, csvData });
+            this.displayLocalModelTable({ ...model, csvData, fileName: detectionFileName });
 
         } catch (e) {
             console.warn('[ModelSelector] Failed to load/display CSV table:', e);
@@ -2227,9 +2283,26 @@ export default class ModelSelector {
                 return;
             }
 
+            const detectionFileName =
+                model.fileName ||
+                model.csvFile?.name ||
+                (model.csvPath ? model.csvPath.split(/[/\\]/).pop() : "") ||
+                model.name ||
+                "";
+
+            const detectionFolderPath =
+                model.folderPath ||
+                (model.csvFile?.webkitRelativePath
+                    ? model.csvFile.webkitRelativePath.split(/[\\/]/).slice(0, -1).join("/")
+                    : "") ||
+                (model.csvPath
+                    ? model.csvPath.split(/[/\\]/).slice(0, -1).join("/")
+                    : "") ||
+                "";
+
             // Use autoCreateTable method from TableGenerator - Auto detection based on filename
-            console.log('[ModelSelector] autoCreateTable input - model.name:', model.name, 'model.fileName:', model.fileName, 'model.case:', model.case);
-            const result = this.tableGenerator.autoCreateTable(model.csvData, model.name, model.folderPath || "");
+            console.log('[ModelSelector] autoCreateTable input - model.name:', model.name, 'detectionFileName:', detectionFileName, 'detectionFolderPath:', detectionFolderPath, 'model.case:', model.case);
+            const result = this.tableGenerator.autoCreateTable(model.csvData, detectionFileName, detectionFolderPath);
             const tableHTML = result.html;
             const surgeryType = result.surgeryType;
 

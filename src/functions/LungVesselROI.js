@@ -131,9 +131,14 @@ export default class LungVesselROI {
                 });
 
                 // desaturated 예외 확인 (항상 컬러 유지)
-                const isNonDesaturatedException = nonDesaturatedNames.some((name) =>
-                    objectName.includes(name.toLowerCase())
-                );
+                const isLineMesh = objectName.includes("line");
+                const isLabelMesh = objectName.includes("label");
+                const isNonDesaturatedException =
+                    isLineMesh ||
+                    isLabelMesh ||
+                    nonDesaturatedNames.some((name) =>
+                        objectName.includes(name.toLowerCase())
+                    );
                 const isTargetRegionMesh = this.isTargetRegionMesh(objectName);
 
                 if (isNonDesaturatedException || isTargetRegionMesh) {
@@ -175,9 +180,14 @@ export default class LungVesselROI {
                     const objectName = object.name.toLowerCase();
                     
                     // desaturated 예외 메시는 항상 컬러 유지
-                    const isNonDesaturatedException = nonDesaturatedNames.some((name) =>
-                        objectName.includes(name.toLowerCase())
-                    );
+                    const isLineMesh = objectName.includes("line");
+                    const isLabelMesh = objectName.includes("label");
+                    const isNonDesaturatedException =
+                        isLineMesh ||
+                        isLabelMesh ||
+                        nonDesaturatedNames.some((name) =>
+                            objectName.includes(name.toLowerCase())
+                        );
                     const isTargetRegionMesh = this.isTargetRegionMesh(objectName);
                     
                     if (isNonDesaturatedException || isTargetRegionMesh) {
