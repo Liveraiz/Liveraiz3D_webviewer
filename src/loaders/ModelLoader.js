@@ -480,14 +480,14 @@ export default class ModelLoader {
         try {
             console.log("Model loaded successfully");
 
-            // ========== PCD 모델 판정 및 설정 ==========
+            // ========== PCD/DIEP 모델 판정 및 설정 ==========
             // ✅ 로컬 파일/URL 모두 지원: gltf.userData.fileName 또는 this.modelPath 체크
             // ✅ Dropbox 모델의 경우: this.currentModelName 사용 (ModelSelector에서 전달됨)
             const modelName = (this.currentModelName || gltf.userData?.fileName || this.modelPath || '').toUpperCase();
-            const isPCDModel = modelName.includes('PCD');
+            const isPCDModel = modelName.includes('PCD') || modelName.includes('DIEP');
             if (this.materialManager) {
                 this.materialManager.setPCDModel(isPCDModel);
-                console.log(`[ModelLoader] Model: ${modelName}, Type: ${isPCDModel ? 'PCD' : 'General'}`);
+                console.log(`[ModelLoader] Model: ${modelName}, Type: ${isPCDModel ? 'PCD/DIEP' : 'General'}`);
             }
 
             // ========== ROI 모델 판정 및 설정 ==========
