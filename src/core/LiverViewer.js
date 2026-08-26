@@ -28,16 +28,16 @@ import LoadingBar from "../ui/LoadingBar";
 import LogoManager from "../ui/LogoManager";
 import CameraPlayer from "../functions/CameraPlayer";
 import ZoomControl from "../ui/ZoomControl";
+import {
+    parseViewerEntry,
+    VIEWER_PROVIDER,
+    clearLaunchTokenFromUrl,
+    isS3DownloadUrlError,
+} from "../services/ViewerEntryService";
 import FloatingModeButtons from "../ui/FloatingModeButtons";
 import XRHandler from "../functions/XRHandler";
 import StereoscopicRenderer from "../functions/StereoscopicRenderer";
 import { RenderManager } from "./RenderManager";
-import {
-    clearLaunchTokenFromUrl,
-    isS3DownloadUrlError,
-    parseViewerEntry,
-    VIEWER_PROVIDER,
-} from "../services/ViewerEntryService";
 import { fetchViewerProjectManifest } from "../services/ViewerProjectManifestService";
 
 export default class LiverViewer {
@@ -460,7 +460,8 @@ export default class LiverViewer {
                     this.handleLoadError(error);
                 },
                 modelPath: "./models/260807-dangam.glb",
-                autoLoad: !this.externalModelRequest,
+                // URL 파라미터가 없으면 기본 모델 자동 로드, 있으면 ModelSelector에서 선택하도록
+                autoLoad: !this.viewerEntry.provider,
             });
 
             console.log("✅ ModelLoader created successfully");
