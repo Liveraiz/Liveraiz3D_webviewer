@@ -837,11 +837,8 @@ export default class Toolbar {
             this.mobileToolbarRow.style.display = "inline-flex";
             this.updateMobileToolbarLayout();
         }
-        if (this.buttonContainer) {
-            this.buttonContainer.style.display = this.getButtonGroupDisplayStyle();
-        }
-        if (this.measurementContainer) {
-            this.measurementContainer.style.display = this.getButtonGroupDisplayStyle();
+        if (this.allButtonsContainer) {
+            this.allButtonsContainer.style.display = this.getButtonGroupDisplayStyle();
         }
     }
 
@@ -849,11 +846,8 @@ export default class Toolbar {
         if (this.mobileToolbarRow) {
             this.mobileToolbarRow.style.display = "none";
         }
-        if (this.buttonContainer) {
-            this.buttonContainer.style.display = "none";
-        }
-        if (this.measurementContainer) {
-            this.measurementContainer.style.display = "none";
+        if (this.allButtonsContainer) {
+            this.allButtonsContainer.style.display = "none";
         }
     }
 
@@ -1088,12 +1082,13 @@ export default class Toolbar {
     }
 
     initializeButtons() {
-        const buttonContainer = document.createElement("div");
-        Object.assign(buttonContainer.style, {
+        // 모든 버튼을 포함하는 통합 컨테이너
+        const allButtonsContainer = document.createElement("div");
+        Object.assign(allButtonsContainer.style, {
             display: this.isMobile ? "none" : this.getButtonGroupDisplayStyle(),
             alignItems: "center",
             flexWrap: this.isMobile ? "nowrap" : "wrap",
-            gap: "5px",
+            gap: "10px",
         });
 
         this.mobileToolbarRow = document.createElement("div");
@@ -1110,7 +1105,7 @@ export default class Toolbar {
             "model-switch"
         );
 
-        buttonContainer.appendChild(modelLoaderButton);
+        allButtonsContainer.appendChild(modelLoaderButton);
 
         modelLoaderButton.onclick = async () => {
             try {
@@ -1133,15 +1128,6 @@ export default class Toolbar {
             }
         };
 
-        // Measurement Container 생성
-        const measurementContainer = document.createElement("div");
-        Object.assign(measurementContainer.style, {
-            display: this.isMobile ? "none" : this.getButtonGroupDisplayStyle(),
-            alignItems: "center",
-            flexWrap: this.isMobile ? "nowrap" : "wrap",
-            gap: "5px",
-        });
-
         // 시스루(see-through) 버튼
         this.seeThroughButton = this.createButton(
             this.getSeeThroughIcon(),
@@ -1149,7 +1135,7 @@ export default class Toolbar {
             "see-through"
         );
 
-        measurementContainer.appendChild(this.seeThroughButton);
+        allButtonsContainer.appendChild(this.seeThroughButton);
 
         this.seeThroughButton.onclick = () => {
             const wasActive =
@@ -1198,7 +1184,7 @@ export default class Toolbar {
             "lung-vessel-roi"
         );
 
-        measurementContainer.appendChild(this.lungVesselROIButton);
+        allButtonsContainer.appendChild(this.lungVesselROIButton);
         this.loadSvgIconFromFile(
             this.lungVesselROIButton,
             "/icon/LungROI.svg",
@@ -1258,7 +1244,7 @@ export default class Toolbar {
             "distance-measurement"
         );
 
-        measurementContainer.appendChild(this.distanceMeasurementButton);
+        allButtonsContainer.appendChild(this.distanceMeasurementButton);
 
         this.distanceMeasurementButton.onclick = () => {
             this.toggleMeasurementButton(
@@ -1285,7 +1271,7 @@ export default class Toolbar {
             "angle-measurement"
         );
 
-        measurementContainer.appendChild(this.angleMeasurementButton);
+        allButtonsContainer.appendChild(this.angleMeasurementButton);
 
         this.angleMeasurementButton.onclick = () => {
             this.toggleMeasurementButton(
@@ -1346,13 +1332,11 @@ export default class Toolbar {
             });
             this.toolbar.appendChild(this.mobileToolbarRow);
         } else {
-            this.toolbar.appendChild(buttonContainer);
-            this.toolbar.appendChild(measurementContainer);
+            this.toolbar.appendChild(allButtonsContainer);
         }
 
         // Store containers for later access
-        this.buttonContainer = buttonContainer;
-        this.measurementContainer = measurementContainer;
+        this.allButtonsContainer = allButtonsContainer;
     }
 
     createButton(icon, title, id) {
