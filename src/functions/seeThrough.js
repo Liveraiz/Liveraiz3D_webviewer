@@ -122,6 +122,7 @@ export default class SeeThrough {
             if (originalMaterial) {
                 mesh.material = originalMaterial;
             }
+            delete mesh.userData.__seeThroughLogged;
         });
 
         this.sphereMesh.visible = false;
@@ -161,6 +162,16 @@ export default class SeeThrough {
             const point = intersects[0].point;
             this.sphereMesh.position.copy(point);
 
+            // [DEBUG] 레이 상에 실제로 몇 겹의 지오메트리가 있는지 확인 (겹치는 게 1개뿐이면 안쪽엔 볼 게 없다는 뜻)
+            const now = performance.now();
+            if (!this._lastDebugLogTime || now - this._lastDebugLogTime > 500) {
+                this._lastDebugLogTime = now;
+                console.log(
+                    `[SeeThrough][debug] ray hit ${intersects.length}개 mesh:`,
+                    intersects.map((i) => ({ name: i.object.name, dist: i.distance.toFixed(2) }))
+                );
+            }
+
             // 모든 Mesh에 SeeThrough 효과 적용
             this.liverMeshes.forEach((mesh) => {
                 this.applySeeThroughMaterial(mesh, point);
@@ -177,6 +188,13 @@ export default class SeeThrough {
 
         const newMaterial = originalMaterial.clone();
         newMaterial.transparent = true;
+        newMaterial.depthWrite = false; // 투명해진 영역이 뒤쪽 지오메트리를 가리지 않도록 함
+        newMaterial.userData.isSeeThroughMaterial = true; // MaterialManager 등 다른 곳에서 덮어쓰는지 추적하기 위한 마커
+
+        if (!mesh.userData.__seeThroughLogged) {
+            mesh.userData.__seeThroughLogged = true;
+            console.log(`[SeeThrough][debug] "${mesh.name}" material 적용: opacity=${newMaterial.opacity}, transparent=${newMaterial.transparent}, depthWrite=${newMaterial.depthWrite}`);
+        }
 
         newMaterial.onBeforeCompile = (shader) => {
             shader.uniforms.seeThroughCenter = { value: center.clone() };
@@ -208,11 +226,11 @@ export default class SeeThrough {
                     float normalizedDist = dist / (seeThroughRadius * 1.15);
                     
                     // 내부에서 외부로 갈수록 불투명해지는 그라데이션
-                    // float alpha = smoothstep(0.0, 1.0, normalizedDist);
+                    float alpha = smoothstep(0.0, 1.0, normalizedDist);
                     
                     if (dist < seeThroughRadius) {
-                        // gl_FragColor.a *= alpha;
-                        discard;
+                        gl_FragColor.a *= alpha;
+                        //discard;
                     }
                     #include <dithering_fragment>
                     `

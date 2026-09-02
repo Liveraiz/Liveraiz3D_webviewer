@@ -412,6 +412,12 @@ export default class MaterialManager {
             const transparentMetadata = [];  // 투명 메시 (back-to-front 정렬)
             
             allMeshes.forEach(mesh => {
+                // SeeThrough가 매 프레임 재적용하는 material은 여기서 제외
+                const isSeeThroughMat = Array.isArray(mesh.material)
+                    ? mesh.material.some((mat) => mat.userData?.isSeeThroughMaterial)
+                    : mesh.material.userData?.isSeeThroughMaterial;
+                if (isSeeThroughMat) return;
+
                 // material의 opacity 확인
                 const opacity = Array.isArray(mesh.material) 
                     ? (mesh.material[0]?.opacity || 1.0)
@@ -472,11 +478,17 @@ export default class MaterialManager {
         // renderOrder를 건드리지 않음 (기본값 0 유지) → depth test 정상 작동
         // ✅ 투명 메시도 depthWrite=true로 설정하여 뒤의 투명 메시 블로킹
         allMeshes.forEach(mesh => {
+            // SeeThrough가 매 프레임 재적용하는 material은 opacity 기반 강제 리셋에서 제외
+            const isSeeThroughMat = Array.isArray(mesh.material)
+                ? mesh.material.some((mat) => mat.userData?.isSeeThroughMaterial)
+                : mesh.material.userData?.isSeeThroughMaterial;
+            if (isSeeThroughMat) return;
+
             // material의 opacity 확인
             const opacity = Array.isArray(mesh.material) 
                 ? (mesh.material[0]?.opacity || 1.0)
                 : (mesh.material.opacity || 1.0);
-            
+
             if (Array.isArray(mesh.material)) {
                 mesh.material.forEach(mat => {
                     if (opacity >= 1.0) {
