@@ -46,6 +46,7 @@ export default class LungVesselROI {
 
         // 상태 플래그
         this.isActive = false;
+        this.activationCount = 0;
     }
 
     normalizeMeshName(meshName) {
@@ -59,10 +60,76 @@ export default class LungVesselROI {
         );
     }
 
+    isTransformControlMesh(object) {
+        const controlMeshNames = new Set([
+            "x",
+            "y",
+            "z",
+            "e",
+            "xy",
+            "yz",
+            "xz",
+            "xyz",
+            "xyze",
+            "start",
+            "end",
+        ]);
+        const normalizedName = this.normalizeMeshName(object.name || "");
+        if (controlMeshNames.has(normalizedName)) return true;
+
+        let parent = object.parent;
+        while (parent) {
+            if (parent.type === "TransformControls" || parent.name === "TransformControls") {
+                return true;
+            }
+            parent = parent.parent;
+        }
+
+        return false;
+    }
+
+    getMaterialDebugInfo(material) {
+        if (!material) return null;
+
+        return {
+            depthWrite: material.depthWrite,
+        };
+    }
+
+    logMaterialSettings(stage) {
+        const rows = [];
+        this.scene.traverse((object) => {
+            if (!object.isMesh || this.isTransformControlMesh(object)) return;
+
+            const materials = Array.isArray(object.material)
+                ? object.material
+                : [object.material];
+            materials.forEach((material, materialIndex) => {
+                rows.push({
+                    stage,
+                    mesh: object.name || "(unnamed)",
+                    meshId: object.id,
+                    materialIndex,
+                    depthWrite: material?.depthWrite,
+                    renderOrder: object.renderOrder,
+                });
+            });
+        });
+
+        console.groupCollapsed(`[LungVesselROI][debug] ${stage} (${rows.length} materials)`);
+        console.table(rows);
+        console.groupEnd();
+        return rows;
+    }
+
     /**
      * 폐혈관 ROI 모드 활성화 (See Through와 동일한 방식)
      */
     enableLungVesselROI() {
+        this.activationCount += 1;
+        const activationLabel = `activation-${this.activationCount}`;
+        this.logMaterialSettings(`${activationLabel} before-enable`);
+
         // === Renderer 레벨 설정: Z-fighting 방지 ===
         // sortObjects를 활성화해서 깊이 순서대로 렌더링
         this.renderer.sortObjects = true;
@@ -102,8 +169,8 @@ export default class LungVesselROI {
         let hasTargetRegionMesh = false;
 
         this.scene.traverse((object) => {
-            if (object.isMesh) {
-                const objectName = object.name.toLowerCase();
+            if (object.isMesh && !this.isTransformControlMesh(object)) {
+                const objectName = this.normalizeMeshName(object.name);
                 
                 // Target A 영역 메시만 타겟으로 사용
                 if (this.isTargetRegionMesh(objectName)) {
@@ -116,7 +183,7 @@ export default class LungVesselROI {
 
         // Step 2: 모든 메시를 분류: 타겟 vs 예외 vs 비타겟
         this.scene.traverse((object) => {
-            if (object.isMesh) {
+            if (object.isMesh && !this.isTransformControlMesh(object)) {
                 const objectName = object.name.toLowerCase();
 
                 // 모든 메시의 원본 material 저장
@@ -137,7 +204,7 @@ export default class LungVesselROI {
                     isLineMesh ||
                     isLabelMesh ||
                     nonDesaturatedNames.some((name) =>
-                        objectName.includes(name.toLowerCase())
+                        objectName.includes(this.normalizeMeshName(name))
                     );
                 const isTargetRegionMesh = this.isTargetRegionMesh(objectName);
 
@@ -176,8 +243,8 @@ export default class LungVesselROI {
                 "No Target A meshes found. Using all lung vessel meshes for ROI effect."
             );
             this.scene.traverse((object) => {
-                if (object.isMesh) {
-                    const objectName = object.name.toLowerCase();
+                if (object.isMesh && !this.isTransformControlMesh(object)) {
+                    const objectName = this.normalizeMeshName(object.name);
                     
                     // desaturated 예외 메시는 항상 컬러 유지
                     const isLineMesh = objectName.includes("line");
@@ -186,7 +253,7 @@ export default class LungVesselROI {
                         isLineMesh ||
                         isLabelMesh ||
                         nonDesaturatedNames.some((name) =>
-                            objectName.includes(name.toLowerCase())
+                            objectName.includes(this.normalizeMeshName(name))
                         );
                     const isTargetRegionMesh = this.isTargetRegionMesh(objectName);
                     
@@ -222,6 +289,8 @@ export default class LungVesselROI {
         // 2. Nodule 메시들도 renderOrder 설정 (앞쪽)
         this.nodulesExceptionMeshes.forEach((mesh, index) => {
             mesh.renderOrder = 200 + index; // 앞쪽 메시들
+            const isNoduleMargin = this.normalizeMeshName(mesh.name).includes("nodule margin");
+            this.applyROIExceptionMaterial(mesh, isNoduleMargin ? 0.3 : undefined);
         });
 
         // 3. Target 교차 폐혈관도 renderOrder 설정
@@ -231,8 +300,10 @@ export default class LungVesselROI {
 
         this.isActive = true;
 
+        this.logMaterialSettings(`${activationLabel} after-enable`);
+
         console.log(
-            `LungVesselROI enabled with ${this.lungVesselMeshes.length} target meshes (intersecting target regions, colored), ${this.nodulesExceptionMeshes.length} nodules (always colored), and ${this.otherMeshes.length} other meshes (desaturated)`
+            `LungVesselROI ${activationLabel} enabled with ${this.lungVesselMeshes.length} target meshes (intersecting target regions, colored), ${this.nodulesExceptionMeshes.length} nodules (always colored), and ${this.otherMeshes.length} other meshes (desaturated)`
         );
     }
 
@@ -240,6 +311,9 @@ export default class LungVesselROI {
      * 폐혈관 ROI 모드 비활성화
      */
     disableLungVesselROI() {
+        const activationLabel = `activation-${this.activationCount}`;
+        this.logMaterialSettings(`${activationLabel} before-disable`);
+
         // === Renderer 설정 복원 ===
         this.renderer.sortObjects = this.originalRendererSettings.sortObjects;
 
@@ -289,7 +363,8 @@ export default class LungVesselROI {
 
         this.isActive = false;
 
-        console.log("LungVesselROI disabled - all meshes and renderer settings restored");
+        this.logMaterialSettings(`${activationLabel} after-disable`);
+        console.log(`LungVesselROI ${activationLabel} disabled - all meshes and renderer settings restored`);
     }
 
     /**
@@ -322,6 +397,44 @@ export default class LungVesselROI {
         };
 
         mesh.material = newMaterial;
+    }
+
+    applyROIExceptionMaterial(mesh, forcedOpacity = undefined) {
+        const originalMaterial = this.originalMaterials.get(mesh);
+        if (!originalMaterial) return;
+
+        const applyToMaterial = (material) => {
+            const roiMaterial = material.clone();
+            if (forcedOpacity !== undefined) {
+                roiMaterial.opacity = forcedOpacity;
+            }
+            if (roiMaterial.opacity < 1) {
+                roiMaterial.transparent = true;
+                roiMaterial.depthWrite = false;
+                roiMaterial.depthTest = false;
+                roiMaterial.userData.isLungVesselROIMaterial = true;
+            }
+            roiMaterial.needsUpdate = true;
+            return roiMaterial;
+        };
+
+        mesh.material = Array.isArray(originalMaterial)
+            ? originalMaterial.map(applyToMaterial)
+            : applyToMaterial(originalMaterial);
+
+        console.debug("[LungVesselROI] ROI exception material applied", {
+            meshName: mesh.name,
+            opacity: Array.isArray(mesh.material)
+                ? mesh.material.map((material) => material.opacity)
+                : mesh.material.opacity,
+            transparent: Array.isArray(mesh.material)
+                ? mesh.material.map((material) => material.transparent)
+                : mesh.material.transparent,
+            depthWrite: Array.isArray(mesh.material)
+                ? mesh.material.map((material) => material.depthWrite)
+                : mesh.material.depthWrite,
+            renderOrder: mesh.renderOrder,
+        });
     }
 
     /**
