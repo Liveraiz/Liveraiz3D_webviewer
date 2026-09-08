@@ -379,6 +379,18 @@ export const PCD_KEYWORDS = [
     "subcutaneous_Fat", "fluid_collection", "colon_ROI"
 ];
 
+// 오브젝트 리스트 패널 그룹핑용 키워드 (폐엽/동맥/정맥/기관지)
+export const LOBE_GROUP_KEYWORDS = ["LUL", "LLL", "RUL", "RML", "RLL", "lobe"];
+// 폐구역(segment) 번호 표기 - 단어 단위(토큰) 매칭 전용, S1~S10 및 a/b/c 하위구역 포함
+export const LOBE_SEGMENT_TOKENS = [
+    "s1", "s2", "s3", "s4", "s5", "s6", "s7", "s8", "s9", "s10",
+    "s1a", "s1b", "s1c", "s2a", "s2b", "s3a", "s3b", "s4a", "s4b", "s5a", "s5b", "s6a", "s6b",
+];
+export const ARTERY_GROUP_KEYWORDS = ["pulmonary_artery", "artery", "arteries"];
+export const VEIN_GROUP_KEYWORDS = ["pulmonary_vein", "vein", "veins"];
+export const BRONCHUS_GROUP_KEYWORDS = ["bronchus", "airway", "airways"];
+export const CANCER_GROUP_KEYWORDS = ["nodule margins", "nodule margin", "nodules", "nodule"];
+
 // DIEP 관련 메시 키워드 (PCD와 동일한 렌더링 설정)
 export const DIEP_KEYWORDS = [
     "muscle", "T_muscle", "body"
@@ -390,6 +402,10 @@ export const OPACITY_CONTROLLABLE_KEYWORDS = [
     ...LUNG_RESECTION_KEYWORDS,
     ...PCD_KEYWORDS,
     ...DIEP_KEYWORDS,
+    ...ARTERY_GROUP_KEYWORDS,
+    ...VEIN_GROUP_KEYWORDS,
+    ...BRONCHUS_GROUP_KEYWORDS,
+    "vessel", "capillary", "airways wall",
     "myometrium","uterus", "recipient_cavity", "pancreas", "Pancreas",
     "bladder", "tumor", "cancer", "glissonean_pedicle", "fibroid", "body",
     "stomach wall"

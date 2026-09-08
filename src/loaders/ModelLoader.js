@@ -4,6 +4,7 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
 import { RGBELoader } from "three/examples/jsm/loaders/RGBELoader";
 import { EXCLUDE_KEYWORDS } from "../utils/Constants";
 import { LocalFileManager } from "../utils/LocalFileManager";
+import LungVesselROI from "../functions/LungVesselROI";
 
 export default class ModelLoader {
     constructor({
@@ -554,6 +555,26 @@ export default class ModelLoader {
                 }
             });
 
+            // ROI 모델의 혈관/기관지는 파일에서 opacity가 0.6(투명)으로 들어오는 경우가 있어
+            // ObjectListPanel이 초기 상태를 읽기 전에 opacity 1.0(완전 불투명)으로 강제
+            if (isROIModel) {
+                model.traverse((child) => {
+                    if (!child.isMesh || !child.material) return;
+                    const objectName = child.name.toLowerCase();
+                    const isVesselOrBronchus = LungVesselROI.VESSEL_BRONCHUS_KEYWORDS.some((keyword) =>
+                        objectName.includes(keyword.toLowerCase())
+                    );
+                    if (!isVesselOrBronchus) return;
+
+                    const materials = Array.isArray(child.material) ? child.material : [child.material];
+                    materials.forEach((material) => {
+                        material.opacity = 1.0;
+                        material.transparent = false;
+                        material.needsUpdate = true;
+                    });
+                });
+            }
+
             // 셰이더 컴파일 시작 - 0%
             if (this.loadingBar) {
                 this.loadingBar.setShaderProgress(0);
@@ -791,13 +812,20 @@ export default class ModelLoader {
                         }
                     }
 
+                    // nodule margin 메시는 ROI vessel 모드 활성화 여부와 무관하게 기본으로 반투명 + fresnel 테두리 적용
+                    if (child.name.toLowerCase().replace(/[\s_-]+/g, " ").includes('nodule margin')) {
+                        console.log(`[ModelLoader] Found nodule margin mesh: ${child.name}, applying default fresnel style`);
+                        LungVesselROI.applyDefaultNoduleMarginStyle(child);
+                    }
+
                     if (child.material) {
                         // See-through 효과를 위해 FrontSide를 DoubleSide로 변경
                         child.material.side = THREE.DoubleSide;
 
-                        // 투명도가 있는 경우 (pelvis는 제외 - 이미 0.2로 설정됨)
+                        // 투명도가 있는 경우 (pelvis / nodule margin은 제외 - 이미 전용 opacity로 설정됨)
                         const isPelvis = child.name.toLowerCase().includes('pelvis');
-                        if (child.material.transparent && !isPelvis) {
+                        const isNoduleMargin = child.name.toLowerCase().replace(/[\s_-]+/g, " ").includes('nodule margin');
+                        if (child.material.transparent && !isPelvis && !isNoduleMargin) {
                             // 초기 투명도 값을 0.60으로 설정 (소수점 2자리)
                             child.material.opacity = 0.60;
                             // 알파 테스트 값 설정 (소수점 2자리)

@@ -5,6 +5,22 @@ import * as THREE from "three";
  * See Through와 동일한 방식으로 마우스 포인터 영역을 컬러/흑백으로 처리
  */
 export default class LungVesselROI {
+    // 폐혈관/기관지로 인식되는 이름 키워드 (ROI 분류, 로드 시 opacity 강제 등에서 공용으로 사용)
+    static VESSEL_BRONCHUS_KEYWORDS = [
+        "pulmonary_artery",
+        "pulmonary_vein",
+        "bronchus",
+        "airway",
+        "airways",
+        "airways wall",
+        "vessel",
+        "artery",
+        "arteries",
+        "vein",
+        "veins",
+        "capillary",
+    ];
+
     constructor(
         scene,
         camera,
@@ -44,9 +60,84 @@ export default class LungVesselROI {
         // 메시별 원본 속성 저장 (복원용)
         this.originalMeshSettings = new Map();
 
+        // nodule margin의 depth-aware 복제본 (혈관과의 앞/뒤 관계를 카메라 시점에서 드러내기 위함)
+        this.marginCrossingOverlays = [];
+
         // 상태 플래그
         this.isActive = false;
         this.activationCount = 0;
+    }
+
+    /**
+     * nodule margin depth-aware 복제본 제거 (geometry는 원본 메시가 사용 중이므로 dispose하지 않음)
+     */
+    clearMarginCrossingOverlays() {
+        this.marginCrossingOverlays.forEach((overlay) => {
+            if (overlay.parent) {
+                overlay.parent.remove(overlay);
+            }
+            overlay.material?.dispose();
+        });
+        this.marginCrossingOverlays = [];
+    }
+
+    /**
+     * ROI vessel 모드 활성화 여부와 무관하게 nodule margin 메시에 기본으로 적용할 스타일
+     * (약한 반투명 + 얇은 fresnel 테두리). 모델 로드 직후 ModelLoader에서 호출됨.
+     * @param {THREE.Mesh} mesh - nodule margin 메시
+     */
+    static applyDefaultNoduleMarginStyle(mesh) {
+        if (!mesh || !mesh.material) return;
+
+        const applyToMaterial = (material) => {
+            const styledMaterial = material.clone();
+            styledMaterial.opacity = 0.05;
+            styledMaterial.transparent = true;
+            styledMaterial.depthWrite = false;
+            styledMaterial.depthTest = false;
+            // ModelLoader가 로드 시 걸어둔 alphaTest를 물려받으면 낮은 opacity가 discard될 수 있어 초기화
+            styledMaterial.alphaTest = 0;
+            styledMaterial.userData.isLungVesselROIMaterial = true;
+            styledMaterial.needsUpdate = true;
+
+            const fresnelColor = styledMaterial.color.clone();
+            styledMaterial.onBeforeCompile = (shader) => {
+                shader.uniforms.fresnelColor = { value: fresnelColor };
+                shader.uniforms.fresnelPower = { value: 3.5 };
+                shader.uniforms.fresnelIntensity = { value: 1.4 };
+                shader.uniforms.fresnelEdgeWidth = { value: 0.3 };
+
+                shader.fragmentShader = shader.fragmentShader
+                    .replace(
+                        '#include <common>',
+                        `
+                        #include <common>
+                        uniform vec3 fresnelColor;
+                        uniform float fresnelPower;
+                        uniform float fresnelIntensity;
+                        uniform float fresnelEdgeWidth;
+                        `
+                    )
+                    .replace(
+                        '#include <dithering_fragment>',
+                        `
+                        float fresnelDot = clamp(dot(normalize(vViewPosition), normalize(normal)), 0.0, 1.0);
+                        float fresnelBase = pow(1.0 - fresnelDot, fresnelPower);
+                        float fresnelTerm = smoothstep(1.0 - fresnelEdgeWidth, 1.0, fresnelBase) * fresnelIntensity;
+                        gl_FragColor.rgb += fresnelColor * fresnelTerm;
+                        gl_FragColor.a = clamp(gl_FragColor.a + fresnelTerm, 0.0, 1.0);
+                        #include <dithering_fragment>
+                        `
+                    );
+            };
+
+            return styledMaterial;
+        };
+
+        mesh.material = Array.isArray(mesh.material)
+            ? mesh.material.map(applyToMaterial)
+            : applyToMaterial(mesh.material);
+        mesh.renderOrder = 150;
     }
 
     normalizeMeshName(meshName) {
@@ -135,20 +226,7 @@ export default class LungVesselROI {
         this.renderer.sortObjects = true;
 
         // ROI를 적용할 메시 이름들
-        const lungVesselNames = [
-            "pulmonary_artery",
-            "pulmonary_vein",
-            "bronchus",
-            "airway",
-            "airways",
-            "airways wall",
-            "vessel",
-            "artery",
-            "arteries",
-            "vein",
-            "veins",
-            "capillary",
-        ];
+        const lungVesselNames = LungVesselROI.VESSEL_BRONCHUS_KEYWORDS;
 
         // Nodule 예외 메시 이름들 (항상 컬러 유지)
         const nodulesExceptionNames = [
@@ -200,9 +278,12 @@ export default class LungVesselROI {
                 // desaturated 예외 확인 (항상 컬러 유지)
                 const isLineMesh = objectName.includes("line");
                 const isLabelMesh = objectName.includes("label");
+                // arteries가 포함된 메시(예: S5_acc_arteries)는 Target A 교차 여부와 무관하게 항상 컬러 유지
+                const isArteriesMesh = objectName.includes("arteries");
                 const isNonDesaturatedException =
                     isLineMesh ||
                     isLabelMesh ||
+                    isArteriesMesh ||
                     nonDesaturatedNames.some((name) =>
                         objectName.includes(this.normalizeMeshName(name))
                     );
@@ -286,16 +367,57 @@ export default class LungVesselROI {
             mesh.renderOrder = 100 + index; // 뒤쪽 메시들
         });
 
-        // 2. Nodule 메시들도 renderOrder 설정 (앞쪽)
+        // 2. Nodule 메시들도 renderOrder 설정 (nodule margin은 혈관보다 먼저 그려지도록 낮게 배치)
         this.nodulesExceptionMeshes.forEach((mesh, index) => {
-            mesh.renderOrder = 200 + index; // 앞쪽 메시들
             const isNoduleMargin = this.normalizeMeshName(mesh.name).includes("nodule margin");
-            this.applyROIExceptionMaterial(mesh, isNoduleMargin ? 0.3 : undefined);
+            mesh.renderOrder = (isNoduleMargin ? 150 : 200) + index;
+            this.applyROIExceptionMaterial(mesh, isNoduleMargin ? 0.05 : undefined);
+            if (isNoduleMargin) {
+                this.applyFresnelEffect(mesh, { power: 3.5, intensity: 1.4, edgeWidth: 0.08 });
+            }
         });
 
-        // 3. Target 교차 폐혈관도 renderOrder 설정
+        // 3. Target 교차 폐혈관은 nodule margin 위로 그려지도록 가장 높은 renderOrder 부여
+        // (margin과 교차하는 지점이 옅은 반투명 렌더링에 가려지지 않고 항상 선명하게 보이도록)
         this.lungVesselMeshes.forEach((mesh, index) => {
-            mesh.renderOrder = 150 + index; // 중간
+            mesh.renderOrder = 300 + index;
+        });
+
+        // 4. nodule margin의 depth-aware 복제본 생성
+        // 위 1번 레이어(depthTest=false)는 불투명 조직 속에서도 항상 보이지만, 깊이 비교가 없어서
+        // 혈관이 margin의 앞을 지나는지 뒤를 지나는지 카메라 시점에서 구분이 안 됨.
+        // 이 복제본은 depthTest=true로 그려서, 혈관(위에서 renderOrder 300+로 먼저 그려짐)이 margin보다
+        // 카메라에 가까운 지점에서는 자연스럽게 혈관에 가려지고, margin이 더 가까운 지점에서는 margin이
+        // 살짝 덮어 보이도록 함 → 그 경계선이 곧 "혈관이 margin을 관통하는 지점"이 됨
+        this.clearMarginCrossingOverlays();
+        this.nodulesExceptionMeshes.forEach((mesh, index) => {
+            if (!this.normalizeMeshName(mesh.name).includes("nodule margin")) return;
+
+            const baseColor = (mesh.material.color || new THREE.Color(0xffffff)).clone();
+            const overlayMaterial = new THREE.MeshStandardMaterial({
+                color: baseColor,
+                transparent: true,
+                opacity: 0.35,
+                depthTest: true,
+                depthWrite: false,
+                side: THREE.DoubleSide,
+                polygonOffset: true,
+                polygonOffsetFactor: -1,
+                polygonOffsetUnits: -1,
+            });
+            overlayMaterial.userData.isLungVesselROIMaterial = true;
+
+            const overlay = new THREE.Mesh(mesh.geometry, overlayMaterial);
+            overlay.name = `${mesh.name}__crossing_overlay`;
+            overlay.position.copy(mesh.position);
+            overlay.rotation.copy(mesh.rotation);
+            overlay.scale.copy(mesh.scale);
+            overlay.renderOrder = 350 + index; // 혈관(300+)이 먼저 그려진 뒤 depth test 되도록
+            overlay.userData.isMarginCrossingOverlay = true;
+            overlay.matrixAutoUpdate = mesh.matrixAutoUpdate;
+
+            (mesh.parent || this.scene).add(overlay);
+            this.marginCrossingOverlays.push(overlay);
         });
 
         this.isActive = true;
@@ -316,6 +438,9 @@ export default class LungVesselROI {
 
         // === Renderer 설정 복원 ===
         this.renderer.sortObjects = this.originalRendererSettings.sortObjects;
+
+        // === nodule margin depth-aware 복제본 제거 ===
+        this.clearMarginCrossingOverlays();
 
         // === 모든 메시의 원본 상태 복원 ===
         this.lungVesselMeshes.forEach((mesh) => {
@@ -382,6 +507,8 @@ export default class LungVesselROI {
         newMaterial.polygonOffset = true;
         newMaterial.polygonOffsetFactor = -1;
         newMaterial.polygonOffsetUnits = -1;
+        // 매 프레임 실행되는 updateTransparentMeshRenderOrder의 강제 리셋에서 제외
+        newMaterial.userData.isLungVesselROIMaterial = true;
 
         newMaterial.onBeforeCompile = (shader) => {
             shader.fragmentShader = `
@@ -399,6 +526,53 @@ export default class LungVesselROI {
         mesh.material = newMaterial;
     }
 
+    /**
+     * 메쉬 가장자리(시선과 수직한 부분)가 밝게 빛나도록 Fresnel(rim light) 효과 적용
+     * @param {THREE.Mesh} mesh - 적용할 메시
+     * @param {Object} options - { color, power, intensity, edgeWidth } - color 미지정 시 재질 고유의 diffuse 색 사용, edgeWidth가 작을수록 테두리가 얇아짐(0~1)
+     */
+    applyFresnelEffect(mesh, options = {}) {
+        if (!mesh || !mesh.material) return;
+        const { color, power = 0.5, intensity = 0.5, edgeWidth = 0.15 } = options;
+
+        const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+        materials.forEach((material) => {
+            // color가 지정되지 않으면 해당 재질의 원래 diffuse 색을 그대로 사용
+            const fresnelColor = color !== undefined ? new THREE.Color(color) : material.color.clone();
+            material.onBeforeCompile = (shader) => {
+                shader.uniforms.fresnelColor = { value: fresnelColor };
+                shader.uniforms.fresnelPower = { value: power };
+                shader.uniforms.fresnelIntensity = { value: intensity };
+                shader.uniforms.fresnelEdgeWidth = { value: edgeWidth };
+
+                shader.fragmentShader = shader.fragmentShader
+                    .replace(
+                        '#include <common>',
+                        `
+                        #include <common>
+                        uniform vec3 fresnelColor;
+                        uniform float fresnelPower;
+                        uniform float fresnelIntensity;
+                        uniform float fresnelEdgeWidth;
+                        `
+                    )
+                    .replace(
+                        '#include <dithering_fragment>',
+                        `
+                        // 시선(vViewPosition)과 노멀을 이용해 실루엣에 가까운 아주 얇은 구간만 강조
+                        float fresnelDot = clamp(dot(normalize(vViewPosition), normalize(normal)), 0.0, 1.0);
+                        float fresnelBase = pow(1.0 - fresnelDot, fresnelPower);
+                        float fresnelTerm = smoothstep(1.0 - fresnelEdgeWidth, 1.0, fresnelBase) * fresnelIntensity;
+                        gl_FragColor.rgb += fresnelColor * fresnelTerm;
+                        gl_FragColor.a = clamp(gl_FragColor.a + fresnelTerm, 0.0, 1.0);
+                        #include <dithering_fragment>
+                        `
+                    );
+            };
+            material.needsUpdate = true;
+        });
+    }
+
     applyROIExceptionMaterial(mesh, forcedOpacity = undefined) {
         const originalMaterial = this.originalMaterials.get(mesh);
         if (!originalMaterial) return;
@@ -412,6 +586,9 @@ export default class LungVesselROI {
                 roiMaterial.transparent = true;
                 roiMaterial.depthWrite = false;
                 roiMaterial.depthTest = false;
+                // ModelLoader가 로드 시 걸어둔 alphaTest(0.30)를 그대로 물려받으면
+                // opacity가 그 값보다 낮을 때 프래그먼트가 통째로 discard되어 안 보임
+                roiMaterial.alphaTest = 0;
                 roiMaterial.userData.isLungVesselROIMaterial = true;
             }
             roiMaterial.needsUpdate = true;

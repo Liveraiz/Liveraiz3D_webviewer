@@ -5,6 +5,12 @@ import {
     VESSEL_KEYWORDS,
     PRIMARY_EXCLUDE_KEYWORDS,
     EXCLUDE_KEYWORDS,
+    LOBE_GROUP_KEYWORDS,
+    LOBE_SEGMENT_TOKENS,
+    ARTERY_GROUP_KEYWORDS,
+    VEIN_GROUP_KEYWORDS,
+    BRONCHUS_GROUP_KEYWORDS,
+    CANCER_GROUP_KEYWORDS,
     isOpacityControllableMeshName,
     Constants,
 } from "../utils/Constants";
@@ -197,9 +203,197 @@ export class ObjectListPanel {
         return 7;
     }
 
+    // 이름을 기반으로 탭 필터용 카테고리 결정 (Lobes/Arteries/Veins/Bronchus/Cancer)
+    getMeshCategory(name) {
+        const lowerName = name.toLowerCase();
+        // nodule/nodule margin 계열은 Cancer 카테고리로 우선 분류
+        if (CANCER_GROUP_KEYWORDS.some((keyword) => lowerName.includes(keyword.toLowerCase()))) {
+            return "cancer";
+        }
+        // arteries/veins/bronchus가 이름에 포함되면 해당 카테고리 우선 (예: S8_arteries)
+        if (BRONCHUS_GROUP_KEYWORDS.some((keyword) => lowerName.includes(keyword.toLowerCase()))) {
+            return "bronchus";
+        }
+        if (ARTERY_GROUP_KEYWORDS.some((keyword) => lowerName.includes(keyword.toLowerCase()))) {
+            return "arteries";
+        }
+        if (VEIN_GROUP_KEYWORDS.some((keyword) => lowerName.includes(keyword.toLowerCase()))) {
+            return "veins";
+        }
+        if (LOBE_GROUP_KEYWORDS.some((keyword) => lowerName.includes(keyword.toLowerCase()))) {
+            return "lobes";
+        }
+        // S1~S10(a/b/c) 등 폐구역 번호는 단어 단위로 정확히 일치할 때만 Lobes로 분류
+        // (mass1처럼 이름에 "s1" 문자열이 우연히 포함되는 오탐 방지)
+        const tokens = lowerName.split(/[^a-z0-9]+/i).filter(Boolean);
+        if (tokens.some((token) => LOBE_SEGMENT_TOKENS.includes(token))) {
+            return "lobes";
+        }
+        return null;
+    }
+
+    // 탭 카테고리 표시 이름 (getMeshCategory 반환값 기준)
+    static CATEGORY_LABELS = {
+        lobes: "Lobes",
+        arteries: "Arteries",
+        veins: "Veins",
+        bronchus: "Bronchus",
+        cancer: "Cancer",
+    };
+
+    // 카테고리 탭 바 생성 (전체 목록은 그대로 두고 탭으로 필터링만 함)
+    createCategoryTabBar(presentCategories) {
+        const categoryMeta = ObjectListPanel.CATEGORY_LABELS;
+        const tabs = ["all", ...presentCategories];
+
+        const tabBar = document.createElement("div");
+        Object.assign(tabBar.style, {
+            display: "flex",
+            gap: "6px",
+            flexWrap: "wrap",
+            marginBottom: "15px",
+        });
+
+        tabs.forEach((key) => {
+            const isActive = this.activeCategoryTab === key;
+            const button = document.createElement("button");
+            button.textContent = key === "all" ? "All" : categoryMeta[key];
+            Object.assign(button.style, {
+                padding: "5px 12px",
+                fontSize: "12px",
+                fontWeight: isActive ? "bold" : "normal",
+                borderRadius: "12px",
+                border: "none",
+                cursor: "pointer",
+                backgroundColor: isActive
+                    ? Constants.COLORS.PRIMARY_ACCENT
+                    : this.isDarkMode
+                        ? "rgba(255, 255, 255, 0.12)"
+                        : "rgba(0, 0, 0, 0.08)",
+                color: isActive ? "#ffffff" : this.isDarkMode ? "white" : "black",
+            });
+            button.addEventListener("click", () => {
+                this.activeCategoryTab = key;
+                this.updateObjectList(this._lastMeshListForTabs || []);
+            });
+            tabBar.appendChild(button);
+        });
+
+        return tabBar;
+    }
+
+    // 현재 카테고리에 속하는 mesh 목록 조회 (이름이 직접 매칭되지 않아도, 카테고리에 매칭되는
+    // 부모 메쉬의 하위(자식) 메쉬라면 함께 포함)
+    getCategoryMeshes(category) {
+        const meshes = [];
+        this.objects.forEach((mesh, id) => {
+            if (this.meshBelongsToCategory(mesh, id, category)) {
+                meshes.push(mesh);
+            }
+        });
+        return meshes;
+    }
+
+    // 메쉬 자신 또는 조상(부모) 중 하나라도 카테고리에 매칭되면 true
+    meshBelongsToCategory(mesh, name, category) {
+        if (this.getMeshCategory(name) === category) return true;
+
+        const scene = this.liverViewer?.scene;
+        let parent = mesh.parent;
+        while (parent && parent !== scene) {
+            if (parent.name && this.getMeshCategory(parent.name) === category) {
+                return true;
+            }
+            parent = parent.parent;
+        }
+        return false;
+    }
+
+    // 활성 탭(카테고리)에 속한 모든 mesh의 visibility를 한번에 토글
+    toggleCategoryVisibility(category) {
+        const meshes = this.getCategoryMeshes(category);
+        if (meshes.length === 0) return;
+
+        const allVisible = meshes.every((mesh) => mesh.visible);
+        const newVisibility = !allVisible;
+
+        meshes.forEach((mesh) => {
+            const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+            if (!mesh.userData._originalOpacitySaved) {
+                // opacity가 이미 0인 상태에서 캐프처되면 복원값이 영원히 0으로 고정되므로 방지
+                const currentOpacity = mats[0]?.opacity ?? 1;
+                mesh.userData._originalOpacity = currentOpacity > 0 ? currentOpacity : 1;
+                mesh.userData._originalOpacitySaved = true;
+            }
+            mesh.visible = newVisibility;
+            const restoredOpacity = mesh.userData._originalOpacity !== undefined ? mesh.userData._originalOpacity : 1.0;
+            mats.forEach((mat) => this._applyOpacityPreservingRenderMode(mat, newVisibility ? restoredOpacity : 0));
+
+            if (this.onToggleObject) {
+                this.onToggleObject(mesh.name, newVisibility, newVisibility ? restoredOpacity : 0);
+            }
+        });
+
+        // 각 row의 visibility/opacity 아이콘을 정확히 반영하기 위해 리스트를 다시 그림
+        this.updateObjectList(this._lastMeshListForTabs || []);
+    }
+
+    // 활성 탭 전용 "전체 보이기/숨기기" 행 생성
+    createCategoryToggleRow(category) {
+        const meshes = this.getCategoryMeshes(category);
+        const label = ObjectListPanel.CATEGORY_LABELS[category] || category;
+        const allVisible = meshes.length > 0 && meshes.every((mesh) => mesh.visible);
+
+        const row = document.createElement("div");
+        Object.assign(row.style, {
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            padding: "8px 8px",
+            backgroundColor: this.isDarkMode
+                ? "rgba(255, 255, 255, 0.08)"
+                : "rgba(70, 70, 70, 0.08)",
+            borderRadius: "5px",
+            marginBottom: "15px",
+        });
+
+        const rowLabel = document.createElement("span");
+        rowLabel.textContent = `Toggle all ${label}`;
+        Object.assign(rowLabel.style, {
+            fontSize: "13px",
+            fontWeight: "600",
+            color: this.isDarkMode ? "white" : "black",
+        });
+
+        const toggleButton = document.createElement("button");
+        toggleButton.innerHTML = this.getVisibilityIcon(allVisible);
+        Object.assign(toggleButton.style, {
+            background: "none",
+            border: "none",
+            cursor: "pointer",
+            padding: "4px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+        });
+        toggleButton.addEventListener("click", () => {
+            this.toggleCategoryVisibility(category);
+        });
+
+        row.appendChild(rowLabel);
+        row.appendChild(toggleButton);
+        return row;
+    }
+
     updateObjectList(meshes) {
         console.log("Updating object list");
         this.clearObjectList();
+
+        // 탭 필터용: 마지막으로 받은 mesh 목록 저장, 활성 탭은 최초 1회만 기본값 지정
+        this._lastMeshListForTabs = meshes;
+        if (this.activeCategoryTab === undefined) {
+            this.activeCategoryTab = "all";
+        }
 
         // 필터링할 키워드 목록
         const excludeKeywords = [
@@ -317,13 +511,14 @@ export class ObjectListPanel {
                 this.objects.set(mesh.name, mesh);
             });
         }
-        // 기타 메쉬들 추가
+        // 기타 메쉬들 추가 (lobes/arteries/veins/bronchus 카테고리는 탭 필터링용으로만 태그, 개별 row는 그대로 유지)
         otherMeshes.forEach((mesh) => {
             hierarchyMap.set(mesh.name, {
                 mesh: mesh,
                 parent: mesh.parent?.name,
                 children: [],
                 level: 0,
+                category: this.getMeshCategory(mesh.name),
             });
             this.objects.set(mesh.name, mesh);
         });
@@ -373,9 +568,29 @@ export class ObjectListPanel {
         // 전체 토글 버튼 추가
         this.addToggleAllButton();
 
+        // 카테고리 탭 바 추가 (Lobes/Arteries/Veins/Bronchus 중 실제로 존재하는 것만)
+        const presentCategories = [];
+        hierarchyMap.forEach((info) => {
+            if (info.category && !presentCategories.includes(info.category)) {
+                presentCategories.push(info.category);
+            }
+        });
+        if (presentCategories.length > 0) {
+            if (this.activeCategoryTab !== "all" && !presentCategories.includes(this.activeCategoryTab)) {
+                this.activeCategoryTab = "all";
+            }
+            this.contentContainer.appendChild(this.createCategoryTabBar(presentCategories));
+            if (this.activeCategoryTab !== "all") {
+                this.contentContainer.appendChild(this.createCategoryToggleRow(this.activeCategoryTab));
+            }
+        } else {
+            this.activeCategoryTab = "all";
+        }
+
         // 최상위 메쉬들을 정렬 순서에 따라 정렬
         const sortedRootMeshes = Array.from(hierarchyMap.values())
             .filter((info) => !info.parent || !hierarchyMap.has(info.parent))
+            .filter((info) => this.activeCategoryTab === "all" || info.category === this.activeCategoryTab)
             .sort((a, b) => {
                 // Volumes 그룹은 항상 마지막에 배치
                 if (a.isVolumeGroup) return 1;
@@ -895,7 +1110,9 @@ export class ObjectListPanel {
                     if (mesh.material) {
                         const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
                         if (!mesh.userData._originalOpacitySaved) {
-                            mesh.userData._originalOpacity = mats[0]?.opacity ?? 1;
+                            // opacity가 이미 0인 상태에서 캐프처되면 복원값이 영원히 0으로 고정되므로 방지
+                            const currentOpacity = mats[0]?.opacity ?? 1;
+                            mesh.userData._originalOpacity = currentOpacity > 0 ? currentOpacity : 1;
                             mesh.userData._originalOpacitySaved = true;
                         }
                         if (!newVisibility) {
@@ -999,9 +1216,20 @@ export class ObjectListPanel {
             // 투명도 버튼 생성
             const opacityButton = document.createElement("button");
             Object.assign(opacityButton.style, buttonStyle);
-            row.opacityState = 1; // 초기값: medium (0.6)
             const opacityValues = [1.0, 0.6, 0.3, 0]; // 4단계 투명도 값
-            opacityButton.innerHTML = this.getOpacityIcon(this.isDarkMode).medium;
+            // 실제 mesh의 현재 opacity에 맞춰 초기 아이콘/상태 결정 (하드코딩된 medium 대신)
+            if (opacity >= 0.9) {
+                row.opacityState = 0; // full
+            } else if (opacity >= 0.5) {
+                row.opacityState = 1; // medium
+            } else if (opacity > 0) {
+                row.opacityState = 2; // low
+            } else {
+                row.opacityState = 3; // none
+            }
+            opacityButton.innerHTML = this.getOpacityIcon(this.isDarkMode)[
+                ["full", "medium", "low", "none"][row.opacityState]
+            ];
             
             opacityButton.addEventListener("click", (e) => {
                 e.stopPropagation();
