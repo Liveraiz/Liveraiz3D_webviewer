@@ -383,42 +383,37 @@ export default class LungVesselROI {
             mesh.renderOrder = 300 + index;
         });
 
-        // 4. nodule margin의 depth-aware 복제본 생성
-        // 위 1번 레이어(depthTest=false)는 불투명 조직 속에서도 항상 보이지만, 깊이 비교가 없어서
-        // 혈관이 margin의 앞을 지나는지 뒤를 지나는지 카메라 시점에서 구분이 안 됨.
-        // 이 복제본은 depthTest=true로 그려서, 혈관(위에서 renderOrder 300+로 먼저 그려짐)이 margin보다
-        // 카메라에 가까운 지점에서는 자연스럽게 혈관에 가려지고, margin이 더 가까운 지점에서는 margin이
-        // 살짝 덮어 보이도록 함 → 그 경계선이 곧 "혈관이 margin을 관통하는 지점"이 됨
-        this.clearMarginCrossingOverlays();
-        this.nodulesExceptionMeshes.forEach((mesh, index) => {
-            if (!this.normalizeMeshName(mesh.name).includes("nodule margin")) return;
+        // 4. nodule margin의 depth-aware 복제본 생성 (레이어2) - 겹침 이슈로 비활성화
+        // this.clearMarginCrossingOverlays();
+        // this.nodulesExceptionMeshes.forEach((mesh, index) => {
+        //     if (!this.normalizeMeshName(mesh.name).includes("nodule margin")) return;
 
-            const baseColor = (mesh.material.color || new THREE.Color(0xffffff)).clone();
-            const overlayMaterial = new THREE.MeshStandardMaterial({
-                color: baseColor,
-                transparent: true,
-                opacity: 0.35,
-                depthTest: true,
-                depthWrite: false,
-                side: THREE.DoubleSide,
-                polygonOffset: true,
-                polygonOffsetFactor: -1,
-                polygonOffsetUnits: -1,
-            });
-            overlayMaterial.userData.isLungVesselROIMaterial = true;
+        //     const baseColor = (mesh.material.color || new THREE.Color(0xffffff)).clone();
+        //     const overlayMaterial = new THREE.MeshStandardMaterial({
+        //         color: baseColor,
+        //         transparent: true,
+        //         opacity: 0.35,
+        //         depthTest: true,
+        //         depthWrite: false,
+        //         side: THREE.DoubleSide,
+        //         polygonOffset: true,
+        //         polygonOffsetFactor: -1,
+        //         polygonOffsetUnits: -1,
+        //     });
+        //     overlayMaterial.userData.isLungVesselROIMaterial = true;
 
-            const overlay = new THREE.Mesh(mesh.geometry, overlayMaterial);
-            overlay.name = `${mesh.name}__crossing_overlay`;
-            overlay.position.copy(mesh.position);
-            overlay.rotation.copy(mesh.rotation);
-            overlay.scale.copy(mesh.scale);
-            overlay.renderOrder = 350 + index; // 혈관(300+)이 먼저 그려진 뒤 depth test 되도록
-            overlay.userData.isMarginCrossingOverlay = true;
-            overlay.matrixAutoUpdate = mesh.matrixAutoUpdate;
+        //     const overlay = new THREE.Mesh(mesh.geometry, overlayMaterial);
+        //     overlay.name = `${mesh.name}__crossing_overlay`;
+        //     overlay.position.copy(mesh.position);
+        //     overlay.rotation.copy(mesh.rotation);
+        //     overlay.scale.copy(mesh.scale);
+        //     overlay.renderOrder = 350 + index; // 혈관(300+)이 먼저 그려진 뒤 depth test 되도록
+        //     overlay.userData.isMarginCrossingOverlay = true;
+        //     overlay.matrixAutoUpdate = mesh.matrixAutoUpdate;
 
-            (mesh.parent || this.scene).add(overlay);
-            this.marginCrossingOverlays.push(overlay);
-        });
+        //     (mesh.parent || this.scene).add(overlay);
+        //     this.marginCrossingOverlays.push(overlay);
+        // });
 
         this.isActive = true;
 
