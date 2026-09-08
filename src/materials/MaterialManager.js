@@ -612,65 +612,6 @@ export default class MaterialManager {
     }
 
     /**
-     * 메시 생성 함수
-     * 지정된 geometry와 material을 사용하여 새로운 메시를 생성
-     * @param {THREE.BufferGeometry} geometry - 메시의 형상
-     * @param {THREE.Material} originalMaterial - 원본 재질
-     * @param {string} name - 메시의 이름
-     * @returns {THREE.Mesh} 생성된 메시
-     */
-    createMesh(geometry, originalMaterial, name) {
-        // 로깅 추가
-        console.log(`Creating mesh: ${name}`, {
-            hasGeometry: !!geometry,
-            hasMaterial: !!originalMaterial
-        });
-        
-        // Cloning material to avoid sharing between meshes
-        const material = originalMaterial.clone();
-        
-        // Always set double-sided rendering
-        material.side = THREE.DoubleSide;
-        
-        // Ensure material parameters are properly set
-        material.needsUpdate = true;
-        
-        // Force material to update its shader
-        if (material.type === "MeshStandardMaterial" || material.type === "MeshPhysicalMaterial") {
-            material.envMapIntensity = material.envMapIntensity || 1.0;
-            material.roughness = Math.min(Math.max(material.roughness || 0.5, 0.2), 0.8); // 제한된 범위 내로 유지
-            material.metalness = Math.min(Math.max(material.metalness || 0.3, 0.1), 0.7); // 제한된 범위 내로 유지
-        }
-        
-        // 이름이 mask를 포함하면 투명하게 설정
-        if (name && name.toLowerCase().includes("mask")) {
-            material.transparent = true;
-            material.opacity = 0.5;
-        }
-        
-        // Create and return new mesh
-        const mesh = new THREE.Mesh(geometry, material);
-        mesh.name = name || "unnamed_mesh";
-        mesh.castShadow = true;
-        mesh.receiveShadow = true;
-        
-        // 메시가 생성된 직후 셰이더 컴파일 강제화 
-        if (this.renderer) {
-            try {
-                const tempScene = new THREE.Scene();
-                const tempCamera = new THREE.PerspectiveCamera(75, 1, 0.1, 1000);
-                tempScene.add(mesh);
-                this.renderer.compile(tempScene, tempCamera);
-                tempScene.remove(mesh);
-            } catch (error) {
-                console.warn(`Failed to precompile shader for mesh '${name}':`, error);
-            }
-        }
-        
-        return mesh;
-    }
-
-    /**
      * 겹치는 메시 처리 함수
      * 여러 메시들의 가시성을 관리하고 겹침 상태를 처리
      * @param {Array<THREE.Mesh>} meshes - 처리할 메시 배열

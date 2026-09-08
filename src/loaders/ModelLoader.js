@@ -279,21 +279,6 @@ export default class ModelLoader {
         }
     }
 
-    createMesh(geometry, material, name) {
-        const mesh = new THREE.Mesh(geometry, material);
-        mesh.castShadow = true;
-        mesh.receiveShadow = true;
-        mesh.name = name;
-
-        mesh.userData.initialTransform = {
-            position: mesh.position.clone(),
-            rotation: mesh.rotation.clone(),
-            scale: mesh.scale.clone(),
-        };
-
-        return mesh;
-    }
-
     loadModel(dropboxUrl = null, modelName = null) {
         try {
             // Store model name for ROI detection (especially for Dropbox models)
