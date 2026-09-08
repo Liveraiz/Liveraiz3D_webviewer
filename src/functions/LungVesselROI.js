@@ -91,7 +91,7 @@ export default class LungVesselROI {
 
         const applyToMaterial = (material) => {
             const styledMaterial = material.clone();
-            styledMaterial.opacity = 0.05;
+            styledMaterial.opacity = 0.15;
             styledMaterial.transparent = true;
             styledMaterial.depthWrite = false;
             styledMaterial.depthTest = false;
@@ -371,7 +371,7 @@ export default class LungVesselROI {
         this.nodulesExceptionMeshes.forEach((mesh, index) => {
             const isNoduleMargin = this.normalizeMeshName(mesh.name).includes("nodule margin");
             mesh.renderOrder = (isNoduleMargin ? 150 : 200) + index;
-            this.applyROIExceptionMaterial(mesh, isNoduleMargin ? 0.05 : undefined);
+            this.applyROIExceptionMaterial(mesh, isNoduleMargin ? 0.15 : undefined);
             if (isNoduleMargin) {
                 this.applyFresnelEffect(mesh, { power: 3.5, intensity: 1.4, edgeWidth: 0.08 });
             }
