@@ -1188,8 +1188,10 @@ export default class Toolbar {
         this.loadSvgIconFromFile(
             this.lungVesselROIButton,
             "/icon/LungROI.svg",
-            this.getLungROIIcon()
+            this.getLungROIIcon(),
+            () => this.applyLungROIIconTheme(this.liverViewer?.isDarkMode)
         );
+        this.applyLungROIIconTheme(this.liverViewer?.isDarkMode);
         this.lungVesselROIButton.dataset.roiVisibility = "hidden";
         this.lungVesselROIButton.style.display = "none";
 
@@ -1508,7 +1510,7 @@ export default class Toolbar {
         console.log(`[Toolbar] Current model set to: ${modelName}`);
     }
 
-    async loadSvgIconFromFile(button, iconPath, fallbackIcon) {
+    async loadSvgIconFromFile(button, iconPath, fallbackIcon, onLoaded) {
         try {
             const response = await fetch(iconPath);
             if (!response.ok) {
@@ -1526,7 +1528,26 @@ export default class Toolbar {
                 button.innerHTML = fallbackIcon;
                 this.applyButtonIconStyle(button);
             }
+        } finally {
+            onLoaded?.();
         }
+    }
+
+    /**
+     * LungROI.svg는 고정된 어두운 색(#121212 등)으로 하드코딩되어 있어
+     * 다크모드 배경에서 보이지 않으므로, 로드 후 테마에 맞는 색으로 덮어씀
+     */
+    applyLungROIIconTheme(isDarkMode) {
+        const button = this.lungVesselROIButton;
+        if (!button) return;
+        const svg = button.querySelector("svg");
+        if (!svg) return;
+
+        const color = isDarkMode ? "#ffffff" : "#1a1a1a";
+        svg.style.stroke = color;
+        svg.querySelectorAll("path, circle, rect, polygon, line, ellipse").forEach((el) => {
+            el.style.fill = color;
+        });
     }
 
     getModelLoaderIcon(isDarkMode) {
@@ -1890,7 +1911,7 @@ export default class Toolbar {
         if (this.lungVesselROIButton) {
             const isActive = this.activeMeasurementButton === this.lungVesselROIButton;
             this.applyButtonStyle(this.lungVesselROIButton, isActive, currentIsDarkMode);
-            this.lungVesselROIButton.innerHTML = this.getLungVesselROIIcon();
+            this.applyLungROIIconTheme(currentIsDarkMode);
         }
         
         // 애니메이션 버튼도 업데이트

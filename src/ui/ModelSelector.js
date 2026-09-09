@@ -1401,6 +1401,45 @@ export default class ModelSelector {
         console.log("ModelSelector isDarkMode updated to:", this.isDarkMode);
 
         if (this.dialog && this.dialog.isConnected) {
+            // 로컬 파일 브라우저(Local Model List) 다이얼로그 테마 업데이트
+            if (this.dialog.classList.contains("local-folder-mode")) {
+                this.dialog.style.background = isDarkMode ? "#2a2a2a" : "#ffffff";
+                this.dialog.style.border = `1px solid ${isDarkMode ? "#444444" : "#cccccc"}`;
+
+                const header = this.dialog.querySelector(".local-model-header");
+                if (header) {
+                    header.style.borderBottom = `2px solid ${isDarkMode ? "#444444" : "#eeeeee"}`;
+                }
+                const title = this.dialog.querySelector(".local-model-title");
+                if (title) {
+                    title.style.color = isDarkMode ? "#e6e6e6" : "#2c3e50";
+                }
+                const closeBtn = this.dialog.querySelector(".local-model-close");
+                if (closeBtn) {
+                    closeBtn.style.color = isDarkMode ? "#999" : "#666";
+                }
+                const info = this.dialog.querySelector(".local-model-info");
+                if (info) {
+                    info.style.color = isDarkMode ? "#aaa" : "#666";
+                }
+                this.dialog.querySelectorAll(".local-model-button").forEach((button) => {
+                    button.style.background = isDarkMode ? "#3a3a3a" : "#f5f5f5";
+                });
+                this.dialog.querySelectorAll(".local-model-name").forEach((name) => {
+                    name.style.color = isDarkMode ? "#e6e6e6" : "#2c3e50";
+                });
+                this.dialog.querySelectorAll(".local-model-thumbnail").forEach((thumb) => {
+                    if (!thumb.style.backgroundImage) {
+                        thumb.style.background = isDarkMode ? "#2a2a2a" : "#e0e0e0";
+                    }
+                });
+                const actions = this.dialog.querySelector(".local-model-actions");
+                if (actions) {
+                    actions.style.borderTop = `1px solid ${isDarkMode ? "#444444" : "#e0e0e0"}`;
+                }
+                return;
+            }
+
             // Import 3D Model 제목 업데이트
             const importTitle = this.dialog.querySelector("h3");
             if (importTitle) {
@@ -1873,6 +1912,12 @@ export default class ModelSelector {
                 this.close();
             }
 
+            // 현재 테마 상태를 여러 소스에서 확인 (stale this.isDarkMode 방지)
+            const liverViewerDarkMode = this.liverViewer ? this.liverViewer.isDarkMode : null;
+            const bodyDarkMode = document.body.classList.contains('dark-mode');
+            const computedDarkMode = getComputedStyle(document.body).backgroundColor.includes('26, 26, 26');
+            this.isDarkMode = liverViewerDarkMode !== null ? liverViewerDarkMode : (bodyDarkMode || computedDarkMode);
+
             // Create new dialog
             this.dialog = document.createElement("div");
             this.dialog.className = "model-selector-dialog local-folder-mode";
@@ -1894,6 +1939,7 @@ export default class ModelSelector {
 
             // Header
             const header = document.createElement('div');
+            header.className = 'local-model-header';
             header.style.cssText = `
                 display: flex;
                 justify-content: space-between;
@@ -1903,8 +1949,8 @@ export default class ModelSelector {
                 border-bottom: 2px solid ${this.isDarkMode ? '#444444' : '#eeeeee'};
             `;
             header.innerHTML = `
-                <h2 style="margin: 0; color: ${this.isDarkMode ? '#e6e6e6' : '#2c3e50'};font-size: 20px;">Local Model List</h2>
-                <button onclick="this.closest('.model-selector-dialog').remove()" style="
+                <h2 class="local-model-title" style="margin: 0; color: ${this.isDarkMode ? '#e6e6e6' : '#2c3e50'};font-size: 20px;">Local Model List</h2>
+                <button class="local-model-close" onclick="this.closest('.model-selector-dialog').remove()" style="
                     background: transparent;
                     border: none;
                     color: ${this.isDarkMode ? '#999' : '#666'};
@@ -1922,6 +1968,7 @@ export default class ModelSelector {
 
             // Info text
             const info = document.createElement('div');
+            info.className = 'local-model-info';
             info.style.cssText = `
                 font-size: 14px;
                 color: ${this.isDarkMode ? '#aaa' : '#666'};
@@ -1972,6 +2019,7 @@ export default class ModelSelector {
                 `;
 
                 const modelName = document.createElement('div');
+                modelName.className = 'local-model-name';
                 modelName.style.cssText = `
                     font-weight: 600;
                     color: ${this.isDarkMode ? '#e6e6e6' : '#2c3e50'};
@@ -1982,6 +2030,7 @@ export default class ModelSelector {
                 modelInfo.appendChild(modelName);
 
                 const modelMeta = document.createElement('div');
+                modelMeta.className = 'local-model-meta';
                 modelMeta.style.cssText = `
                     font-size: 12px;
                     color: ${this.isDarkMode ? '#999' : '#999'};
@@ -1991,6 +2040,7 @@ export default class ModelSelector {
 
                 // Model thumbnail (right)
                 const modelThumbnail = document.createElement('div');
+                modelThumbnail.className = 'local-model-thumbnail';
                 modelThumbnail.style.cssText = `
                     width: 60px;
                     height: 60px;
@@ -2050,6 +2100,7 @@ export default class ModelSelector {
 
             // Action buttons (bottom)
             const actions = document.createElement('div');
+            actions.className = 'local-model-actions';
             actions.style.cssText = `
                 display: flex;
                 gap: 10px;

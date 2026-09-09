@@ -270,6 +270,7 @@ export default class TopBar {
 
         // 폴더 선택 버튼 생성 (SVG 아이콘만)
         const folderButton = document.createElement("button");
+        folderButton.className = "folder-load";
         
         // SVG 폴더 아이콘
         const folderSVG = `
@@ -504,6 +505,12 @@ export default class TopBar {
         const uploadButton = document.querySelector(".file-upload");
         if (uploadButton) {
             uploadButton.innerHTML = this.getUploadIcon();
+        }
+
+        // Folder(file browser) 버튼 아이콘 색상 업데이트
+        const folderButton = document.querySelector(".folder-load");
+        if (folderButton) {
+            folderButton.style.color = isDarkMode ? "#e0e0e0" : "#333333";
         }
 
         // 전체 배경색 업데이트 - Constants 대신 하드코딩된 값 사용

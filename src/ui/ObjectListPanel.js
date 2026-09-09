@@ -203,11 +203,25 @@ export class ObjectListPanel {
         return 7;
     }
 
+    // "Line 1314mm" / "Label 1314mm"처럼 export 과정에서 소수점이 유실된 계측 이름을
+    // 화면 표시용으로만 복원 ("Line 13.14mm"). mesh.name 자체는 건드리지 않음
+    static restoreMissingDecimalInMm(text) {
+        return text.replace(/^(Line|Label)(\s+)(\d{3,})mm\b/i, (match, prefix, space, digits) => {
+            const whole = digits.slice(0, -2);
+            const decimals = digits.slice(-2);
+            return `${prefix}${space}${whole}.${decimals}mm`;
+        });
+    }
+
     // 이름을 기반으로 탭 필터용 카테고리 결정 (Lobes/Arteries/Veins/Bronchus/Cancer)
     getMeshCategory(name) {
         const lowerName = name.toLowerCase();
         // nodule/nodule margin 계열은 Cancer 카테고리로 우선 분류
         if (CANCER_GROUP_KEYWORDS.some((keyword) => lowerName.includes(keyword.toLowerCase()))) {
+            return "cancer";
+        }
+        // label/line 메시(주석용)는 Cancer 카테고리로 분류
+        if (lowerName.includes("label") || lowerName.includes("line")) {
             return "cancer";
         }
         // arteries/veins/bronchus가 이름에 포함되면 해당 카테고리 우선 (예: S8_arteries)
@@ -247,6 +261,7 @@ export class ObjectListPanel {
         const tabs = ["all", ...presentCategories];
 
         const tabBar = document.createElement("div");
+        tabBar.classList.add("category-tab-bar");
         Object.assign(tabBar.style, {
             display: "flex",
             gap: "6px",
@@ -257,6 +272,8 @@ export class ObjectListPanel {
         tabs.forEach((key) => {
             const isActive = this.activeCategoryTab === key;
             const button = document.createElement("button");
+            button.classList.add("category-tab-button");
+            button.dataset.tabActive = isActive ? "1" : "0";
             button.textContent = key === "all" ? "All" : categoryMeta[key];
             Object.assign(button.style, {
                 padding: "5px 12px",
@@ -345,6 +362,8 @@ export class ObjectListPanel {
         const allVisible = meshes.length > 0 && meshes.every((mesh) => mesh.visible);
 
         const row = document.createElement("div");
+        row.classList.add("category-toggle-row");
+        row.dataset.category = category;
         Object.assign(row.style, {
             display: "flex",
             justifyContent: "space-between",
@@ -358,6 +377,7 @@ export class ObjectListPanel {
         });
 
         const rowLabel = document.createElement("span");
+        rowLabel.classList.add("category-toggle-label");
         rowLabel.textContent = `Toggle all ${label}`;
         Object.assign(rowLabel.style, {
             fontSize: "13px",
@@ -366,6 +386,7 @@ export class ObjectListPanel {
         });
 
         const toggleButton = document.createElement("button");
+        toggleButton.classList.add("category-toggle-visibility-btn");
         toggleButton.innerHTML = this.getVisibilityIcon(allVisible);
         Object.assign(toggleButton.style, {
             background: "none",
@@ -1040,11 +1061,13 @@ export class ObjectListPanel {
         // Superior → Sup 약어 처리
         let displayName = name.replace(/_/g, " ");
         displayName = displayName.replace(/Superior/gi, "Sup");
+        displayName = ObjectListPanel.restoreMissingDecimalInMm(displayName);
         label.textContent = displayName;
         // 툴팁 추가 - 전체 이름 표시
         // 툴팁도 동일하게 약어 처리
         let displayTitle = name.replace(/_/g, " ");
         displayTitle = displayTitle.replace(/Superior/gi, "Sup");
+        displayTitle = ObjectListPanel.restoreMissingDecimalInMm(displayTitle);
         label.title = displayTitle;
         Object.assign(label.style, {
             fontSize: "13px",
@@ -1987,6 +2010,41 @@ export class ObjectListPanel {
         listItems.forEach((row) => {
             this.addRowHoverEffects(row);
         });
+
+        // 카테고리 탭 바 배경/텍스트 색상 즉시 업데이트
+        const tabButtons = this.panel.querySelectorAll(".category-tab-button");
+        tabButtons.forEach((btn) => {
+            const isActive = btn.dataset.tabActive === "1";
+            btn.style.backgroundColor = isActive
+                ? Constants.COLORS.PRIMARY_ACCENT
+                : isDarkMode
+                    ? "rgba(255, 255, 255, 0.12)"
+                    : "rgba(0, 0, 0, 0.08)";
+            btn.style.color = isActive ? "#ffffff" : isDarkMode ? "white" : "black";
+        });
+
+        // 카테고리 전체 토글 행(라벨/배경/아이콘) 즉시 업데이트
+        const categoryToggleRow = this.panel.querySelector(".category-toggle-row");
+        if (categoryToggleRow) {
+            categoryToggleRow.style.backgroundColor = isDarkMode
+                ? "rgba(255, 255, 255, 0.08)"
+                : "rgba(70, 70, 70, 0.08)";
+
+            const toggleLabel = categoryToggleRow.querySelector(".category-toggle-label");
+            if (toggleLabel) {
+                toggleLabel.style.color = isDarkMode ? "white" : "black";
+            }
+
+            const toggleVisibilityBtn = categoryToggleRow.querySelector(
+                ".category-toggle-visibility-btn"
+            );
+            if (toggleVisibilityBtn) {
+                const category = categoryToggleRow.dataset.category;
+                const meshes = category ? this.getCategoryMeshes(category) : [];
+                const allVisible = meshes.length > 0 && meshes.every((mesh) => mesh.visible);
+                toggleVisibilityBtn.innerHTML = this.getVisibilityIcon(allVisible);
+            }
+        }
 
         // 계층 구조 아이콘 색상 업데이트
         const hierarchyIcons = this.panel.querySelectorAll(

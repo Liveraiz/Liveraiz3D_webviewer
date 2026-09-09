@@ -276,12 +276,10 @@ export default class LungVesselROI {
                 });
 
                 // desaturated 예외 확인 (항상 컬러 유지)
-                const isLineMesh = objectName.includes("line");
                 const isLabelMesh = objectName.includes("label");
                 // arteries가 포함된 메시(예: S5_acc_arteries)는 Target A 교차 여부와 무관하게 항상 컬러 유지
                 const isArteriesMesh = objectName.includes("arteries");
                 const isNonDesaturatedException =
-                    isLineMesh ||
                     isLabelMesh ||
                     isArteriesMesh ||
                     nonDesaturatedNames.some((name) =>
@@ -328,10 +326,8 @@ export default class LungVesselROI {
                     const objectName = this.normalizeMeshName(object.name);
                     
                     // desaturated 예외 메시는 항상 컬러 유지
-                    const isLineMesh = objectName.includes("line");
                     const isLabelMesh = objectName.includes("label");
                     const isNonDesaturatedException =
-                        isLineMesh ||
                         isLabelMesh ||
                         nonDesaturatedNames.some((name) =>
                             objectName.includes(this.normalizeMeshName(name))
