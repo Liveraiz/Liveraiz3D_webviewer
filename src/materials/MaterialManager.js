@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { LIVER_KEYWORDS, MESH_CONSTANTS } from "../utils/Constants";
+import { LIVER_KEYWORDS, MESH_CONSTANTS, isBileDuctDepthThroughMeshName } from "../utils/Constants";
 
 export default class MaterialManager {
     /**
@@ -495,12 +495,27 @@ export default class MaterialManager {
                 ? (mesh.material[0]?.opacity || 1.0)
                 : (mesh.material.opacity || 1.0);
 
+            // T_BD(담관) 메시 예외: 일반 모델의 "뒤 투명 메시 안 보임" 정책 때문에
+            // 투명한 간(liver) 실질 안쪽의 담관이 가려지는 문제를 막기 위해
+            // depthWrite=false + renderOrder를 낮춰 liver보다 먼저 그리도록 함
+            // (실제로 앞을 가리는 불투명 오브젝트에는 depthTest로 정상적으로 가려짐)
+            const isBileDuctDepthThrough = opacity < 1.0 && isBileDuctDepthThroughMeshName(mesh.name);
+            if (isBileDuctDepthThrough) {
+                mesh.renderOrder = -1;
+            } else if (mesh.renderOrder === -1) {
+                // 이전에 위 예외를 탔다가 opaque 등으로 바뀐 경우에만 원복 (다른 renderOrder 로직 보존)
+                mesh.renderOrder = 0;
+            }
+
             if (Array.isArray(mesh.material)) {
                 mesh.material.forEach(mat => {
                     if (opacity >= 1.0) {
                         // 불투명
                         mat.depthWrite = true;
                         mat.transparent = false;
+                    } else if (isBileDuctDepthThrough) {
+                        mat.depthWrite = false;
+                        mat.transparent = true;
                     } else {
                         // 반투명 (일반 모델: 정상 depth test, 뒤의 투명 메시 안 보임)
                         mat.depthWrite = true;  // ✅ PCD와 다른 점: true로 설정
@@ -513,6 +528,9 @@ export default class MaterialManager {
                     // 불투명
                     mesh.material.depthWrite = true;
                     mesh.material.transparent = false;
+                } else if (isBileDuctDepthThrough) {
+                    mesh.material.depthWrite = false;
+                    mesh.material.transparent = true;
                 } else {
                     // 반투명 (일반 모델: 정상 depth test, 뒤의 투명 메시 안 보임)
                     mesh.material.depthWrite = true;  // ✅ PCD와 다른 점: true로 설정

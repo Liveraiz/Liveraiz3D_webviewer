@@ -127,6 +127,19 @@
 
 - 관련 코드: [src/materials/MaterialManager.js](src/materials/MaterialManager.js#L387-L513) `updateTransparentMeshRenderOrder()`, [src/loaders/ModelLoader.js](src/loaders/ModelLoader.js#L487-L494)
 
+### 8-2. `T_BD` 담관(bile duct) 예외 규칙 – 투명 간 실질 내부에서도 비쳐 보이게 하기
+
+일반 모델은 "반투명 메시도 `depthWrite=true`로 설정"하는 정책 때문에, 담관(BD)처럼 투명한 간(liver) 실질 **내부에** 있는 반투명 메시는 앞쪽 간 메시에 가려져 보이지 않는 문제가 있었습니다. 이를 막기 위해 이름이 `T_`로 시작하고 `_`/공백/하이픈 등으로 분리했을 때 토큰 중 하나가 정확히 `bd`인 메시(예: `T_BD`, `T_BD_1`)는 opacity가 1보다 작을 때 다음과 같이 예외 처리됩니다.
+
+- `renderOrder = -1` → 같은 투명 패스 안에서 다른 메시(간 등, 기본 `renderOrder = 0`)보다 먼저 그려짐
+- `depthWrite = false` → 자신의 깊이를 깊이 버퍼에 쓰지 않아 뒤에 그려지는 간 메시가 이 메시를 가리지 않음
+- `depthTest = true` 유지 → 실제로 앞을 가리는 불투명 오브젝트(피부, 다른 장기 등)에는 여전히 정상적으로 가려짐
+
+즉 `T_BD`는 간 메시보다 먼저 그려지고 자신의 깊이를 남기지 않으므로, 뒤이어 그려지는 반투명 간 메시가 그 위에 알파 블렌딩되어 "간 속에 비치는 담관"처럼 보이면서도, 실제 깊이 관계(다른 불투명 구조에 가려지는 것)는 유지됩니다.
+
+- 이름 판정 함수: [src/utils/Constants.js](src/utils/Constants.js#L459) `isBileDuctDepthThroughMeshName()`
+- 적용 로직: [src/materials/MaterialManager.js](src/materials/MaterialManager.js) `updateTransparentMeshRenderOrder()` 일반 모델 분기
+
 ---
 
 ## 9. 신장(Kidney) 계층 구조 – 겹침 메쉬 처리
@@ -390,3 +403,4 @@
 | 근육 질감 자동 적용 | 이름에 `muscle` 포함 |
 | 섬유종 질감 자동 적용 | 이름에 `fibroid` 포함 |
 | 전립선 질감 자동 적용 | 이름에 `prostate` 포함 |
+| 담관(BD)이 투명한 간 속에서 비쳐 보이게 하기 | 이름을 `T_BD`(토큰 `bd`)로 짓기 |

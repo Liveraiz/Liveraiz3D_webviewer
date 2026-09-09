@@ -456,6 +456,16 @@ export const VESSEL_KEYWORDS = [
     "bd",     // bile duct
     "hv",     // hepatic vein
 ];
+
+// T_BD(담관) 메시 판별: "T_" 접두사 + 구분자로 분리된 토큰 중 "bd"가 정확히 존재하는 경우만 매칭
+// (예: "T_BD", "T_BD_1" 매칭 / "T_abdomen" 등은 오탐 방지를 위해 제외)
+export const isBileDuctDepthThroughMeshName = (meshName) => {
+    if (!meshName) return false;
+    const name = String(meshName);
+    if (!name.toLowerCase().startsWith("t_")) return false;
+    const tokens = name.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+    return tokens.includes("bd");
+};
 // 오브젝트 리스트에서 우선 체크할 제외 키워드
 export const PRIMARY_EXCLUDE_KEYWORDS = [
     'vol',
