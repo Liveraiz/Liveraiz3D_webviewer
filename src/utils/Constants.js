@@ -385,7 +385,11 @@ export const LOBE_GROUP_KEYWORDS = ["LUL", "LLL", "RUL", "RML", "RLL", "lobe"];
 export const LOBE_SEGMENT_TOKENS = [
     "s1", "s2", "s3", "s4", "s5", "s6", "s7", "s8", "s9", "s10",
     "s1a", "s1b", "s1c", "s2a", "s2b", "s3a", "s3b", "s4a", "s4b", "s5a", "s5b", "s6a", "s6b",
+    // 간구역(segment) 번호 표기 - seg1~seg8 (Seg2, seg3 등 대소문자 변형 포함, 소문자 비교로 매칭)
+    "seg1", "seg2", "seg3", "seg4", "seg5", "seg6", "seg7", "seg8",
 ];
+// 위 토큰 목록에 없는 seg2A/seg2P처럼 뒤에 알파벳 접미사(a/p/s 등)가 붙는 간구역 표기까지 포괄하는 패턴
+export const LOBE_SEGMENT_TOKEN_PATTERN = /^(s(10|[1-9])[a-c]?|seg[1-8][a-z]*)$/;
 export const ARTERY_GROUP_KEYWORDS = ["pulmonary_artery", "artery", "arteries"];
 export const VEIN_GROUP_KEYWORDS = ["pulmonary_vein", "vein", "veins"];
 export const BRONCHUS_GROUP_KEYWORDS = ["bronchus", "airway", "airways"];

@@ -6,7 +6,7 @@ import {
     PRIMARY_EXCLUDE_KEYWORDS,
     EXCLUDE_KEYWORDS,
     LOBE_GROUP_KEYWORDS,
-    LOBE_SEGMENT_TOKENS,
+    LOBE_SEGMENT_TOKEN_PATTERN,
     ARTERY_GROUP_KEYWORDS,
     VEIN_GROUP_KEYWORDS,
     BRONCHUS_GROUP_KEYWORDS,
@@ -240,7 +240,7 @@ export class ObjectListPanel {
         // S1~S10(a/b/c) 등 폐구역 번호는 단어 단위로 정확히 일치할 때만 Lobes로 분류
         // (mass1처럼 이름에 "s1" 문자열이 우연히 포함되는 오탐 방지)
         const tokens = lowerName.split(/[^a-z0-9]+/i).filter(Boolean);
-        if (tokens.some((token) => LOBE_SEGMENT_TOKENS.includes(token))) {
+        if (tokens.some((token) => LOBE_SEGMENT_TOKEN_PATTERN.test(token))) {
             return "lobes";
         }
         return null;
