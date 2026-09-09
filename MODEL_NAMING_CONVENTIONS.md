@@ -146,6 +146,7 @@
 
 | 파일명 키워드 | 표 종류 |
 | --- | --- |
+| `CUSTOM` | **(최우선 적용)** Custom – 파일명에 `CUSTOM`이 포함되면 다른 키워드(HCC/LDLT 등)와 무관하게 항상 이 표가 사용됨 |
 | `LUNG`, `R_LUNG`, `L_LUNG`, `ROI_LUNG` | Lung Resection Plan |
 | `_OTHER` / `_Other` / ` OTHER` | Other |
 | `LT_OTHER`, `LDLT_OTHER` | LT Other |
@@ -156,7 +157,226 @@
 | `LDLT`, `5-SECTION`, `RL` | LDLT Surgery (`HVT`가 포함된 LDLT 모델은 하위 종류인 HVT Table 사용) |
 | `LEFT` | LEFT Surgery |
 
-- 관련 코드: [src/utils/Constants.js](src/utils/Constants.js#L52-L102)
+- `CUSTOM` 판정은 `TABLE_TYPES`가 아니라 `TableGenerator.autoCreateTable()`에서 별도로 먼저 체크되는 예외 규칙이며, 다른 모든 규칙보다 먼저 검사됩니다.
+- 관련 코드: [src/utils/Constants.js](src/utils/Constants.js#L52-L102), [src/ui/TableGenerator.js](src/ui/TableGenerator.js#L197-L211) `autoCreateTable()`
+
+### 10-1. 테이블 종류별 예시
+
+실제 표는 **가로 2칸짜리 HTML 테이블**이며, 항목 이름(색상 배경 `<th>`)과 값(`<td>`)이 세로로 쌓이는 "행 묶음"이 반복되는 구조입니다. 아래 예시는 [src/ui/TableGenerator.js](src/ui/TableGenerator.js)의 `_generate*TableHTML()` 코드가 실제로 만들어내는 **행 순서 그대로** 재현한 것입니다 (마크다운 표의 왼쪽 열 = 테이블 1번째 칸, 오른쪽 열 = 2번째 칸).
+
+#### Custom (`CUSTOM`)
+- 예시 파일명: `261015_JJH_custom.glb`
+- 파일명에 `CUSTOM`이 포함되면 `HCC`/`LDLT` 등 다른 키워드가 함께 있어도 **무조건 이 표가 먼저 적용**됨
+- 표 자체는 HCC 전용 레이아웃이 아니라 **Lung 테이블과 동일한 로직(`createLungTable`)**을 재사용하며, 제목만 파일명(또는 감지된 surgeryType, 없으면 `HCC`)으로 표시
+- CSV의 `Segment/Volume/Percent`를 순서대로 읽어 2개씩 짝지어 이름 행 → 볼륨 행 → 퍼센트 행을 반복하고, 첫 번째로 발견되는 전체 항목(`R Lung`/`L Lung` 등 전체 폐 키가 없으면 표시되지 않음)은 맨 마지막에 2칸 병합으로 표시
+- 관련 코드: [src/ui/TableGenerator.js](src/ui/TableGenerator.js#L207-L212) `autoCreateTable()` 내 `isCustomHccModel` 분기
+
+| 왼쪽 칸 | 오른쪽 칸 |
+| --- | --- |
+| **261015_JJH_custom.glb** (헤더, 2칸 병합) |||
+| RAS | RPS |
+| 300.0cm³ | 250.0cm³ |
+| 20.00% | 16.67% |
+| LMS | LLS |
+| 150.0cm³ | 200.0cm³ |
+| 10.00% | 13.33% |
+
+#### Lung Resection Plan (`LUNG`, `R_LUNG`, `L_LUNG`, `ROI_LUNG`)
+- 예시 파일명: `R_LUNG_case01.glb`
+- 상단 헤더는 surgeryType(예: `LUNG`)이 2칸 병합으로 표시
+- 전체 폐 항목(`R Lung`/`L Lung`/`Right Lung`/`Left Lung`)을 제외한 나머지 세그먼트를 **2개씩 짝지어** 이름 행 → 볼륨 행 → 퍼센트 행 순으로 반복 표시하고, 전체 폐 항목은 맨 마지막에 2칸 병합으로 표시
+- 관련 코드: [src/ui/TableGenerator.js](src/ui/TableGenerator.js#L1993-L2132) `_generateLungTableHTML()`
+
+| 왼쪽 칸 | 오른쪽 칸 |
+| --- | --- |
+| **LUNG** (헤더, 2칸 병합) |||
+| S1 | S2 |
+| 45.2cm³ | 38.7cm³ |
+| 5.32% | 4.55% |
+| Target | margin 10 |
+| 12.3cm³ | 20.1cm³ |
+| 1.45% | 2.36% |
+| **R Lung** (2칸 병합) |||
+| 850.0cm³ (2칸 병합) |||
+| 100.00% (2칸 병합) |||
+
+#### Other (`_OTHER`, `_Other`, ` OTHER`)
+- 예시 파일명: `Pancreas_OTHER_case02.glb`
+- Lung 테이블과 완전히 동일한 레이아웃(`_generateOtherTableHTML`)을 재사용하며, CSV의 **첫 번째 항목**을 전체(total)로 간주해 맨 마지막에 2칸 병합으로 표시
+- 관련 코드: [src/ui/TableGenerator.js](src/ui/TableGenerator.js#L2208-L2325) `_generateOtherTableHTML()`
+
+| 왼쪽 칸 | 오른쪽 칸 |
+| --- | --- |
+| **OTHER** (헤더, 2칸 병합) |||
+| Tumor | (빈 칸) |
+| 5.2cm³ | (빈 칸) |
+| 6.50% | (빈 칸) |
+| **Pancreas** (2칸 병합, 전체 항목) |||
+| 80.0cm³ (2칸 병합) |||
+| 100.00% (2칸 병합) |||
+
+#### LT Other (`LT_OTHER`, `LDLT_OTHER`, `LDLT Other`)
+- 예시 파일명: `LDLT_OTHER_case03.glb`
+- Other 테이블과 동일한 함수(`createOtherTable` → `_generateOtherTableHTML`)를 그대로 재사용하되, 간이식(LDLT) 케이스의 기타 장기용으로 표시명만 다름
+
+#### CCC Surgery (`CCC`)
+- 예시 파일명: `CCC_patient04.glb`
+- 순서 고정: `Whole Liver`(2칸 병합) → `Spleen`/`cyst` 쌍 → `Rt.lobe`/`Lt.lobe` 쌍 → `Cancer`(있을 때만, 왼쪽 칸만 사용)
+- 관련 코드: [src/ui/TableGenerator.js](src/ui/TableGenerator.js#L1758-L1875) `_generateCCCTableHTML()`
+
+| 왼쪽 칸 | 오른쪽 칸 |
+| --- | --- |
+| **CCC** (헤더, 2칸 병합) |||
+| **Whole Liver** (2칸 병합) |||
+| 1500.0cm³ (2칸 병합) |||
+| Spleen | cyst |
+| 120.0cm³ | 30.0cm³ |
+| 8.00% | 2.00% |
+| Rt.lobe | Lt.lobe |
+| 900.0cm³ | 600.0cm³ |
+| 60.00% | 40.00% |
+| Cancer | (빈 칸) |
+| 45.0cm³ | (빈 칸) |
+| 3.00% | (빈 칸) |
+
+#### HCC Surgery (`HCC`)
+- 예시 파일명: `HCC_patient05.glb`
+- 순서 고정: `Whole Liver`(단일 행) → `Rt.lobe`/`Lt.lobe` 쌍 → `RAS`/`LLS` 쌍 → `RPS`/`LMS` 쌍 → `Cancer`/`Spigelian` 쌍
+- CSV에 `KNOWN_HCC_COLUMNS`(위 표 항목들) 외 추가 컬럼(예: `nodules_margin_10`)이 있으면 하단에 별도의 "Segment detail" 2칸 표가 추가로 붙음 (항목명은 rowspan 2, 위=볼륨/아래=퍼센트)
+- CSV에 `Spleen` 컬럼과 0이 아닌 값이 있으면 별도의 "Spleen Volume" 표(제목 1행 + `Volume | 값` 1행)가 추가로 붙음
+- 관련 코드: [src/ui/TableGenerator.js](src/ui/TableGenerator.js#L1007-L1099) `_generateHCCTableHTML()`
+
+| 왼쪽 칸 | 오른쪽 칸 |
+| --- | --- |
+| **HCC** (헤더, 2칸 병합) |||
+| **Whole Liver** | 1500.0cm³ |
+| Rt.lobe | Lt.lobe |
+| 900.0cm³ | 600.0cm³ |
+| 60.00% | 40.00% |
+| RAS | LLS |
+| 300.0cm³ | 200.0cm³ |
+| 20.00% | 13.33% |
+| RPS | LMS |
+| 250.0cm³ | 150.0cm³ |
+| 16.67% | 10.00% |
+| Cancer | Spigelian |
+| 45.0cm³ | 100.0cm³ |
+| 3.00% | 6.67% |
+
+별도로 붙는 Segment detail 표 예시 (rowspan 2):
+
+| Segment detail (2칸 병합) ||
+| --- | --- |
+| margin 10 (rowspan 2) | 20.1cm³ |
+| ^ | 2.36% |
+
+별도로 붙는 Spleen Volume 표 예시:
+
+| Spleen Volume (2칸 병합) ||
+| --- | --- |
+| Volume | 120.0cm³ |
+
+#### LDKT Surgery / KT Surgery (`LDKT`, `KT`)
+- 예시 파일명: `LDKT_donor06.glb`, `KT_case07.glb`
+- 두 종류 모두 동일한 신장(Kidney) 테이블(`createKTTable` → `_generateKTTableHTML`)을 사용
+- 상단 헤더가 `Whole Liver`처럼 병합되지 않고 **1번째 칸 = surgeryType(예: `KT`/`LDKT`), 2번째 칸 = 환자 이름(CSV 2번째 컬럼명)** 으로 각각 표시됨 (제목 행)
+- 이후 `Cortex`/`Column`/`Medulla`/`Kidney`/`func.V` 5개 항목에 대해 `Rt.X`(왼쪽)/`Lt.X`(오른쪽) 이름 행 + 볼륨 행만 반복 (퍼센트 행 없음)
+- 관련 코드: [src/ui/TableGenerator.js](src/ui/TableGenerator.js#L1088-L1200) `_generateKTTableHTML()`
+
+| 왼쪽 칸 | 오른쪽 칸 |
+| --- | --- |
+| **KT** (제목) | **PatientA** (제목, CSV 2번째 컬럼명) |
+| Rt.Cortex | Lt.Cortex |
+| 45.0cm³ | 42.0cm³ |
+| Rt.Column | Lt.Column |
+| 12.0cm³ | 10.0cm³ |
+| Rt.Medulla | Lt.Medulla |
+| 30.0cm³ | 28.0cm³ |
+| Rt.Kidney | Lt.Kidney |
+| 87.0cm³ | 80.0cm³ |
+| Rt.func.V | Lt.func.V |
+| 87.0cm³ | 80.0cm³ |
+
+#### LDLT Surgery (`LDLT`, `5-SECTION`, `RL`)
+파일명에 `SECTION`이 포함되는지에 따라 **두 가지 다른 표**가 표시됩니다.
+
+**(A) 기본 LDLT 표** — 파일명에 `SECTION`이 없을 때 (예: `LDLT_RL_case08.glb`)
+- 순서 고정: 제목 행(`LDLT` | 환자이름) → `Whole Liver`(단일 행) → `Rt.lobe`/`Lt.lobe` 쌍 → `GRWR`/`GRWR` 쌍(값은 `%` 포맷) → `Recip BW`(단일 행, `NN kg`)
+- 관련 코드: [src/ui/TableGenerator.js](src/ui/TableGenerator.js#L1275-L1316) `_generateLDLTTableHTML()`
+
+| 왼쪽 칸 | 오른쪽 칸 |
+| --- | --- |
+| **LDLT** (제목) | **PatientA** (제목) |
+| **whole Liver** | 1500.0cm³ |
+| Rt.lobe | Lt.lobe |
+| 900.0cm³ | 600.0cm³ |
+| 60.00% | 40.00% |
+| GRWR | GRWR |
+| 1.20% | 1.15% |
+| **Recip BW** | 70 kg |
+
+**(B) 5-Section 표** — 파일명에 `SECTION`(예: `5-SECTION`)이 포함될 때
+- 순서 고정: 제목(전체 2칸 병합) → `Rt.lobe`/`Lt.lobe` 쌍(RAS+RPS 합산 / LMS+LLS+Spigelian 합산, GRWR 행 포함) → `RAS`/`LLS` 쌍(GRWR 포함) → `RPS`/`LMS` 쌍(GRWR 포함) → `Spigelian`/`Recip BW` 쌍
+- 관련 코드: [src/ui/TableGenerator.js](src/ui/TableGenerator.js#L1516-L1704) `_generateLiver5SectionTableHTML()`
+
+| 왼쪽 칸 | 오른쪽 칸 |
+| --- | --- |
+| **LDLT** (헤더, 2칸 병합) |||
+| Rt.lobe | Lt.lobe |
+| 550.0cm³ (RAS+RPS) | 450.0cm³ (LMS+LLS+Spigelian) |
+| 55.00% | 45.00% |
+| GRWR 1.10% | GRWR 0.90% |
+| RAS | LLS |
+| 300.0cm³ | 200.0cm³ |
+| 20.00% | 13.33% |
+| GRWR 0.60% | GRWR 0.40% |
+| RPS | LMS |
+| 250.0cm³ | 150.0cm³ |
+| 16.67% | 10.00% |
+| GRWR 0.50% | GRWR 0.30% |
+| Spigelian | Recip BW |
+| 100.0cm³ | 70 kg |
+| 6.67% | (빈 칸) |
+| GRWR 0.20% | (빈 칸) |
+
+#### HVT Surgery (`HVT`)
+- 예시 파일명: `LDLT_HVT_case09.glb`
+- 제목 행(`LDLT` | 환자이름) 이후, 간정맥 재건 항목(`Rt.lobe`, `RHVt`, `RSHVt`, `RIHVt`, `RIHVpt`, `RIHVat`, `MHVt`, `V5t`, `V58t`, `V8t`) 중 **볼륨이 0보다 큰 항목만** 순서대로 표시
+- 각 항목은 2행 1세트: 1행 = 이름(왼쪽) + 볼륨(오른쪽), 2행 = 퍼센트(왼쪽, 회색 배경) + GRWR(오른쪽, 볼드체, `%` 포맷) — 좌우로 다른 항목을 짝짓지 않고 **같은 항목의 이름/값**이 나란히 옴
+- 마지막에 `Recip BW`가 있으면 이름(왼쪽) + `NN kg`(오른쪽) 행 추가
+- 관련 코드: [src/ui/TableGenerator.js](src/ui/TableGenerator.js#L1314-L1435) `_generateHVTTableHTML()`
+
+| 왼쪽 칸 | 오른쪽 칸 |
+| --- | --- |
+| **HVT** (제목) | **PatientA** (제목) |
+| Rt.lobe | 900.0cm³ |
+| 60.00% | GRWR |
+| RHVt | 50.0cm³ |
+| 5.55% | 0.90% |
+| MHVt | 30.0cm³ |
+| 3.33% | (빈 값이면 `0.00%`) |
+| Recip BW | 70 kg |
+
+#### LEFT Surgery (`LEFT`)
+- 예시 파일명: `LEFT_case10.glb`
+- 좌엽(Left lobe) 전용 항목(`Lt.lobe`, `LHVt`, `V4t`, `V4at`, `V4bt`)에 대해 HVT와 동일한 2행 1세트 구조(이름+볼륨 행, 퍼센트+GRWR 행) 반복
+- 마지막에 `Recip BW`가 있으면 단일 행(이름 | 값)으로 추가
+- 관련 코드: [src/ui/TableGenerator.js](src/ui/TableGenerator.js#L679-L820) `createLeftTable()` / `_generateLeftTableHTML()`
+
+| 왼쪽 칸 | 오른쪽 칸 |
+| --- | --- |
+| **LEFT** (제목) | **PatientA** (제목) |
+| Lt.lobe | 600.0cm³ |
+| 40.00% | (GRWR 값) |
+| LHVt | 25.0cm³ |
+| 4.16% | (GRWR 값) |
+| V4t | 80.0cm³ |
+| 13.33% | (GRWR 값) |
+| Recip BW | 70kg |
+
+#### FUSION Surgery (`FUSION`)
+- 예시 파일명: `FUSION_case11.glb`
+- `TABLE_TYPES.FUSION.method`가 `null`이므로 표(table) 자체가 생성되지 않고 기본 텍스트로만 표시됨
 
 ---
 
