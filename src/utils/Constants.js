@@ -412,7 +412,7 @@ export const OPACITY_CONTROLLABLE_KEYWORDS = [
     "vessel", "capillary", "airways wall",
     "myometrium","uterus", "recipient_cavity", "pancreas", "Pancreas",
     "bladder", "tumor", "cancer", "glissonean_pedicle", "fibroid", "body",
-    "stomach wall"
+    "stomach wall","cortex"
 ];
 
 // 정확히 일치할 때만 투명도 조절 허용할 mesh 이름 (폐 절제술 - 정맥) - 사용 중단
@@ -466,6 +466,10 @@ export const isBileDuctDepthThroughMeshName = (meshName) => {
     const tokens = name.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
     return tokens.includes("bd");
 };
+
+// 신장(kidney) cortex 메시 판별: LDKT 등 일반 모델에서도 PCD 모델과 동일하게
+// 카메라 거리 기반 back-to-front 정렬 + depthWrite=false로 렌더링하기 위해 사용
+export const isCortexBackToFrontMeshName = (meshName) => isMeshNameMatchingKeyword(meshName, "cortex");
 // 오브젝트 리스트에서 우선 체크할 제외 키워드
 export const PRIMARY_EXCLUDE_KEYWORDS = [
     'vol',

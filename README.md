@@ -114,30 +114,30 @@ flowchart TD
 
 ### 주요 모듈
 
-| 경로 | 역할 |
-| --- | --- |
-| `src/index.js` | 웹/Electron 공통 애플리케이션 진입점과 정리 처리 |
-| `src/core/LiverViewer.js` | 씬, 카메라, 렌더러, 로더, UI를 조합하는 뷰어 오케스트레이터 |
-| `src/core/Scene.js` | Three.js 씬과 조명·환경 설정 |
-| `src/core/Camera.js` | 카메라와 카메라 컨트롤 설정 |
-| `src/loaders/ModelLoader.js` | GLB/GLTF 모델 로딩과 모델 상태 처리 |
-| `src/controls/` | 컨트롤 매니저와 메시 변형 기능 |
-| `src/functions/` | 측정, 웹캠 배경, XR, FOV, 카메라 재생 기능 |
-| `src/services/DropboxService.js` | Dropbox 공유 링크와 `model.json` 처리 |
-| `src/ui/` | 상단 바, 툴바, 패널, 모델 선택기, 라벨, 툴팁 |
-| `server/server.js` | 로컬 Dropbox 프록시 및 카메라 상태 업로드 API |
-| `functions/` | Netlify Functions용 서버리스 엔드포인트 |
-| `electron/` | Electron 메인 프로세스와 preload 브리지 |
+| 경로                               | 역할                                                        |
+| ---------------------------------- | ----------------------------------------------------------- |
+| `src/index.js`                   | 웹/Electron 공통 애플리케이션 진입점과 정리 처리            |
+| `src/core/LiverViewer.js`        | 씬, 카메라, 렌더러, 로더, UI를 조합하는 뷰어 오케스트레이터 |
+| `src/core/Scene.js`              | Three.js 씬과 조명·환경 설정                               |
+| `src/core/Camera.js`             | 카메라와 카메라 컨트롤 설정                                 |
+| `src/loaders/ModelLoader.js`     | GLB/GLTF 모델 로딩과 모델 상태 처리                         |
+| `src/controls/`                  | 컨트롤 매니저와 메시 변형 기능                              |
+| `src/functions/`                 | 측정, 웹캠 배경, XR, FOV, 카메라 재생 기능                  |
+| `src/services/DropboxService.js` | Dropbox 공유 링크와`model.json` 처리                      |
+| `src/ui/`                        | 상단 바, 툴바, 패널, 모델 선택기, 라벨, 툴팁                |
+| `server/server.js`               | 로컬 Dropbox 프록시 및 카메라 상태 업로드 API               |
+| `functions/`                     | Netlify Functions용 서버리스 엔드포인트                     |
+| `electron/`                      | Electron 메인 프로세스와 preload 브리지                     |
 
 ## API 엔드포인트
 
 로컬 Express 서버가 제공하는 엔드포인트입니다.
 
-| 메서드 | 경로 | 설명 |
-| --- | --- | --- |
-| `POST` | `/api/dropbox/folder-contents` | Dropbox 폴더의 `model.json` 조회 |
-| `GET` | `/api/dropbox/file` | Dropbox의 개별 파일 스트리밍 |
-| `GET` | `/api/dropbox/validate-token` | Dropbox 토큰 유효성 확인 |
+| 메서드   | 경로                                  | 설명                                |
+| -------- | ------------------------------------- | ----------------------------------- |
+| `POST` | `/api/dropbox/folder-contents`      | Dropbox 폴더의`model.json` 조회   |
+| `GET`  | `/api/dropbox/file`                 | Dropbox의 개별 파일 스트리밍        |
+| `GET`  | `/api/dropbox/validate-token`       | Dropbox 토큰 유효성 확인            |
 | `POST` | `/api/dropbox/upload-camera-states` | 카메라 상태 JSON을 Dropbox에 업로드 |
 
 Netlify 배포에서는 `/api/*` 요청이 `/.netlify/functions/*`로 리다이렉트됩니다.

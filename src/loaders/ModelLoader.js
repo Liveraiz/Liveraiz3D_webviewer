@@ -560,6 +560,114 @@ export default class ModelLoader {
                 });
             }
 
+            // 메시별 기본 셰이더/투명도 설정. ObjectListPanel이 초기 opacity를 읽기 전에
+            // 반드시 완료되어야 하므로 objectListPanel.updateObjectList() 호출보다 앞서 실행
+            model.traverse((child) => {
+                if (child.isMesh) {
+                    // fibroid 메시에 셰이더 자동 적용
+                    if (child.name.toLowerCase().includes('fibroid')) {
+                        console.log(`[ModelLoader] Found fibroid mesh: ${child.name}, applying shader`);
+                        if (this.materialManager && this.materialManager.applyFibrosisShader) {
+                            this.materialManager.applyFibrosisShader(child);
+                        }
+                    }
+
+                    // muscle 메시에 muscle 셰이더 자동 적용
+                    if (child.name.toLowerCase().includes('muscle')) {
+                        console.log(`[ModelLoader] Found muscle mesh: ${child.name}, applying muscle shader`);
+                        if (this.materialManager && this.materialManager.applyMuscleShader) {
+                            this.materialManager.applyMuscleShader(child);
+                        }
+                    }
+
+                    // prostate 메시에 prostate 셰이더 자동 적용
+                    if (child.name.toLowerCase().includes('prostate')) {
+                        console.log(`[ModelLoader] Found prostate mesh: ${child.name}, applying prostate shader`);
+                        if (this.materialManager && this.materialManager.applyProstateShader) {
+                            this.materialManager.applyProstateShader(child);
+                        }
+                    }
+
+                    // pelvis 메시의 opacity 기본값을 0.2로 설정
+                    if (child.name.toLowerCase().includes('pelvis')) {
+                        console.log(`[ModelLoader] Found pelvis mesh: ${child.name}, setting opacity to 0.2`);
+                        if (child.material) {
+                            child.material.transparent = true;
+                            child.material.opacity = 0.2;
+                            child.material.needsUpdate = true;
+                        }
+                    }
+
+                    // nodule margin 메시는 ROI vessel 모드 활성화 여부와 무관하게 기본으로 반투명 + fresnel 테두리 적용
+                    if (child.name.toLowerCase().replace(/[\s_-]+/g, " ").includes('nodule margin')) {
+                        console.log(`[ModelLoader] Found nodule margin mesh: ${child.name}, applying default fresnel style`);
+                        LungVesselROI.applyDefaultNoduleMarginStyle(child);
+                    }
+
+                    if (child.material) {
+                        // See-through 효과를 위해 FrontSide를 DoubleSide로 변경
+                        child.material.side = THREE.DoubleSide;
+
+                        // 투명도가 있는 경우 (pelvis / nodule margin은 제외 - 이미 전용 opacity로 설정됨)
+                        const isPelvis = child.name.toLowerCase().includes('pelvis');
+                        const isNoduleMargin = child.name.toLowerCase().replace(/[\s_-]+/g, " ").includes('nodule margin');
+                        if (child.material.transparent && !isPelvis && !isNoduleMargin) {
+                            // 초기 투명도 값을 0.60으로 설정 (소수점 2자리)
+                            child.material.opacity = 0.60;
+                            // 알파 테스트 값 설정 (소수점 2자리)
+                            child.material.alphaTest = 0.30;
+                            // 블렌딩 모드 설정
+                            child.material.blending = THREE.NormalBlending;
+                            // 깊이 쓰기 활성화
+                            child.material.depthWrite = true;
+                            
+                            // 재질 업데이트를 위한 메서드 추가
+                            child.material.setOpacity = (value) => {
+                                // 소수점 4자리까지 유지 (더 정밀한 계산을 위해)
+                                const preciseValue = Math.round(value * 10000) / 10000;
+                                // 최종적으로 소수점 2자리까지 표시
+                                const roundedValue = Math.round(preciseValue * 100) / 100;
+                                child.material.opacity = Math.max(0, Math.min(1, roundedValue));
+                                child.material.needsUpdate = true;
+                                
+                                // 디버깅을 위한 로그 추가
+                                console.log(`Material opacity updated:`, {
+                                    original: value,
+                                    precise: preciseValue,
+                                    rounded: roundedValue,
+                                    final: child.material.opacity
+                                });
+                            };
+                            
+                            child.material.setAlphaTest = (value) => {
+                                // 소수점 4자리까지 유지
+                                const preciseValue = Math.round(value * 10000) / 10000;
+                                // 최종적으로 소수점 2자리까지 표시
+                                const roundedValue = Math.round(preciseValue * 100) / 100;
+                                child.material.alphaTest = Math.max(0, Math.min(1, roundedValue));
+                                child.material.needsUpdate = true;
+                                
+                                // 디버깅을 위한 로그 추가
+                                console.log(`Material alphaTest updated:`, {
+                                    original: value,
+                                    precise: preciseValue,
+                                    rounded: roundedValue,
+                                    final: child.material.alphaTest
+                                });
+                            };
+
+                            // 초기 재질 정보 로깅
+                            console.log(`Initial material settings for ${child.name}:`, {
+                                opacity: child.material.opacity,
+                                alphaTest: child.material.alphaTest,
+                                transparent: child.material.transparent,
+                                blending: child.material.blending
+                            });
+                        }
+                    }
+                }
+            });
+
             // 셰이더 컴파일 시작 - 0%
             if (this.loadingBar) {
                 this.loadingBar.setShaderProgress(0);
@@ -760,112 +868,6 @@ export default class ModelLoader {
             if (loadingElem && loadingElem.style) {
                 loadingElem.style.display = "none";
             }
-
-            model.traverse((child) => {
-                if (child.isMesh) {
-                    // fibroid 메시에 셰이더 자동 적용
-                    if (child.name.toLowerCase().includes('fibroid')) {
-                        console.log(`[ModelLoader] Found fibroid mesh: ${child.name}, applying shader`);
-                        if (this.materialManager && this.materialManager.applyFibrosisShader) {
-                            this.materialManager.applyFibrosisShader(child);
-                        }
-                    }
-
-                    // muscle 메시에 muscle 셰이더 자동 적용
-                    if (child.name.toLowerCase().includes('muscle')) {
-                        console.log(`[ModelLoader] Found muscle mesh: ${child.name}, applying muscle shader`);
-                        if (this.materialManager && this.materialManager.applyMuscleShader) {
-                            this.materialManager.applyMuscleShader(child);
-                        }
-                    }
-
-                    // prostate 메시에 prostate 셰이더 자동 적용
-                    if (child.name.toLowerCase().includes('prostate')) {
-                        console.log(`[ModelLoader] Found prostate mesh: ${child.name}, applying prostate shader`);
-                        if (this.materialManager && this.materialManager.applyProstateShader) {
-                            this.materialManager.applyProstateShader(child);
-                        }
-                    }
-
-                    // pelvis 메시의 opacity 기본값을 0.2로 설정
-                    if (child.name.toLowerCase().includes('pelvis')) {
-                        console.log(`[ModelLoader] Found pelvis mesh: ${child.name}, setting opacity to 0.2`);
-                        if (child.material) {
-                            child.material.transparent = true;
-                            child.material.opacity = 0.2;
-                            child.material.needsUpdate = true;
-                        }
-                    }
-
-                    // nodule margin 메시는 ROI vessel 모드 활성화 여부와 무관하게 기본으로 반투명 + fresnel 테두리 적용
-                    if (child.name.toLowerCase().replace(/[\s_-]+/g, " ").includes('nodule margin')) {
-                        console.log(`[ModelLoader] Found nodule margin mesh: ${child.name}, applying default fresnel style`);
-                        LungVesselROI.applyDefaultNoduleMarginStyle(child);
-                    }
-
-                    if (child.material) {
-                        // See-through 효과를 위해 FrontSide를 DoubleSide로 변경
-                        child.material.side = THREE.DoubleSide;
-
-                        // 투명도가 있는 경우 (pelvis / nodule margin은 제외 - 이미 전용 opacity로 설정됨)
-                        const isPelvis = child.name.toLowerCase().includes('pelvis');
-                        const isNoduleMargin = child.name.toLowerCase().replace(/[\s_-]+/g, " ").includes('nodule margin');
-                        if (child.material.transparent && !isPelvis && !isNoduleMargin) {
-                            // 초기 투명도 값을 0.60으로 설정 (소수점 2자리)
-                            child.material.opacity = 0.60;
-                            // 알파 테스트 값 설정 (소수점 2자리)
-                            child.material.alphaTest = 0.30;
-                            // 블렌딩 모드 설정
-                            child.material.blending = THREE.NormalBlending;
-                            // 깊이 쓰기 활성화
-                            child.material.depthWrite = true;
-                            
-                            // 재질 업데이트를 위한 메서드 추가
-                            child.material.setOpacity = (value) => {
-                                // 소수점 4자리까지 유지 (더 정밀한 계산을 위해)
-                                const preciseValue = Math.round(value * 10000) / 10000;
-                                // 최종적으로 소수점 2자리까지 표시
-                                const roundedValue = Math.round(preciseValue * 100) / 100;
-                                child.material.opacity = Math.max(0, Math.min(1, roundedValue));
-                                child.material.needsUpdate = true;
-                                
-                                // 디버깅을 위한 로그 추가
-                                console.log(`Material opacity updated:`, {
-                                    original: value,
-                                    precise: preciseValue,
-                                    rounded: roundedValue,
-                                    final: child.material.opacity
-                                });
-                            };
-                            
-                            child.material.setAlphaTest = (value) => {
-                                // 소수점 4자리까지 유지
-                                const preciseValue = Math.round(value * 10000) / 10000;
-                                // 최종적으로 소수점 2자리까지 표시
-                                const roundedValue = Math.round(preciseValue * 100) / 100;
-                                child.material.alphaTest = Math.max(0, Math.min(1, roundedValue));
-                                child.material.needsUpdate = true;
-                                
-                                // 디버깅을 위한 로그 추가
-                                console.log(`Material alphaTest updated:`, {
-                                    original: value,
-                                    precise: preciseValue,
-                                    rounded: roundedValue,
-                                    final: child.material.alphaTest
-                                });
-                            };
-
-                            // 초기 재질 정보 로깅
-                            console.log(`Initial material settings for ${child.name}:`, {
-                                opacity: child.material.opacity,
-                                alphaTest: child.material.alphaTest,
-                                transparent: child.material.transparent,
-                                blending: child.material.blending
-                            });
-                        }
-                    }
-                }
-            });
 
             // 렌더링 요청
             if (this.liverViewer) {

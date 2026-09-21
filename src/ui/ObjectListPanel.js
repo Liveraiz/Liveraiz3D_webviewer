@@ -243,6 +243,14 @@ export class ObjectListPanel {
         if (tokens.some((token) => LOBE_SEGMENT_TOKEN_PATTERN.test(token))) {
             return "lobes";
         }
+        // 위 카테고리 어디에도 속하지 않는 메시(예: 신장 kidney/cortex 등)는
+        // 이름에 "right"/"left"가 포함되면 Right/Left 탭으로 분류
+        if (lowerName.includes("right")) {
+            return "right";
+        }
+        if (lowerName.includes("left")) {
+            return "left";
+        }
         return null;
     }
 
@@ -253,7 +261,12 @@ export class ObjectListPanel {
         veins: "Veins",
         bronchus: "Bronchus",
         cancer: "Cancer",
+        right: "Right",
+        left: "Left",
     };
+
+    // 탭 정렬 순서 (All 다음 Right/Left가 가장 먼저 오도록 고정)
+    static CATEGORY_ORDER = ["right", "left", "lobes", "arteries", "veins", "bronchus", "cancer"];
 
     // 카테고리 탭 바 생성 (전체 목록은 그대로 두고 탭으로 필터링만 함)
     createCategoryTabBar(presentCategories) {
@@ -589,12 +602,17 @@ export class ObjectListPanel {
         // 전체 토글 버튼 추가
         this.addToggleAllButton();
 
-        // 카테고리 탭 바 추가 (Lobes/Arteries/Veins/Bronchus 중 실제로 존재하는 것만)
+        // 카테고리 탭 바 추가 (Lobes/Arteries/Veins/Bronchus/Right/Left 중 실제로 존재하는 것만)
         const presentCategories = [];
         hierarchyMap.forEach((info) => {
             if (info.category && !presentCategories.includes(info.category)) {
                 presentCategories.push(info.category);
             }
+        });
+        presentCategories.sort((a, b) => {
+            const orderA = ObjectListPanel.CATEGORY_ORDER.indexOf(a);
+            const orderB = ObjectListPanel.CATEGORY_ORDER.indexOf(b);
+            return (orderA === -1 ? Infinity : orderA) - (orderB === -1 ? Infinity : orderB);
         });
         if (presentCategories.length > 0) {
             if (this.activeCategoryTab !== "all" && !presentCategories.includes(this.activeCategoryTab)) {
