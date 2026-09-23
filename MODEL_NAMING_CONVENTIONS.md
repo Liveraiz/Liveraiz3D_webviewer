@@ -24,7 +24,7 @@
 - **폐절제(Lung) 계열** – `LUNG_RESECTION_KEYWORDS`: `LLL`, `LUL`, `RLL`, `RML`, `RUL`, `LUL_Preserved`, `LUL_Target`, `S1`~`S10` 및 `S1a/S1b/S1c` 등 세그먼트 표기, `Target`, `margin`
 - **PCD 계열** – `PCD_KEYWORDS`: `subcutaneous_Fat`, `fluid_collection`, `colon_ROI`
 - **DIEP 계열** – `DIEP_KEYWORDS`: `muscle`, `T_muscle`, `body`
-- **기타**: `myometrium`, `uterus`, `recipient_cavity`, `pancreas`, `bladder`, `tumor`, `cancer`, `glissonean_pedicle`, `fibroid`, `body`, `stomach wall`,`cortex`
+- **기타**: `myometrium`, `uterus`, `recipient_cavity`, `pancreas`, `bladder`, `tumor`, `cancer`, `glissonean_pedicle`, `fibroid`, `body`, `stomach wall`
 - 관련 코드: [src/utils/Constants.js](src/utils/Constants.js#L376-L397)
 
 ### 1-3. 로드 시 자동 투명도 처리 (이름 기반, 패널과 무관하게 즉시 적용)
@@ -149,16 +149,6 @@
 - 이름 판정 함수: [src/utils/Constants.js](src/utils/Constants.js#L459) `isBileDuctDepthThroughMeshName()`
 - 적용 로직: [src/materials/MaterialManager.js](src/materials/MaterialManager.js) `updateTransparentMeshRenderOrder()` 일반 모델 분기
 
-### 8-3. `cortex` 신장(kidney) 메시 예외 – PCD와 동일한 back-to-front 렌더링
-
-LDKT/KT처럼 일반 모델로 분류되는 신장 모델도, 이름에 `cortex`가 포함된 반투명 메시만큼은 PCD 모델과 동일하게 **카메라 거리 기반 back-to-front 정렬**로 렌더링됩니다. 일반 모델의 기본 정책(반투명 메시도 `depthWrite=true`)을 그대로 적용하면 cortex가 다른 반투명 신장 구조와 겹칠 때 뒤쪽이 가려져 비쳐 보이지 않기 때문입니다.
-
-- 이름에 `cortex`가 포함되고(구분자 차이 무시) opacity가 1보다 작은 메시가 대상
-- 카메라와의 거리 기준으로 정렬해 먼 메시부터 `renderOrder`를 낮게(더 음수로) 매기고 `depthWrite=false`로 설정 (PCD 모델의 투명 메시 처리와 동일한 방식)
-- 다른 일반 메시(간, 담관 예외 등)의 렌더링 정책에는 영향을 주지 않음
-- 이름 판정 함수: [src/utils/Constants.js](src/utils/Constants.js#L466) `isCortexBackToFrontMeshName()`
-- 적용 로직: [src/materials/MaterialManager.js](src/materials/MaterialManager.js) `updateTransparentMeshRenderOrder()` 일반 모델 분기 내 cortex 예외 처리
-
 ---
 
 ## 9. 신장(Kidney) 계층 구조 – 겹침 메쉬 처리
@@ -169,9 +159,6 @@ LDKT/KT처럼 일반 모델로 분류되는 신장 모델도, 이름에 `cortex`
 - 혈관 키워드(`vein`, `artery`, `vessel`)가 포함된 메쉬는 이 겹침 처리에서 제외됨
 - 이름에 `left` / `right`가 포함되어야 좌우 신장이 각각 그룹으로 분리되어 처리됨 (각 그룹에서 가장 큰 메쉬만 표시)
 - 관련 코드: [src/materials/MaterialManager.js](src/materials/MaterialManager.js#L680-L720), [src/utils/Constants.js](src/utils/Constants.js#L465-L477)
-- 오브젝트 리스트 패널에서도 이름에 `right`/`left`가 포함된 메쉬는 (다른 카테고리에 해당하지 않는 경우) `Right`/`Left` 탭으로 분류되어, `All`/`Lobes`/`Arteries`/`Veins`처럼 탭으로 필터링해서 볼 수 있음 (개별 메쉬 행은 그대로 유지되며, 하나의 그룹으로 합쳐지지 않음)
-- 관련 코드: [src/ui/ObjectListPanel.js](src/ui/ObjectListPanel.js) `getMeshCategory()`
-- 관련 코드: [src/ui/ObjectListPanel.js](src/ui/ObjectListPanel.js) `updateObjectList()`
 
 ---
 
@@ -190,7 +177,7 @@ LDKT/KT처럼 일반 모델로 분류되는 신장 모델도, 이름에 `cortex`
 | `LDKT`                                       | LDKT Surgery                                                                                                             |
 | `KT`                                         | KT Surgery                                                                                                               |
 | `LDLT`, `5-SECTION`, `RL`                | LDLT Surgery (`HVT`가 포함된 LDLT 모델은 하위 종류인 HVT Table 사용)                                                   |
-| `LEFT`                                       | LEFT – LDLT의 left graft 모델 (별도 수술 종류 아님)                                                                     |
+| `LEFT`                                       | LEFT Surgery                                                                                                             |
 
 - `CUSTOM` 판정은 `TABLE_TYPES`가 아니라 `TableGenerator.autoCreateTable()`에서 별도로 먼저 체크되는 예외 규칙이며, 다른 모든 규칙보다 먼저 검사됩니다.
 - 관련 코드: [src/utils/Constants.js](src/utils/Constants.js#L52-L102), [src/ui/TableGenerator.js](src/ui/TableGenerator.js#L197-L211) `autoCreateTable()`
@@ -384,9 +371,8 @@ LDKT/KT처럼 일반 모델로 분류되는 신장 모델도, 이름에 `cortex`
 | 6.67%                           | (빈 칸)                       |
 | GRWR 0.20%                      | (빈 칸)                       |
 
-#### HVT (`HVT`)
+#### HVT Surgery (`HVT`)
 
-- 별도의 수술(surgery) 종류가 아니라 **LDLT의 한 모델 종류**로, 간정맥 영역(hepatic vein territory)을 보여주기 위해 만드는 모델임
 - 예시 파일명: `LDLT_HVT_case09.glb`
 - 제목 행(`LDLT` | 환자이름) 이후, 간정맥 재건 항목(`Rt.lobe`, `RHVt`, `RSHVt`, `RIHVt`, `RIHVpt`, `RIHVat`, `MHVt`, `V5t`, `V58t`, `V8t`) 중 **볼륨이 0보다 큰 항목만** 순서대로 표시
 - 각 항목은 2행 1세트: 1행 = 이름(왼쪽) + 볼륨(오른쪽), 2행 = 퍼센트(왼쪽, 회색 배경) + GRWR(오른쪽, 볼드체, `%` 포맷) — 좌우로 다른 항목을 짝짓지 않고 **같은 항목의 이름/값**이 나란히 옴
@@ -404,9 +390,8 @@ LDKT/KT처럼 일반 모델로 분류되는 신장 모델도, 이름에 `cortex`
 | 3.33%                | (빈 값이면`0.00%`)      |
 | Recip BW             | 70 kg                     |
 
-#### LEFT (`LEFT`)
+#### LEFT Surgery (`LEFT`)
 
-- 별도의 수술(surgery) 종류가 아니라 **LDLT에서 좌엽 그래프트(left graft)인 경우**에 만드는 모델 종류임
 - 예시 파일명: `LEFT_case10.glb`
 - 좌엽(Left lobe) 전용 항목(`Lt.lobe`, `LHVt`, `V4t`, `V4at`, `V4bt`)에 대해 HVT와 동일한 2행 1세트 구조(이름+볼륨 행, 퍼센트+GRWR 행) 반복
 - 마지막에 `Recip BW`가 있으면 단일 행(이름 | 값)으로 추가
@@ -423,21 +408,10 @@ LDKT/KT처럼 일반 모델로 분류되는 신장 모델도, 이름에 `cortex`
 | 13.33%                | (GRWR 값)                 |
 | Recip BW              | 70kg                      |
 
-#### FUSION (`FUSION - PV+HA+BD`)
+#### FUSION Surgery (`FUSION`)
 
-- 별도의 수술(surgery) 종류가 아니라 **LDLT의 한 모델 종류**로, CT와 MR 각각에서 잘 보이는 구조물(문맥에 따라 PV/HA/BD 등)을 하나로 합쳐(fusion) 만든 모델임
-- 예시 파일명: `fusion.glb`
+- 예시 파일명: `FUSION_case11.glb`
 - `TABLE_TYPES.FUSION.method`가 `null`이므로 표(table) 자체가 생성되지 않고 기본 텍스트로만 표시됨
-
----
-
-## 11. Blender 제작 가이드
-
-- **좌/우 재질 분리**: 좌우로 나뉘는 메시(예: Rt.Cortex / Lt.Cortex 등)는 Blender에서 재질을 복사(Copy)해 각각 별도의 재질로 적용해야 합니다. 같은 재질을 공유하면 뷰어에서 한쪽의 불투명도를 조절할 때 반대쪽도 함께 바뀝니다.
-- **메시 이름은 모델 전체에서 고유해야 함**: 오브젝트 리스트 패널, 툴팁 등이 메시 이름을 키(key)로 사용하므로, 같은 이름의 메시가 두 개 이상 있으면 나중 메시가 앞의 메시를 덮어써서 UI가 정상 동작하지 않습니다.
-- **내보내기 형식은 `.glb`/`.gltf`만 지원**: 뷰어의 GLTFLoader에는 DRACOLoader가 연결되어 있지 않으므로, Blender에서 내보낼 때 **Draco 압축 옵션은 반드시 끄고** 내보내야 합니다. (Draco로 압축하면 로드에 실패합니다.)
-- **이동/회전(`mov`) 대상 메시는 불투명도가 0.01보다 커야 함**: 이름에 `mov`가 포함되어도 material의 opacity가 0.01 이하이면 Translate/Rotate 컨트롤이 붙지 않습니다.
-<!-- - **애니메이션/디폼용 메시는 Empty를 부모로 사용**: 도너 그래프트처럼 위치를 옮기며 보여줘야 하는 메시는 Blender에서 Empty 오브젝트를 부모로 두고 그 Empty에 애니메이션/변환을 적용해야 합니다. 뷰어가 Empty의 위치/회전/스케일을 자식 메시에 그대로 반영합니다. -->
 
 ---
 

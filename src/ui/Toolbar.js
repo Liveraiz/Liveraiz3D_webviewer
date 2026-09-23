@@ -1869,9 +1869,6 @@ export default class Toolbar {
         buttons.forEach((button, index) => {
             const isActive = button.classList.contains('active');
             
-            // 버튼 스타일 업데이트
-            this.applyButtonStyle(button, isActive, currentIsDarkMode);
-            
             // 아이콘 업데이트 (TopBar 방식)
             if (button.id === 'theme-toggle') {
                 button.innerHTML = currentIsDarkMode ? this.getSunIcon(currentIsDarkMode) : this.getMoonIcon(currentIsDarkMode);
@@ -1886,25 +1883,28 @@ export default class Toolbar {
             } else if (button.id === 'model-switch') {
                 button.innerHTML = this.getModelLoaderIcon(currentIsDarkMode);
             }
+
+            // SVG 교체 후 크기를 적용해야 초기 표시와 테마 변경 시에도 유지됩니다.
+            this.applyButtonStyle(button, isActive, currentIsDarkMode);
         });
         
         // 특정 버튼들도 직접 업데이트
         if (this.seeThroughButton) {
             const isActive = this.activeMeasurementButton === this.seeThroughButton;
-            this.applyButtonStyle(this.seeThroughButton, isActive, currentIsDarkMode);
             this.seeThroughButton.innerHTML = this.getSeeThroughIcon(currentIsDarkMode);
+            this.applyButtonStyle(this.seeThroughButton, isActive, currentIsDarkMode);
         }
         
         if (this.distanceMeasurementButton) {
             const isActive = this.activeMeasurementButton === this.distanceMeasurementButton;
-            this.applyButtonStyle(this.distanceMeasurementButton, isActive, currentIsDarkMode);
             this.distanceMeasurementButton.innerHTML = this.getRulerIcon(currentIsDarkMode);
+            this.applyButtonStyle(this.distanceMeasurementButton, isActive, currentIsDarkMode);
         }
         
         if (this.angleMeasurementButton) {
             const isActive = this.activeMeasurementButton === this.angleMeasurementButton;
-            this.applyButtonStyle(this.angleMeasurementButton, isActive, currentIsDarkMode);
             this.angleMeasurementButton.innerHTML = this.getAngleIcon(currentIsDarkMode);
+            this.applyButtonStyle(this.angleMeasurementButton, isActive, currentIsDarkMode);
         }
         
         // ✅ LungVesselROI 버튼도 업데이트

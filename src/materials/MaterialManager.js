@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { LIVER_KEYWORDS, MESH_CONSTANTS, isBileDuctDepthThroughMeshName, isCortexBackToFrontMeshName } from "../utils/Constants";
+import { LIVER_KEYWORDS, MESH_CONSTANTS, isBileDuctDepthThroughMeshName } from "../utils/Constants";
 
 export default class MaterialManager {
     /**
@@ -539,47 +539,6 @@ export default class MaterialManager {
                 mesh.material.depthTest = true;
             }
         });
-
-        // 신장(kidney) cortex 메시 예외: LDKT 등 일반 모델에서도 여러 겹의 신장 구조가
-        // 자연스럽게 비쳐 보이도록 PCD 모델과 동일한 카메라 거리 기반 back-to-front 정렬 적용
-        const cortexMetadata = allMeshes
-            .filter(mesh => {
-                const isSeeThroughMat = Array.isArray(mesh.material)
-                    ? mesh.material.some((mat) => mat.userData?.isSeeThroughMaterial)
-                    : mesh.material.userData?.isSeeThroughMaterial;
-                const isLungVesselROIMat = Array.isArray(mesh.material)
-                    ? mesh.material.some((mat) => mat.userData?.isLungVesselROIMaterial)
-                    : mesh.material.userData?.isLungVesselROIMaterial;
-                if (isSeeThroughMat || isLungVesselROIMat) return false;
-
-                const opacity = Array.isArray(mesh.material)
-                    ? (mesh.material[0]?.opacity || 1.0)
-                    : (mesh.material.opacity || 1.0);
-                return opacity < 1.0 && isCortexBackToFrontMeshName(mesh.name);
-            })
-            .map(mesh => {
-                const meshWorldPos = new THREE.Vector3();
-                mesh.getWorldPosition(meshWorldPos);
-                return { mesh, distance: camera.position.distanceTo(meshWorldPos) };
-            });
-
-        if (cortexMetadata.length > 0) {
-            cortexMetadata.sort((a, b) => b.distance - a.distance);
-            cortexMetadata.forEach((item, index) => {
-                item.mesh.renderOrder = -(index + 1);
-                if (Array.isArray(item.mesh.material)) {
-                    item.mesh.material.forEach(mat => {
-                        mat.depthWrite = false;
-                        mat.transparent = true;
-                        mat.depthTest = true;
-                    });
-                } else {
-                    item.mesh.material.depthWrite = false;
-                    item.mesh.material.transparent = true;
-                    item.mesh.material.depthTest = true;
-                }
-            });
-        }
     }
 
     /**

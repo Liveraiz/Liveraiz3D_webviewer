@@ -68,6 +68,9 @@ export default class SeeThrough {
             GYNECOLOGY: [
                 "myometrium",
                 "uterus"
+            ],
+            PANCREAS: [
+                "pancreas"
             ]
         };
 
@@ -76,7 +79,8 @@ export default class SeeThrough {
             ...new Set([
                 ...seeThroughTargetsByProcedure.LDLT,
                 ...seeThroughTargetsByProcedure.LUNG,
-                ...seeThroughTargetsByProcedure.GYNECOLOGY
+                ...seeThroughTargetsByProcedure.GYNECOLOGY,
+                ...seeThroughTargetsByProcedure.PANCREAS
             ])
         ];
 
