@@ -20,7 +20,14 @@ export class ErrorHandler {
    * @param {string} message - 표시할 에러 메시지
    */
   static showErrorMessage(message) {
-      const loadingElement = document.getElementById("loading");
+      // 오류 안내는 실제 오류가 발생할 때만 생성합니다.
+      let loadingElement = document.getElementById("viewer-error-message");
+      if (!loadingElement) {
+          loadingElement = document.createElement("div");
+          loadingElement.id = "viewer-error-message";
+          loadingElement.setAttribute("role", "alert");
+          document.body.appendChild(loadingElement);
+      }
       if (loadingElement) {
           // 로딩 아이콘과 메시지를 포함하는 컨테이너
           loadingElement.innerHTML = `
@@ -37,6 +44,8 @@ export class ErrorHandler {
           const isDarkMode = bodyBg.includes('26, 26, 26') || bodyBg.includes('rgb(26, 26, 26)') || bodyBg.includes('#1a1a1a');
           
           Object.assign(loadingElement.style, {
+              fontFamily: "Arial, sans-serif",
+              fontSize: "16px",
               color: isDarkMode ? "white" : "black",
               backgroundColor: isDarkMode ? "rgba(0, 0, 0, 0.8)" : "rgba(255, 255, 255, 0.9)",
               padding: "20px",

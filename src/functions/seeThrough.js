@@ -36,7 +36,9 @@ export default class SeeThrough {
             color: 0x000000,
             transparent: true,
             opacity: isMobile ? 0.4 : 0.3,
+            depthWrite: false,
         });
+        sphereMaterial.userData.isSeeThroughMaterial = true;
 
         this.sphereMesh = new THREE.Mesh(sphereGeometry, sphereMaterial);
         this.sphereMesh.visible = false;
@@ -49,6 +51,11 @@ export default class SeeThrough {
         // 단일 Mesh 대신 배열로 변경
         this.liverMeshes = [];
         this.originalMaterials = new Map(); // Mesh와 원본 material을 매핑
+        this.effectMaterials = new Map();
+        this.seeThroughUniforms = {
+            seeThroughCenter: { value: new THREE.Vector3() },
+            seeThroughRadius: { value: this.sphereRadius },
+        };
 
         // 보조 레이캐스터 추가
         this.topRaycaster = new THREE.Raycaster();
@@ -56,6 +63,9 @@ export default class SeeThrough {
     }
 
     enableSeeThroughMode() {
+        if (this.isActive) return;
+        this.liverMeshes = [];
+        this.originalMaterials.clear();
         // ✅ 장기별로 분류된 See-through 대상 메시들
         const seeThroughTargetsByProcedure = {
             // LDLT (간이식 수술)
@@ -107,7 +117,9 @@ export default class SeeThrough {
             return;
         }
 
-        this.sphereMesh.visible = true;
+        // 모델 교체 시 씬에서 제거되었을 수 있습니다. 첫 교차점에서만 표시합니다.
+        if (!this.sphereMesh.parent) this.scene.add(this.sphereMesh);
+        this.sphereMesh.visible = false;
         this.isActive = true;
 
         if (this.isMobile) {
@@ -120,14 +132,14 @@ export default class SeeThrough {
     }
 
     disableSeeThroughMode() {
-        // 모든 Mesh의 material 복원
-        this.liverMeshes.forEach((mesh) => {
-            const originalMaterial = this.originalMaterials.get(mesh);
-            if (originalMaterial) {
-                mesh.material = originalMaterial;
-            }
-            delete mesh.userData.__seeThroughLogged;
+        this.restoreOriginalMaterials();
+        this.effectMaterials.forEach(({ outside, inside, innerMesh }, mesh) => {
+            mesh.remove(innerMesh);
+            [...outside, ...inside].forEach((material) => material.dispose());
         });
+        this.effectMaterials.clear();
+        this.originalMaterials.clear();
+        this.liverMeshes = [];
 
         this.sphereMesh.visible = false;
         this.isActive = false;
@@ -160,11 +172,12 @@ export default class SeeThrough {
         this.raycaster.setFromCamera(this.mouse, this.camera);
 
         // 모든 Mesh와의 교차 검사
-        const intersects = this.raycaster.intersectObjects(this.liverMeshes);
+        const intersects = this.raycaster.intersectObjects(this.liverMeshes, false);
 
         if (intersects.length > 0) {
             const point = intersects[0].point;
             this.sphereMesh.position.copy(point);
+            this.sphereMesh.visible = true;
 
             // [DEBUG] 레이 상에 실제로 몇 겹의 지오메트리가 있는지 확인 (겹치는 게 1개뿐이면 안쪽엔 볼 게 없다는 뜻)
             const now = performance.now();
@@ -190,63 +203,90 @@ export default class SeeThrough {
         const originalMaterial = this.originalMaterials.get(mesh);
         if (!originalMaterial) return;
 
-        const newMaterial = originalMaterial.clone();
-        newMaterial.transparent = true;
-        newMaterial.depthWrite = false; // 투명해진 영역이 뒤쪽 지오메트리를 가리지 않도록 함
-        newMaterial.userData.isSeeThroughMaterial = true; // MaterialManager 등 다른 곳에서 덮어쓰는지 추적하기 위한 마커
+        this.seeThroughUniforms.seeThroughCenter.value.copy(center);
+        let effect = this.effectMaterials.get(mesh);
+        if (!effect) {
+            const originals = Array.isArray(originalMaterial) ? originalMaterial : [originalMaterial];
+            const outside = originals.map((material) => this.createRegionMaterial(material, false));
+            const inside = originals.map((material) => this.createRegionMaterial(material, true));
 
-        if (!mesh.userData.__seeThroughLogged) {
-            mesh.userData.__seeThroughLogged = true;
-            console.log(`[SeeThrough][debug] "${mesh.name}" material 적용: opacity=${newMaterial.opacity}, transparent=${newMaterial.transparent}, depthWrite=${newMaterial.depthWrite}`);
+            // 同一 geometry를 공유해 스킨/모프와 재질 그룹을 유지합니다.
+            // 부모 메시의 변환과 visibility를 그대로 따라가는 내부 영역 전용 draw입니다.
+            const innerMesh = mesh.clone(false);
+            innerMesh.name = '__seeThroughInterior';
+            innerMesh.userData = { isSeeThroughHelper: true };
+            innerMesh.position.set(0, 0, 0);
+            innerMesh.quaternion.identity();
+            innerMesh.scale.set(1, 1, 1);
+            innerMesh.matrix.identity();
+            innerMesh.matrixAutoUpdate = false;
+            innerMesh.material = Array.isArray(originalMaterial) ? inside : inside[0];
+            innerMesh.morphTargetInfluences = mesh.morphTargetInfluences;
+            innerMesh.castShadow = false;
+            innerMesh.raycast = () => {};
+            mesh.add(innerMesh);
+            effect = { outside, inside, innerMesh };
+            this.effectMaterials.set(mesh, effect);
         }
 
-        newMaterial.onBeforeCompile = (shader) => {
-            shader.uniforms.seeThroughCenter = { value: center.clone() };
-            shader.uniforms.seeThroughRadius = { value: this.sphereRadius };
+        mesh.material = Array.isArray(originalMaterial) ? effect.outside : effect.outside[0];
+        effect.innerMesh.visible = true;
+        effect.innerMesh.renderOrder = mesh.renderOrder;
+    }
 
-            shader.vertexShader = `
-                varying vec3 myWorldPosition;
-                varying vec3 vPosition;
-                ${shader.vertexShader.replace(
-                    "#include <begin_vertex>",
-                    `
-                    #include <begin_vertex>
-                    vec4 worldPos = modelMatrix * vec4(position, 1.0);
-                    myWorldPosition = worldPos.xyz;
-                    vPosition = position;
-                    `
-                )}
-            `;
+    createRegionMaterial(original, inside) {
+        const material = original.clone();
+        material.transparent = inside || original.transparent;
+        material.depthWrite = inside ? false : original.depthWrite;
+        material.userData.isSeeThroughMaterial = true;
+        const originalCacheKey = original.customProgramCacheKey();
+        material.customProgramCacheKey = () => `${originalCacheKey}:see-through-region-v1:${inside}`;
+
+        material.onBeforeCompile = (shader, renderer) => {
+            original.onBeforeCompile.call(material, shader, renderer);
+            Object.assign(shader.uniforms, this.seeThroughUniforms);
+            shader.vertexShader = `varying vec3 seeThroughWorldPosition;\n${shader.vertexShader}`;
+            shader.vertexShader = shader.vertexShader.replace(
+                '#include <project_vertex>',
+                `#include <project_vertex>
+                vec4 seeThroughWorld = vec4(transformed, 1.0);
+                #ifdef USE_BATCHING
+                    seeThroughWorld = batchingMatrix * seeThroughWorld;
+                #endif
+                #ifdef USE_INSTANCING
+                    seeThroughWorld = instanceMatrix * seeThroughWorld;
+                #endif
+                seeThroughWorldPosition = (modelMatrix * seeThroughWorld).xyz;`
+            );
 
             shader.fragmentShader = `
-                varying vec3 myWorldPosition;
-                varying vec3 vPosition;
+                varying vec3 seeThroughWorldPosition;
                 uniform vec3 seeThroughCenter;
                 uniform float seeThroughRadius;
-                ${shader.fragmentShader.replace(
-                    "#include <dithering_fragment>",
-                    `
-                    float dist = distance(myWorldPosition, seeThroughCenter);
-                    float normalizedDist = dist / (seeThroughRadius * 1.15);
-                    
-                    // 내부에서 외부로 갈수록 불투명해지는 그라데이션
-                    float alpha = smoothstep(0.0, 1.0, normalizedDist);
-                    
-                    if (dist < seeThroughRadius) {
-                        gl_FragColor.a *= alpha;
-                        //discard;
-                    }
-                    #include <dithering_fragment>
-                    `
-                )}
+                ${shader.fragmentShader}
             `;
+            shader.fragmentShader = shader.fragmentShader.replace(
+                '#include <clipping_planes_fragment>',
+                `#include <clipping_planes_fragment>
+                float seeThroughDistance = distance(seeThroughWorldPosition, seeThroughCenter);
+                if (seeThroughDistance ${inside ? '>=' : '<'} seeThroughRadius) discard;`
+            );
+            if (inside) {
+                // 원래 텍스처 alphaTest 이후 적용해 그라데이션이 잘리지 않게 합니다.
+                shader.fragmentShader = shader.fragmentShader.replace(
+                    '#include <alphatest_fragment>',
+                    `#include <alphatest_fragment>
+                    diffuseColor.a *= smoothstep(0.0, seeThroughRadius, seeThroughDistance);`
+                );
+            }
         };
-
-        mesh.material = newMaterial;
+        return material;
     }
 
     updateSphereRadius(newRadius) {
+        if (!Number.isFinite(newRadius) || newRadius <= 0) return;
         this.sphereRadius = newRadius;
+        this.seeThroughUniforms.seeThroughRadius.value = newRadius;
 
         // 투명 구의 크기 업데이트
         const sphereGeometry = new THREE.SphereGeometry(
@@ -254,15 +294,19 @@ export default class SeeThrough {
             32,
             32
         );
+        this.sphereMesh.geometry.dispose();
         this.sphereMesh.geometry = sphereGeometry;
     }
 
     restoreOriginalMaterials() {
+        this.sphereMesh.visible = false;
         this.liverMeshes.forEach((mesh) => {
             const originalMaterial = this.originalMaterials.get(mesh);
             if (originalMaterial) {
                 mesh.material = originalMaterial;
             }
+            const effect = this.effectMaterials.get(mesh);
+            if (effect) effect.innerMesh.visible = false;
         });
     }
 }

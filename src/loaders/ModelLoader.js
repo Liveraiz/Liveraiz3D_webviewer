@@ -970,6 +970,9 @@ export default class ModelLoader {
     }
 
     resetScene() {
+        // 원본 재질을 복원하고 See-through 보조 draw를 먼저 정리합니다.
+        this.toolbar?.seeThrough?.disableSeeThroughMode();
+
         // ROI Vessel 기능 비활성화 (다른 모델 로드 시 자동 해제)
         if (this.toolbar && this.toolbar.lungVesselROI && this.toolbar.lungVesselROI.isActive) {
             console.log('[ModelLoader] Disabling ROI Vessel feature during scene reset');
