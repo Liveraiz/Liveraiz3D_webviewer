@@ -38,7 +38,9 @@ import FloatingModeButtons from "../ui/FloatingModeButtons";
 import XRHandler from "../functions/XRHandler";
 import StereoscopicRenderer from "../functions/StereoscopicRenderer";
 import { RenderManager } from "./RenderManager";
-import { fetchViewerProjectManifest } from "../services/ViewerProjectManifestService";
+import { ViewerManifestSession } from "../services/ViewerManifestSession";
+import { viewerManifestErrorMessage } from "../services/ViewerProjectManifestService";
+import { getViewerManifestLogoUrl } from "../services/ViewerModelManifestService";
 
 export default class LiverViewer {
     constructor(containerId) {
@@ -74,6 +76,7 @@ export default class LiverViewer {
             this.viewerEntry = parseViewerEntry(window.location);
             this.externalModelRequest = this.viewerEntry.externalModelRequest;
             this.externalModelProvider = this.viewerEntry.provider;
+            this.viewerManifestSession = null;
             this.onModelSelectorReady = this.createModelSelectorReadyHandler(this.viewerEntry);
 
             // Stats 초기화
@@ -477,17 +480,20 @@ export default class LiverViewer {
 
             // ModelSelector에서 JSON 파일을 로드한 후 로고 데이터 처리를 위한 콜백 추가
             if (this.modelSelector) {
-                this.modelSelector.onJsonLoaded = (jsonData) => {
-                    if (jsonData && jsonData.logo) {
-                        console.log("JSON에서 로고 데이터 발견:", jsonData.logo);
-                        // LogoManager에 dropboxService 연결 후 로고 로드
-                        if (this.modelSelector.dropboxService) {
-                            this.logoManager.setDropboxService(
-                                this.modelSelector.dropboxService
-                            );
-                        }
-                        this.logoManager.loadFromDropbox(jsonData.logo);
+                this.modelSelector.onJsonLoaded = (jsonData, provider) => {
+                    const logoUrl = getViewerManifestLogoUrl(jsonData);
+                    if (!logoUrl) return;
+
+                    if (provider === VIEWER_PROVIDER.S3) {
+                        // S3 URLs are already presigned; any Dropbox URL rewrite breaks the signature.
+                        this.logoManager.updateLogo(logoUrl);
+                        return;
                     }
+
+                    if (this.modelSelector.dropboxService) {
+                        this.logoManager.setDropboxService(this.modelSelector.dropboxService);
+                    }
+                    this.logoManager.loadFromDropbox(jsonData.logo);
                 };
             }
 
@@ -525,14 +531,24 @@ export default class LiverViewer {
         if (entry.provider === VIEWER_PROVIDER.S3) {
             return async (modelSelector) => {
                 try {
-                    const manifest = await fetchViewerProjectManifest(entry.projectId, entry.launchToken);
+                    const session = new ViewerManifestSession(entry.projectId, entry.launchToken,
+                        (freshManifest) => modelSelector.refreshManifest(freshManifest));
+                    this.viewerManifestSession = session;
+                    const manifest = await session.open();
                     await modelSelector.loadManifest(manifest, VIEWER_PROVIDER.S3);
+                    modelSelector.beforeModelSelection = () => session.ensureFresh();
+                    document.addEventListener("visibilitychange", () => {
+                        if (document.visibilityState === "visible") {
+                            session.ensureFresh().catch((error) => console.warn("Viewer URL refresh failed:", error));
+                        }
+                    });
                     clearLaunchTokenFromUrl();
+                    entry.launchToken = null;
                     return { showSelector: true };
                 } catch (error) {
                     console.error("Error loading S3 viewer manifest:", error);
                     ErrorHandler.showErrorMessage(
-                        "S3 viewer link has expired or could not be loaded. Please restart the viewer from the portal."
+                        viewerManifestErrorMessage(error)
                     );
                     return { showSelector: false };
                 }

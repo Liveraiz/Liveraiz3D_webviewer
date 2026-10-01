@@ -5,12 +5,32 @@ export async function fetchViewerProjectManifest(projectId, launchToken, apiBase
         throw new Error("Missing S3 projectId or launch token");
     }
 
+    try {
+        return await requestManifest(projectId, "session", { launchToken }, apiBase);
+    } catch (error) {
+        // Older API processes expose only /manifest. Their signed URLs cannot be
+        // renewed, but a newly issued portal launch token can still open them.
+        if (error?.status !== 404) throw error;
+        const manifest = await requestManifest(projectId, null, { launchToken }, apiBase);
+        return { ...manifest, legacySession: true };
+    }
+}
+
+export async function refreshViewerProjectManifest(projectId, refreshToken, apiBase = apiBaseUrl()) {
+    if (!projectId || !/^\d+$/.test(projectId) || !refreshToken) {
+        throw new Error("Missing S3 projectId or refresh token");
+    }
+    return requestManifest(projectId, "refresh", { refreshToken }, apiBase);
+}
+
+async function requestManifest(projectId, action, body, apiBase) {
     const response = await fetch(
-        `${apiBase}/api/viewer-projects/${encodeURIComponent(projectId)}/manifest`,
+        `${apiBase}/api/viewer-projects/${encodeURIComponent(projectId)}/manifest${action ? `/${action}` : ""}`,
         {
             method: "POST",
             headers: { "Content-Type": "application/json", Accept: "application/json" },
-            body: JSON.stringify({ launchToken }),
+            cache: "no-store",
+            body: JSON.stringify(body),
         }
     );
 
@@ -22,10 +42,25 @@ export async function fetchViewerProjectManifest(projectId, launchToken, apiBase
         } catch (error) {
             // Preserve the HTTP status when an intermediary returns non-JSON.
         }
-        throw new Error(message);
+        const error = new Error(message);
+        error.status = response.status;
+        throw error;
     }
 
     return response.json();
+}
+
+export function viewerManifestErrorMessage(error) {
+    if (error?.status === 401 || error?.status === 403) {
+        return "This viewer link is no longer valid. Please open the project again from the portal.";
+    }
+    if (error?.status === 409) {
+        return "The project models changed. Please open the current result from the portal.";
+    }
+    if (error?.status === 404) {
+        return "The S3 viewer result is unavailable. Please check the project in the portal.";
+    }
+    return "The S3 viewer could not load the project. Please try again or check the portal.";
 }
 
 function apiBaseUrl() {

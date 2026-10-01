@@ -10,6 +10,7 @@ import {
     isS3ManifestProvider,
     normalizeViewerManifest,
     resolveViewerAssetUrl,
+    updateSignedViewerUrls,
 } from "../services/ViewerModelManifestService";
 
 export default class ModelSelector {
@@ -114,18 +115,6 @@ export default class ModelSelector {
 
             const data = await response.json();
             console.log("Loaded JSON data:", data);
-            this.currentFolderInfo = data.folderInfo || null;
-
-            // Process logo data - call onJsonLoaded callback if available
-            if (
-                data.logo &&
-                this.liverViewer &&
-                typeof this.onJsonLoaded === "function"
-            ) {
-                console.log("Logo data found, executing callback:", data.logo);
-                this.onJsonLoaded(data);
-            }
-
             return this.loadManifest(data, VIEWER_PROVIDER.DROPBOX);
         } catch (error) {
             console.error("Error during full processing:", error);
@@ -143,11 +132,26 @@ export default class ModelSelector {
         this.currentManifestProvider = provider;
         this.lastLoadedModels = models;
         this.currentModelIndex = 0;
+        if (typeof this.onJsonLoaded === "function") {
+            this.onJsonLoaded(manifest, provider);
+        }
         console.log(`📋 Rendering ${provider} manifest with ${models.length} models`);
         if (this.dialog) {
             await this.updateModelList(manifest);
         }
         return manifest;
+    }
+
+    /** Replace only signed URLs so existing model-card click handlers keep their model objects. */
+    refreshManifest(data) {
+        const current = this.lastLoadedModels;
+        const manifest = updateSignedViewerUrls(current, data);
+        this.currentFolderInfo = manifest.folderInfo || null;
+        const thumbnails = this.dialog?.querySelectorAll("#model-list .model-item img") || [];
+        thumbnails.forEach((image, index) => {
+            if (current[index]?.thumbnailUrl) image.src = current[index].thumbnailUrl;
+        });
+        this.onJsonLoaded?.(manifest, VIEWER_PROVIDER.S3);
     }
 
     getAssetUrl(model, propertyName) {
@@ -804,6 +808,8 @@ export default class ModelSelector {
                         console.log("Start model loading - Block carousel movement");
                         
                         try {
+                            this.isLoading = true;
+                            await this.beforeModelSelection?.();
                             const directGlbUrl = this.getAssetUrl(model, "glbUrl");
                             console.log("Attempting to load model:", directGlbUrl);
 
@@ -1023,6 +1029,12 @@ export default class ModelSelector {
                 document.body.removeChild(this.dialog);
             }
             this.dialog = null;
+        }
+
+        if (isS3ManifestProvider(this.currentManifestProvider)) {
+            this.beforeModelSelection?.().catch((error) => {
+                console.warn("Could not refresh viewer file URLs:", error);
+            });
         }
 
         // Variable to preserve carousel scroll position

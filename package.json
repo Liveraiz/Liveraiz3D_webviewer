@@ -5,6 +5,7 @@
   "main": "electron/main.js",
   "scripts": {
     "dev": "vite",
+    "test": "node --test tests/*.test.mjs",
     "electron:dev:web": "vite --port 5173 --strictPort",
     "build": "vite build",
     "preview": "vite preview",
