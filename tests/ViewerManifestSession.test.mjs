@@ -129,7 +129,37 @@ test("authentication failures do not fall back to the legacy manifest endpoint",
     }
     assert.equal(calls, 1);
     assert.match(viewerManifestErrorMessage({ status: 401 }), /no longer valid/);
-    assert.match(viewerManifestErrorMessage({ status: 503 }), /could not load/);
+    assert.match(viewerManifestErrorMessage({ status: 503 }), /temporarily unavailable/);
+});
+
+test("manifest errors identify missing files, changed revisions, and expired sessions", async () => {
+    const originalFetch = globalThis.fetch;
+    const cases = [
+        { code: "VIEWER_FILES_MISSING", status: 409, message: /viewer files are missing or incomplete/ },
+        { code: "VIEWER_REVISION_CHANGED", status: 409, message: /models changed/ },
+        { code: "VIEWER_LAUNCH_EXPIRED", status: 401, message: /launch link is invalid or expired/ },
+        { code: "VIEWER_SESSION_EXPIRED", status: 401, message: /session has expired/ },
+        { code: "VIEWER_CONFIRMATION_REQUIRED", status: 409, message: /awaiting Save Changes confirmation/ },
+        { code: "VIEWER_PAYMENT_REQUIRED", status: 403, message: /payment is required/ },
+        { code: "VIEWER_STORAGE_UNAVAILABLE", status: 503, message: /storage is temporarily unavailable/ },
+    ];
+    try {
+        for (const { code, status, message } of cases) {
+            globalThis.fetch = async () => ({
+                ok: false, status,
+                json: async () => ({ code, message: "server detail" }),
+            });
+            await assert.rejects(
+                () => fetchViewerProjectManifest("89", "launch", "https://api.example"),
+                (error) => error.status === status && error.code === code
+                    && message.test(viewerManifestErrorMessage(error))
+            );
+        }
+    } finally {
+        globalThis.fetch = originalFetch;
+    }
+    assert.match(viewerManifestErrorMessage({ status: 409 }), /files or revision may have changed/);
+    assert.match(viewerManifestErrorMessage(new Error("Illegal invocation")), /could not load/);
 });
 
 test("legacy manifest remains selectable until its signed URLs approach expiry", async () => {
