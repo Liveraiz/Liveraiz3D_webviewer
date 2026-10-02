@@ -1711,7 +1711,7 @@ export class TableGenerator {
     createCCCTable(csvData, surgeryType = "CCC") {
         console.log("Creating CCC table with data:", csvData);
 
-        var rows = csvData.replaceAll('"', "").split("\r\n");
+        var rows = csvData.replaceAll('"', "").split(/\r?\n/);
         rows = rows.filter((row) => row.trim() !== "");
 
         if (rows.length === 0) return "<p>데이터가 없습니다.</p>";
@@ -1719,7 +1719,28 @@ export class TableGenerator {
         var parsedRows = rows.map((row) => row.split(","));
         var headers = parsedRows[0];
 
-        // 헤더 인덱스 찾기
+        // 가로 형식: Measure,Whole Liver,Rt.lobe,... / Volume (cm³),... / % to WLV,...
+        if (headers[0].trim().toLowerCase() === "measure") {
+            const volumeData = {};
+            const percentData = {};
+            for (let i = 1; i < parsedRows.length; i++) {
+                const row = parsedRows[i];
+                const label = (row[0] || "").trim().toLowerCase();
+                const target = label.includes("volume")
+                    ? volumeData
+                    : label.includes("%") || label.includes("percent")
+                        ? percentData
+                        : null;
+                if (!target) continue;
+                for (let j = 1; j < headers.length; j++) {
+                    const name = headers[j].trim();
+                    if (name) target[name] = (row[j] || "").trim();
+                }
+            }
+            return this._generateCCCTableHTML(volumeData, percentData, surgeryType);
+        }
+
+        // 세로 형식: 헤더 인덱스 찾기
         let segmentIdx = 0;
         let volumeIdx = 1;
         let percentIdx = 2;
