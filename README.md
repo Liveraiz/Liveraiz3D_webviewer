@@ -84,6 +84,18 @@ Dropbox 폴더에서 모델 목록을 로드하려면 `model.json`에 모델 파
 
 Dropbox 공유 링크는 `DropboxService`에서 직접 다운로드 가능한 URL로 변환됩니다. 앱에서 모델 목록을 열고 공유 폴더 링크 또는 `model.json` 링크를 입력하면 됩니다.
 
+### 모델 부피 표
+
+S3 manifest의 `models[].case`는 모델에 저장된 기존 case를 우선하고, 없으면 API가 프로젝트 분류를 제공합니다. `LIVER_RESECTION`, `BILIARY_RESECTION`, `NEPHRECTOMY`는 CSV에 기존 표가 요구하는 항목과 값이 있을 때 각각 간 절제술·담관 절제술·신절제술 표를 사용합니다. `DDLT`, 알 수 없는 case, 호환되지 않는 CSV는 원래 열과 값을 보존하는 일반 표로 표시합니다. 기존 `HCC`, `CCC`, `LDLT`, `LDKT`, `KT`, `LUNG` 및 모델별 Section/RL/HVT/Left/CUSTOM/OTHER 선택은 유지합니다.
+
+Maker가 생성하는 단순 부피 CSV는 다음 형식을 사용합니다. 첫 줄 마커를 먼저 확인하므로 프로젝트·파일명과 무관하게 Segment/Volume 표로 표시하고 백분율·GRWR·전체 장기 부피를 추정하지 않습니다. 이름에는 표준 CSV 따옴표 이스케이프를 적용합니다. 부피 단위 cm³는 mL와 같습니다.
+
+```csv
+# liveraiz-volume-table-v1
+Segment,Volume (cm³)
+"Region, custom",12.345
+```
+
 ## 환경 변수
 
 로컬 API 서버는 프로젝트 루트의 `.env` 또는 `server/.env`에서 다음 값을 읽습니다.

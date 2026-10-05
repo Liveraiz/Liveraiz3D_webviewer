@@ -1,7 +1,8 @@
 // utils/TableGenerator.js
 
 import { COLOR, tableColor } from "../utils/color.js";
-import { Constants } from "../utils/Constants";
+import { Constants } from "../utils/Constants.js";
+import { createModelTable } from './ModelTable.js';
 
 const KNOWN_HCC_COLUMNS = [
     "Measure",
@@ -188,60 +189,7 @@ export class TableGenerator {
      * @returns {Object} { html: string, surgeryType: string }
      */
     autoCreateTable(csvData, fileName, folderPath = "") {
-        const surgeryType = this.detectSurgeryType(fileName, folderPath);
-        const inferredSurgeryType = this.inferSurgeryTypeFromCsv(csvData);
-        const normalizedFileName = String(fileName || "").toUpperCase();
-        const isSectionModel =
-            normalizedFileName.includes("SECTION") ||
-            normalizedFileName.includes("5-SECTION");
-        const isCustomHccModel = normalizedFileName.includes("CUSTOM");
-        let tableHTML = '';
-
-        if (!surgeryType && inferredSurgeryType === "LDLT_SECTION") {
-            tableHTML = this.createLiver5SectionTable(csvData, "LDLT");
-            return {
-                html: tableHTML,
-                surgeryType: "LDLT",
-            };
-        }
-
-        if (isCustomHccModel) {
-            tableHTML = this.createLungTable(csvData, fileName || surgeryType || "HCC");
-            return {
-                html: tableHTML,
-                surgeryType: surgeryType || "HCC",
-            };
-        } else if (surgeryType && Constants.TABLE_TYPES[surgeryType]) {
-            const typeConfig = Constants.TABLE_TYPES[surgeryType];
-            const methodName = typeConfig.method;
-
-            // Keep SECTION behavior consistent with handleTableDisplay().
-            if (surgeryType === "LDLT" && isSectionModel) {
-                tableHTML = this.createLiver5SectionTable(
-                    csvData,
-                    surgeryType || "Liver 5-Section"
-                );
-            }
-            
-            // Check if method exists and call it
-            else if (typeof this[methodName] === 'function') {
-                tableHTML =
-                    surgeryType === "HCC"
-                        ? this[methodName](csvData, fileName || surgeryType)
-                        : this[methodName](csvData, surgeryType);
-            } else {
-                console.warn(`[TableGenerator] Method not found: ${methodName}`);
-                tableHTML = `<pre style="white-space: pre-wrap; word-wrap: break-word; font-family: monospace;">${csvData}</pre>`;
-            }
-        } else {
-            // Default display
-            tableHTML = `<pre style="white-space: pre-wrap; word-wrap: break-word; font-family: monospace;">${csvData}</pre>`;
-        }
-
-        return {
-            html: tableHTML,
-            surgeryType: surgeryType
-        };
+        return createModelTable(this, csvData, { fileName }, folderPath);
     }
 
     // Spleen Volume 별도 표 생성

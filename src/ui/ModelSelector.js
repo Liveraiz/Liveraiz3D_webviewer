@@ -3,6 +3,7 @@
 import { DropboxService } from "../services/DropboxService";
 import { DeviceDetector } from "../utils/DeviceDetector";
 import { TableGenerator } from "./TableGenerator";
+import { createModelTable } from "./ModelTable.js";
 import { Constants } from "../utils/Constants";
 import { LocalFileManager } from "../services/LocalFileManager";
 import { VIEWER_PROVIDER } from "../services/ViewerEntryService";
@@ -167,105 +168,15 @@ export default class ModelSelector {
         if (model.tableUrl) {
             try {
                 const response = await fetch(this.getAssetUrl(model, "tableUrl"));
+                if (!response.ok) throw new Error(`Unable to load table (${response.status}).`);
                 const tableText = await response.text();
 
-                let tableHTML = "";
-
-                // Normalize case value (case-insensitive, trim whitespace)
-                const normalizedCase = this.resolveEffectiveCase(model);
-                // Also check model name (to distinguish HVT, RL, etc.)
-                const modelName = this.getModelDisplayName(model).trim().toUpperCase();
-                console.log("Table display - model.case:", model.case, "normalized:", normalizedCase, "model.name:", model.name);
-
-                if (modelName.includes("CUSTOM")) {
-                    console.log("Using LUNG Table for CUSTOM model before case routing:", model.name);
-                    tableHTML = this.tableGenerator.createLungTable(
-                        tableText,
-                        modelName || normalizedCase || model.case || "HCC"
-                    );
-                } else if (normalizedCase === "HCC") {
-                    // HCC table
-                    tableHTML = this.tableGenerator.createHCCTable(
-                        tableText,
-                        modelName || model.case || "HCC"
-                    );
-                } else if (normalizedCase === "CCC" || normalizedCase.includes("CCC")) {
-                    // CCC table (2-column format)
-                    tableHTML = this.tableGenerator.createCCCTable(
-                        tableText,
-                        "CCC"
-                    );
-                } else if (normalizedCase === "LUNG") {
-                    // LUNG table
-                    console.log("Using LUNG Table (based on case):", model.case);
-                    tableHTML = this.tableGenerator.createLungTable(
-                        tableText,
-                        "LUNG"
-                    );
-                } else if (modelName.includes("OTHER")) {
-                    // OTHER table format - applies to any surgery type with OTHER in model name
-                    console.log("Using OTHER Table (based on model name):", model.name);
-                    tableHTML = this.tableGenerator.createOtherTable(
-                        tableText,
-                        model.case || "OTHER"
-                    );
-                } else if (normalizedCase === "KT" || normalizedCase === "LDKT") {
-                    tableHTML = this.tableGenerator.createKTTable(
-                        tableText,
-                        model.case
-                    );
-                } else if (normalizedCase === "LDLT" || normalizedCase === "LDLT RL" || normalizedCase.includes("LDLT")) {
-                    // For LDLT, check model name to select left/HVT/RL/5-Section/OTHER table
-                    if (modelName.includes("SECTION") || modelName.includes("5-SECTION")) {
-                        // Liver 5-Section Table
-                        console.log("Using Liver 5-Section Table (based on model name):", model.name);
-                        tableHTML = this.tableGenerator.createLiver5SectionTable(
-                            tableText,
-                            model.case || "Liver 5-Section"
-                        );
-                    } else if (modelName.includes("RL")) {
-                        // RL Table (explicitly specified)
-                        console.log("Using LDLT RL Table (based on model name):", model.name);
-                        tableHTML = this.tableGenerator.createLDLTTable(
-                            tableText,
-                            model.case || "LDLT"
-                        );
-                    } else if (modelName.includes("LEFT")) {
-                        // Create left model table
-                        console.log("Using LDLT left table (based on model name):", model.name);
-                        tableHTML = this.tableGenerator.createLeftTable(
-                            tableText,
-                            model.case || "LDLT"
-                        );
-                    } else if (modelName.includes("HVT") || modelName.includes("HVt") || modelName.includes("HVT")) {
-                        // HVT Table (HTML format)
-                        console.log("Using HVT Table (based on model name):", model.name);
-                        tableHTML = this.tableGenerator.createHVTTable(
-                            tableText,
-                            model.case || "LDLT"
-                        );
-                    } else {
-                        // RL Table (default LDLT table)
-                        console.log("Using LDLT RL Table (default):", model.name);
-                        tableHTML = this.tableGenerator.createLDLTTable(
-                            tableText,
-                            model.case
-                        );
-                    }
-                } else if (normalizedCase === "HVT" || (normalizedCase.includes("LDLT") && model.case?.toLowerCase().includes("hvt"))) {
-                    // case explicitly specifies HVT
-                    console.log("Using HVT Table (based on case):", model.case);
-                    tableHTML = this.tableGenerator.createHVTTable(
-                        tableText,
-                        model.case || "LDLT"
-                    );
-                } else {
-                    console.warn("Unknown case type, using HCC table:", model.case);
-                    tableHTML = this.tableGenerator.createHCCTable(
-                        tableText,
-                        model.case || "Unknown"
-                    );
-                }
+                const { html: tableHTML } = createModelTable(
+                    this.tableGenerator,
+                    tableText,
+                    { ...model, name: this.getModelDisplayName(model) },
+                    model.folderPath || this.currentFolderInfo?.name || ""
+                );
 
                 if (this.liverViewer.textPanel) {
                     this.liverViewer.textPanel.updateContent(tableHTML);
@@ -2367,9 +2278,8 @@ export default class ModelSelector {
                     : "") ||
                 "";
 
-            // Use autoCreateTable method from TableGenerator - Auto detection based on filename
-            console.log('[ModelSelector] autoCreateTable input - model.name:', model.name, 'detectionFileName:', detectionFileName, 'detectionFolderPath:', detectionFolderPath, 'model.case:', model.case);
-            const result = this.tableGenerator.autoCreateTable(model.csvData, detectionFileName, detectionFolderPath);
+            // Use the same metadata/CSV routing for local and remote models.
+            const result = createModelTable(this.tableGenerator, model.csvData, { ...model, fileName: detectionFileName }, detectionFolderPath);
             const tableHTML = result.html;
             const surgeryType = result.surgeryType;
 
@@ -2383,15 +2293,4 @@ export default class ModelSelector {
         }
     }
 
-    resolveEffectiveCase(model) {
-        const normalizedCase = model?.case ? model.case.trim().toUpperCase() : "";
-        const modelName = model?.name ? model.name.trim().toUpperCase() : "";
-        const folderName = `${model?.folderPath || this.currentFolderInfo?.name || ""}`.toUpperCase();
-
-        if (folderName.includes("LDLT") && modelName.includes("SECTION")) {
-            return "LDLT";
-        }
-
-        return normalizedCase;
-    }
 }
