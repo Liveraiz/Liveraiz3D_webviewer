@@ -39,8 +39,9 @@ import XRHandler from "../functions/XRHandler";
 import StereoscopicRenderer from "../functions/StereoscopicRenderer";
 import { RenderManager } from "./RenderManager";
 import { ViewerManifestSession } from "../services/ViewerManifestSession";
-import { viewerManifestErrorMessage } from "../services/ViewerProjectManifestService";
 import { getViewerManifestLogoUrl } from "../services/ViewerModelManifestService";
+import { ViewerAuthRecovery, applyRecoveredViewerSession } from "../services/ViewerAuthRecovery";
+import { ViewerSessionNotice } from "../ui/ViewerSessionNotice";
 
 export default class LiverViewer {
     constructor(containerId) {
@@ -530,26 +531,49 @@ export default class LiverViewer {
 
         if (entry.provider === VIEWER_PROVIDER.S3) {
             return async (modelSelector) => {
-                try {
-                    const session = new ViewerManifestSession(entry.projectId, entry.launchToken,
-                        (freshManifest) => modelSelector.refreshManifest(freshManifest));
-                    this.viewerManifestSession = session;
-                    const manifest = await session.open();
-                    await modelSelector.loadManifest(manifest, VIEWER_PROVIDER.S3);
-                    modelSelector.beforeModelSelection = () => session.ensureFresh();
-                    document.addEventListener("visibilitychange", () => {
-                        if (document.visibilityState === "visible") {
-                            session.ensureFresh().catch((error) => console.warn("Viewer URL refresh failed:", error));
-                        }
+                let manifestLoaded = false;
+                const session = new ViewerManifestSession(entry.projectId, entry.launchToken,
+                    (freshManifest) => {
+                        modelSelector.refreshManifest(freshManifest);
+                        this.viewerSessionNotice?.update({ status: "complete" });
+                    }, {
+                        onError: (error) => this.viewerSessionNotice?.showError(error),
                     });
-                    clearLaunchTokenFromUrl();
-                    entry.launchToken = null;
+                this.viewerManifestSession = session;
+                const recovery = new ViewerAuthRecovery({
+                    getRecovery: () => session.recoveryContext(),
+                    onRecovered: async (manifest, _context, isCurrentAttempt) => {
+                        const active = () => isCurrentAttempt() && this.viewerManifestSession === session;
+                        if (!await applyRecoveredViewerSession(session, modelSelector, manifest, manifestLoaded, active)) return;
+                        if (!manifestLoaded) {
+                            manifestLoaded = true;
+                            modelSelector.show();
+                        }
+                    },
+                    onChange: (state) => this.viewerSessionNotice?.update(state),
+                });
+                this.viewerAuthRecovery = recovery;
+                this.viewerSessionNotice = new ViewerSessionNotice(recovery);
+                modelSelector.beforeModelSelection = () => session.ensureFresh();
+                this.viewerVisibilityHandler = () => {
+                    if (document.visibilityState === "visible") {
+                        recovery.ready();
+                        session.ensureFresh().catch(() => {});
+                    }
+                };
+                this.viewerFocusHandler = () => recovery.ready();
+                document.addEventListener("visibilitychange", this.viewerVisibilityHandler);
+                window.addEventListener("focus", this.viewerFocusHandler);
+                clearLaunchTokenFromUrl();
+                entry.launchToken = null;
+                try {
+                    const manifest = await session.open();
+                    if (this.viewerManifestSession !== session) return { showSelector: false };
+                    await modelSelector.loadManifest(manifest, VIEWER_PROVIDER.S3);
+                    manifestLoaded = true;
                     return { showSelector: true };
                 } catch (error) {
-                    console.error("Error loading S3 viewer manifest:", error);
-                    ErrorHandler.showErrorMessage(
-                        viewerManifestErrorMessage(error)
-                    );
+                    this.viewerSessionNotice?.showError(error);
                     return { showSelector: false };
                 }
             };
@@ -1080,6 +1104,14 @@ export default class LiverViewer {
     dispose() {
         try {
             console.log('[LiverViewer] Dispose started...');
+
+            this.viewerAuthRecovery?.dispose();
+            this.viewerManifestSession?.close();
+            this.viewerManifestSession = null;
+            this.viewerSessionNotice?.dispose();
+            this.viewerSessionNotice = null;
+            if (this.viewerVisibilityHandler) document.removeEventListener("visibilitychange", this.viewerVisibilityHandler);
+            if (this.viewerFocusHandler) window.removeEventListener("focus", this.viewerFocusHandler);
 
             // 1. 애니메이션 루프 중지
             this.stopAnimation();

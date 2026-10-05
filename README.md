@@ -95,6 +95,20 @@ PORT=3001
 
 Netlify Functions에서는 `dropbox_access_token`을 Netlify 환경 변수로 등록합니다. 토큰은 저장소에 커밋하지 마세요. 클라이언트 코드에 토큰을 넣지 않고 Express 또는 Netlify Functions에서만 사용해야 합니다.
 
+### S3 Viewer 세션 복구
+
+Vite 빌드 시 `VITE_API_URL`에 Liveraiz API origin을, `VITE_LIVERAIZ_PORTAL_URL`에 로그인 포털 origin을 설정합니다. 예: `VITE_API_URL=https://liveraiz.net`, `VITE_LIVERAIZ_PORTAL_URL=https://liveraiz.net`. 포털 값이 비어 있으면 API origin을 사용합니다. GitHub 배포는 두 값을 Production 환경의 Variables에서 읽습니다. API와 포털이 다른 origin인 로컬 개발에서도 두 값을 각각 지정하세요.
+
+- API의 `AUTH_VIEWER_ORIGINS`에 Viewer의 정확한 origin(프로토콜·호스트·포트, 경로/와일드카드 제외)을 등록합니다. `AUTH_PORTAL_BASE_URL`과 `AUTH_PORTAL_ORIGINS`도 실제 로그인 포털과 일치해야 합니다.
+- `public/auth/callback.html`은 `/auth/callback.html`에서 독립된 정적 HTML로 제공되어야 합니다. 배포 후 SPA fallback인 `index.html`로 바뀌지 않는지 확인하세요. Callback에서는 Viewer를 초기화하지 않습니다.
+- 포털의 일반 로그인과 앱 연동 로그인은 별도 흐름입니다. Viewer에서 연 `/auth/reauth`는 이미 로그인된 포털 계정이 원래 사용자와 일치하면 추가 Continue 버튼 없이 자동으로 callback으로 돌아옵니다. 포털 로그인이 필요하면 전용 연동 로그인 화면에서 인증합니다.
+- 포털·Maker·Viewer 세션의 수명은 각각 독립적입니다. Viewer manifest 세션은 발급 후 12시간 유지되며 포털 만료·로그아웃으로 지워지지 않습니다. Viewer의 만료·인증 실패도 포털 로그인을 변경하지 않습니다. Manifest와 handoff API 요청은 포털 쿠키를 보내지 않으며, 포털 로그인 상태를 polling하지 않습니다.
+- 파일 URL은 최대 8분 간격으로 갱신합니다. 인증 만료 시 기존 모델·카메라·측정 상태를 보존하고 사용자가 로그인 버튼을 눌렀을 때만 새 탭을 엽니다. 이미 로드된 manifest는 URL만 교체하며, 최초 launch가 만료된 경우에는 복구 후 모델 목록을 한 번 초기화합니다.
+- 로그인 요청은 최대 10분, 일회용 확인 코드는 60초 동안 유효합니다. Callback은 1초마다 최대 60초 결과를 전달하고 원래 화면의 성공 확인 후 닫힙니다. 교환 실패나 응답 유실 시 해당 요청을 종료하며 다음 로그인은 새 PKCE 요청으로 시작합니다.
+- 팝업 또는 자동 연결이 막히면 원래 화면의 로그인 링크와 ‘로그인 코드 입력’을 사용합니다. 60초가 지나면 코드를 지우고 원래 화면에서 새 로그인을 시작하도록 안내합니다. 토큰과 PKCE verifier는 메모리에만 보관하므로 원래 탭을 새로고침하거나 닫으면 복구 상태도 사라집니다.
+
+권한·결제·프로젝트 revision 오류는 세션 만료와 구분하여 표시합니다. 기존 Dropbox 링크와 로컬/Electron 파일에는 이 로그인 흐름을 적용하지 않습니다. 백엔드 handoff API와 허용 origin 설정을 먼저 준비한 뒤 Viewer를 배포하세요.
+
 ## 아키텍처
 
 ```mermaid

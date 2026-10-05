@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>Liveraiz 로그인 완료</title>
+  <style>
+    body{font:16px/1.6 system-ui,sans-serif;max-width:580px;margin:12vh auto;padding:24px;color:#172438;background:#f7f9fc}
+    main{background:white;padding:28px;border-radius:16px;border:1px solid #dce2eb}h1{font-size:24px}
+    textarea{box-sizing:border-box;width:100%;height:120px;overflow-wrap:anywhere}button{padding:10px 18px;cursor:pointer}
+  </style>
+</head>
+<body>
+<main>
+  <h1>로그인 확인 중</h1>
+  <p id="status" role="status">원래 작업 화면으로 로그인 결과를 전달하고 있습니다.</p>
+  <section id="manual" hidden>
+    <p>자동으로 연결되지 않으면 아래 로그인 확인 코드를 복사하여 원래 작업 화면의 ‘로그인 코드 입력’에 붙여넣으세요.</p>
+    <textarea id="code" readonly aria-label="일회용 로그인 확인 코드"></textarea>
+    <button id="copy" type="button">코드 복사</button>
+    <p>이 코드는 일회용입니다. 다른 사람에게 공유하지 마세요.</p>
+  </section>
+</main>
+<script>
+(() => {
+  const hash = new URLSearchParams(location.hash.slice(1));
+  history.replaceState(null, '', location.pathname);
+  const message = {type: 'liveraiz-auth-code', handoffId: hash.get('handoffId'), state: hash.get('state'), code: hash.get('code')};
+  const status = document.getElementById('status');
+  if (![message.handoffId, message.state, message.code].every(value => typeof value === 'string' && value.length > 0 && value.length <= 2048)) {
+    status.textContent = '로그인 확인 정보가 없습니다. 원래 작업 화면에서 로그인을 다시 시작하세요.';
+    return;
+  }
+  const text = JSON.stringify({handoffId: message.handoffId, state: message.state, code: message.code});
+  document.getElementById('code').value = text;
+  document.getElementById('manual').hidden = false;
+  document.getElementById('copy').onclick = async () => {
+    try { await navigator.clipboard.writeText(text); status.textContent = '복사했습니다. 원래 작업 화면에 붙여넣으세요.'; }
+    catch { document.getElementById('code').select(); status.textContent = '선택된 코드를 직접 복사하세요.'; }
+  };
+  let channel;
+  let timer;
+  let timeout;
+  const cleanup = () => { clearInterval(timer); clearTimeout(timeout); channel?.close(); };
+  try {
+    channel = new BroadcastChannel(`liveraiz-auth:${message.state}`);
+    const send = () => channel.postMessage(message);
+    channel.onmessage = ({data}) => {
+      if (data?.handoffId !== message.handoffId || data?.state !== message.state) return;
+      if (data.type === 'liveraiz-auth-ready') send();
+      if (data.type === 'liveraiz-auth-complete') {
+        cleanup();
+        document.querySelector('h1').textContent = '로그인 완료';
+        document.getElementById('manual').hidden = true;
+        document.getElementById('code').value = '';
+        status.textContent = '원래 작업 화면에서 계속할 수 있습니다. 이 탭을 닫아도 됩니다.';
+        window.close();
+      }
+    };
+    send();
+    timer = setInterval(send, 1000);
+  } catch {
+    status.textContent = '자동 연결을 사용할 수 없습니다. 아래 코드를 원래 작업 화면에 입력하세요.';
+  }
+  timeout = setTimeout(() => {
+    cleanup();
+    document.querySelector('h1').textContent = '로그인을 다시 시작하세요';
+    document.getElementById('code').value = '';
+    document.getElementById('copy').disabled = true;
+    document.getElementById('manual').hidden = true;
+    status.textContent = '로그인 확인 시간이 지났습니다. 원래 작업 화면에서 기존 로그인을 취소하고 다시 로그인하세요.';
+  }, 60000);
+  window.addEventListener('pagehide', cleanup, {once: true});
+})();
+</script>
+</body>
+</html>

@@ -26,6 +26,7 @@ jobs:
     environment: Production
     env:
       VITE_API_URL: ${{ vars.VITE_API_URL }}
+      VITE_LIVERAIZ_PORTAL_URL: ${{ vars.VITE_LIVERAIZ_PORTAL_URL }}
 
     steps:
       - name: Checkout source
@@ -49,6 +50,7 @@ jobs:
       - name: Verify build output
         run: |
           test -f build/index.html
+          test -f build/auth/callback.html
           test -d build/assets
           echo "Viewer build verified"
 
@@ -66,11 +68,18 @@ jobs:
         run: |
           aws s3 sync build/ "s3://${S3_BUCKET}/" \
             --delete \
-            --exclude "index.html"
+            --exclude "index.html" \
+            --exclude "auth/callback.html"
 
       - name: Upload index.html
         run: |
           aws s3 cp build/index.html "s3://${S3_BUCKET}/index.html" \
+            --content-type "text/html" \
+            --cache-control "no-cache, no-store, must-revalidate"
+
+      - name: Upload login callback
+        run: |
+          aws s3 cp build/auth/callback.html "s3://${S3_BUCKET}/auth/callback.html" \
             --content-type "text/html" \
             --cache-control "no-cache, no-store, must-revalidate"
 

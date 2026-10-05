@@ -1,6 +1,7 @@
 import {
     fetchViewerProjectManifest,
     refreshViewerProjectManifest,
+    isViewerAuthenticationError,
 } from "./ViewerProjectManifestService.js";
 
 /** Keeps S3 GET signatures fresh while the viewer remains open. */
@@ -23,13 +24,22 @@ export class ViewerManifestSession {
         this.closed = false;
         this.terminalError = null;
         this.legacySession = false;
+        this.onError = requests.onError;
+        this.generation = 0;
     }
 
     async open() {
-        const manifest = await this.fetchInitial(this.projectId, this.launchToken);
-        this.launchToken = null;
-        this.accept(manifest);
-        return manifest;
+        const generation = this.generation;
+        try {
+            const manifest = await this.fetchInitial(this.projectId, this.launchToken);
+            if (this.closed || generation !== this.generation) throw new Error("Viewer session has ended.");
+            this.accept(manifest);
+            this.launchToken = null;
+            return manifest;
+        } catch (error) {
+            if (generation === this.generation && !this.closed) this.handleError(error);
+            throw error;
+        }
     }
 
     async ensureFresh(force = false) {
@@ -39,6 +49,7 @@ export class ViewerManifestSession {
             this.terminalError = new Error(
                 "The S3 file links have expired. Please open the project again from the portal."
             );
+            this.onError?.(this.terminalError);
             throw this.terminalError;
         }
         if (!this.refreshToken || this.closed) {
@@ -47,31 +58,63 @@ export class ViewerManifestSession {
         if (this.refreshPromise) return this.refreshPromise;
         if (!force && this.clock() < this.refreshAt) return null;
 
-        this.refreshPromise = this.fetchRefresh(this.projectId, this.refreshToken)
+        const generation = this.generation;
+        const pending = this.fetchRefresh(this.projectId, this.refreshToken)
             .then((manifest) => {
+                if (this.closed || generation !== this.generation) return null;
                 this.onRefresh?.(manifest);
                 this.accept(manifest);
                 return manifest;
             })
             .catch((error) => {
-                if ([401, 403, 409].includes(error?.status)) {
-                    this.terminalError = error;
-                    this.close();
-                } else {
-                    // A throttled background tab can miss its timer. The next selection retries.
-                    this.schedule(60_000);
-                }
+                if (generation === this.generation && !this.closed) this.handleError(error);
                 throw error;
             })
-            .finally(() => { this.refreshPromise = null; });
-        return this.refreshPromise;
+            .finally(() => { if (this.refreshPromise === pending) this.refreshPromise = null; });
+        this.refreshPromise = pending;
+        return pending;
     }
 
-    accept(manifest) {
+    handleError(error) {
+        if ([401, 403, 409].includes(error?.status)) {
+            this.terminalError = error;
+            // An expired secret still proves the original recovery context to the API.
+            this.close(isViewerAuthenticationError(error));
+        } else {
+            this.schedule(60_000);
+        }
+        this.onError?.(error);
+    }
+
+    recoveryContext() {
+        if (!isViewerAuthenticationError(this.terminalError)) return null;
+        const token = this.refreshToken || this.launchToken;
+        return token ? {
+            kind: this.refreshToken ? "viewer-session" : "viewer-launch",
+            token,
+            projectId: this.projectId,
+        } : null;
+    }
+
+    resume(manifest) {
+        this.validateManifest(manifest);
+        this.generation++;
+        this.closed = false;
+        this.terminalError = null;
+        this.refreshPromise = null;
+        this.launchToken = null;
+        this.accept(manifest);
+    }
+
+    validateManifest(manifest) {
         if (!Array.isArray(manifest?.models)
                 || (!manifest.refreshToken && manifest.legacySession !== true)) {
             throw new Error("Viewer manifest session is invalid.");
         }
+    }
+
+    accept(manifest) {
+        this.validateManifest(manifest);
         this.legacySession = manifest.legacySession === true;
         this.refreshToken = manifest.refreshToken;
         if (this.legacySession) {
@@ -95,11 +138,14 @@ export class ViewerManifestSession {
         }, delay);
     }
 
-    close() {
+    close(preserveRecovery = false) {
+        this.generation++;
         this.closed = true;
         if (this.timer !== null) this.clearTimer(this.timer);
         this.timer = null;
-        this.refreshToken = null;
-        this.launchToken = null;
+        if (!preserveRecovery) {
+            this.refreshToken = null;
+            this.launchToken = null;
+        }
     }
 }

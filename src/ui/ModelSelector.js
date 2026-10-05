@@ -897,7 +897,11 @@ export default class ModelSelector {
                             container.style.scrollBehavior = 'smooth';
                             container.style.overflowX = 'auto';
                             
-                            alert("Failed to load model: " + error.message);
+                            // Session failures already have a persistent recovery notice.
+                            if (!(isS3ManifestProvider(this.currentManifestProvider)
+                                    && [401, 403, 409].includes(error?.status))) {
+                                alert("Failed to load model: " + error.message);
+                            }
                         }
                     } else {
                         // Inactive card clicked - Remove scroll functionality (prevent carousel overflow)

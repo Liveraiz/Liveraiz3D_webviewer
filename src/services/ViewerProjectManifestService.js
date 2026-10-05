@@ -28,6 +28,8 @@ async function requestManifest(projectId, action, body, apiBase) {
         `${apiBase}/api/viewer-projects/${encodeURIComponent(projectId)}/manifest${action ? `/${action}` : ""}`,
         {
             method: "POST",
+            // Manifest sessions have their own lifetime and never touch portal cookies.
+            credentials: "omit",
             headers: { "Content-Type": "application/json", Accept: "application/json" },
             cache: "no-store",
             body: JSON.stringify(body),
@@ -90,6 +92,11 @@ export function viewerManifestErrorMessage(error) {
     return "The S3 viewer could not load the project. Please try again or check the portal.";
 }
 
-function apiBaseUrl() {
+export function isViewerAuthenticationError(error) {
+    return error?.status === 401 && (!error.code
+        || ["VIEWER_LAUNCH_EXPIRED", "VIEWER_SESSION_EXPIRED"].includes(error.code));
+}
+
+export function apiBaseUrl() {
     return (import.meta.env.VITE_API_URL || DEFAULT_API_URL).replace(/\/$/, "");
 }

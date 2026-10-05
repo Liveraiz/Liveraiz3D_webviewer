@@ -86,6 +86,8 @@ test("manifest session endpoints use separate launch and refresh secrets", async
     assert.match(calls[1].url, /\/89\/manifest\/refresh$/);
     assert.deepEqual(JSON.parse(calls[1].options.body), { refreshToken: "refresh" });
     assert.equal(calls[1].options.cache, "no-store");
+    assert.equal(calls[0].options.credentials, "omit");
+    assert.equal(calls[1].options.credentials, "omit");
 });
 
 test("fresh launch falls back to the legacy manifest endpoint only when session is unavailable", async () => {
