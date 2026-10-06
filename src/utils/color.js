@@ -21,6 +21,8 @@ const COLOR = {
     "Lt.Medulla": "#FFFFD5",
     "Lt.Kidney": "#FFFFD5",
     "Lt.func.V": "#FFFFD5",
+    "Rt.Tumor": "#FFDFC1",
+    "Lt.Tumor": "#FFFFD5",
   },
   Pancreas: {
     "Total V": "#BFBFBF",

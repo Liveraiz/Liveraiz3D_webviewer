@@ -312,7 +312,7 @@
 - 예시 파일명: `LDKT_donor06.glb`, `KT_case07.glb`, `RCC_case12.glb`
 - 세 종류 모두 동일한 신장(Kidney) 테이블(`createKTTable` → `_generateKTTableHTML`)을 사용
 - 상단 헤더가 `Whole Liver`처럼 병합되지 않고 **1번째 칸 = surgeryType(예: `KT`/`LDKT`/`RCC`), 2번째 칸 = 환자 이름(CSV 2번째 컬럼명)** 으로 각각 표시됨 (제목 행)
-- 이후 `Cortex`/`Column`/`Medulla`/`Kidney`/`func.V` 5개 항목에 대해 `Rt.X`(왼쪽)/`Lt.X`(오른쪽) 이름 행 + 볼륨 행만 반복 (퍼센트 행 없음)
+- 이후 `Cortex`/`Column`/`Medulla`/`Kidney`/`func.V` 5개 항목에 대해 `Rt.X`(오른쪽)/`Lt.X`(왼쪽) 이름 행 + 볼륨 행만 반복 (퍼센트 행 없음). RCC CSV에 `Rt.Tumor`/`Lt.Tumor` 행이 추가된 경우 해당 쌍도 같은 좌/우 색상으로 표시
 - 관련 코드: [src/ui/TableGenerator.js](src/ui/TableGenerator.js#L1088-L1200) `_generateKTTableHTML()`, [src/utils/Constants.js](src/utils/Constants.js#L82-L96) `TABLE_TYPES.RCC`
 
 | 왼쪽 칸             | 오른쪽 칸                                   |
@@ -334,7 +334,7 @@
 파일명 키워드와는 별개로, S3/Dropbox 매니페스트 등에서 모델의 `case` 값이 `NEPHRECTOMY`로 지정된 경우 고정 레이아웃(`PROJECT_LAYOUTS.NEPHRECTOMY`, 제목 "Nephrectomy")이 적용됩니다. `case` 값이 `RCC`일 때도 이 `NEPHRECTOMY` 레이아웃과 동일하게 인식/처리되도록 별칭(alias) 처리가 추가되었습니다.
 
 - `case === 'RCC'`이면 `PROJECT_LAYOUTS['NEPHRECTOMY']`로 폴백 → 제목이 "Nephrectomy"로 표시되고, `createKTTable`로 렌더링됨
-- CSV가 11행 × 2열, 첫 행이 `KT`/`LDKT`/`RCC`/`NEPHRECTOMY` 중 하나 + 환자 이름, 그리고 10개 신장 세그먼트(`Rt.Cortex`, `Lt.Cortex`, `Rt.Column`, `Lt.Column`, `Rt.Medulla`, `Lt.Medulla`, `Rt.Kidney`, `Lt.Kidney`, `Rt.func.V`, `Lt.func.V`)를 모두 포함해야 이 고정 레이아웃이 적용되며, 형식이 맞지 않으면 일반 표(generic table)로 자동 폴백됩니다
+- CSV가 11행 × 2열이고 첫 행이 `KT`/`LDKT`/`RCC`/`NEPHRECTOMY` 중 하나 + 환자 이름이며 10개 신장 세그먼트(`Rt.Cortex`, `Lt.Cortex`, `Rt.Column`, `Lt.Column`, `Rt.Medulla`, `Lt.Medulla`, `Rt.Kidney`, `Lt.Kidney`, `Rt.func.V`, `Lt.func.V`)를 포함하면 이 고정 레이아웃이 적용됩니다. RCC는 여기에 `Rt.Tumor`/`Lt.Tumor` 항목 쌍이 추가된 13행 형식도 지원하며, 형식이 맞지 않으면 일반 표(generic table)로 자동 폴백됩니다
 - 파일명 기반 `TABLE_TYPES.RCC`(위 10번 표) 매칭은 그대로 유지되므로, `case`가 없고 파일명에만 `RCC`가 포함된 레거시 CSV도 계속 지원됩니다
 - 관련 코드: [src/ui/ModelTable.js](src/ui/ModelTable.js#L3-L48) `PROJECT_LAYOUTS`, `supportsProjectLayout()`, [src/ui/ModelTable.js](src/ui/ModelTable.js#L92) `createModelTable()`
 

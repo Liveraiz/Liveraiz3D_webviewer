@@ -105,6 +105,21 @@ test('Nephrectomy does not feed duplicate, empty or conflicting headers into the
     assert.equal(createModelTable(tables, kidney.replace('KT,Patient', 'Nephrectomy,Patient'), { case: 'NEPHRECTOMY' }).method, 'createKTTable');
 });
 
+test('RCC tables include and color paired tumor volumes', t => {
+    const tables = generator(t);
+    const rcc = `${kidney.replace('KT,Patient', 'RCC,KTS')}\nRt.Tumor,Lt.Tumor\n21.5,0`;
+    const { html, method } = createModelTable(tables, rcc, { case: 'RCC' });
+    assert.equal(method, 'createKTTable');
+    assert.match(html, /Rt\.Tumor/);
+    assert.match(html, /Lt\.Tumor/);
+    assert.match(html, /background-color: #FFDFC1;'>Rt\.Tumor/);
+    assert.match(html, /background-color: #FFFFD5;'>Lt\.Tumor/);
+    assert.match(html, /21\.5cm³/);
+    assert.match(html, /0\.0cm³/);
+
+    assert.equal(createModelTable(tables, `${kidney}\nRt.Tumor,Lt.Tumor\n21.5,0`, { case: 'NEPHRECTOMY' }).method, 'generic');
+});
+
 test('HCC extra segment names are escaped once, including HTML and entity-looking text', t => {
     const tables = generator(t);
     const csv = horizontalLiver.split('\n').map((row, index) => `${row},${['A & B,<script>alert(1)</script>,A &amp; B', '1,2,3', '0.1,0.2,0.3'][index]}`).join('\n');

@@ -1115,6 +1115,9 @@ export class TableGenerator {
             ["Rt.Kidney", "Lt.Kidney"],
             ["Rt.func.V", "Lt.func.V"],
         ];
+        if (volumeData["Rt.Tumor"] !== undefined || volumeData["Lt.Tumor"] !== undefined) {
+            segments.push(["Rt.Tumor", "Lt.Tumor"]);
+        }
 
         segments.forEach(([leftSegment, rightSegment]) => {
             table += "<tr>";

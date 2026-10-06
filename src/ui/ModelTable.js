@@ -40,13 +40,16 @@ function supportsProjectLayout(type, rows) {
             && rows.slice(1).every(row => row.length === 3 && allowed.includes(row[0]) && row.slice(1).every(numeric));
     }
     if (type === 'NEPHRECTOMY' || type === 'RCC') {
-        if (rows.length !== 11 || rows.some(row => row.length !== 2)) return false;
+        const hasTumorPair = type === 'RCC' && rows.length === 13;
+        if ((rows.length !== 11 && !hasTumorPair) || rows.some(row => row.length !== 2)) return false;
         const [procedure, patient] = rows[0];
         // The legacy parser indexes an object by these headers and prefers KT/LDKT/RCC keys.
         if (!['KT', 'LDKT', 'RCC', 'NEPHRECTOMY', 'Nephrectomy'].includes(procedure) || !patient
             || procedure === patient || ['KT', 'LDKT', 'RCC'].includes(patient)) return false;
         const names = rows.slice(1).filter((_, index) => index % 2 === 0).flat();
-        return KIDNEY_SEGMENTS.every(name => names.includes(name)) && new Set(names).size === names.length
+        const allowedSegments = hasTumorPair ? [...KIDNEY_SEGMENTS, 'Rt.Tumor', 'Lt.Tumor'] : KIDNEY_SEGMENTS;
+        return KIDNEY_SEGMENTS.every(name => names.includes(name)) && names.every(name => allowedSegments.includes(name))
+            && new Set(names).size === names.length
             && rows.slice(2).filter((_, index) => index % 2 === 0).every(row => row.every(numeric));
     }
     return false;
