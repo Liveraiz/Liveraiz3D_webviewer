@@ -6,6 +6,8 @@ import {
     isMeshNameMatchingKeyword,
 } from "../utils/Constants";
 
+const SEE_THROUGH_BAND_RENDER_ORDER = 1e7;
+
 export default class SeeThrough {
     constructor(
         scene,
@@ -238,7 +240,10 @@ export default class SeeThrough {
 
         mesh.material = Array.isArray(originalMaterial) ? effect.outside : effect.outside[0];
         effect.innerMesh.visible = true;
-        effect.innerMesh.renderOrder = mesh.renderOrder;
+        // 페더 밴드는 depthWrite=false인 블렌딩 레이어라, 내부의 반투명 메시(depthWrite=true, 예: RCC의
+        // Fibrotic tissue/tumor)보다 먼저 그려지면 그 메시가 밴드를 덮어 경계가 하드엣지로 보입니다.
+        // 모든 투명 메시 이후에 그려지도록 renderOrder를 크게 둡니다.
+        effect.innerMesh.renderOrder = SEE_THROUGH_BAND_RENDER_ORDER;
     }
 
     createRegionMaterial(original, inside) {
@@ -246,11 +251,8 @@ export default class SeeThrough {
         material.transparent = inside || original.transparent;
         material.depthWrite = inside ? false : original.depthWrite;
         material.userData.isSeeThroughMaterial = true;
-        // 불투명 재질이어도 alpha 값에 따라 MSAA 샘플 커버리지가 줄어들며 경계가 안티에일리어싱되도록 함
-        // (discard만으로는 테두리가 픽셀 단위로 딱 잘려 흐림 효과가 보이지 않음)
-        material.alphaToCoverage = true;
         const originalCacheKey = original.customProgramCacheKey();
-        material.customProgramCacheKey = () => `${originalCacheKey}:see-through-region-v1:${inside}`;
+        material.customProgramCacheKey = () => `${originalCacheKey}:see-through-region-v2:${inside}`;
 
         material.onBeforeCompile = (shader, renderer) => {
             original.onBeforeCompile.call(material, shader, renderer);
@@ -275,23 +277,26 @@ export default class SeeThrough {
                 uniform float seeThroughRadius;
                 ${shader.fragmentShader}
             `;
-            // 반경(seeThroughRadius)을 기준으로 [0.85R, 1.15R] 폭의 "페더(feather) 밴드"를 두고,
-            // outside/inside 재질이 동일한 비율(seeThroughT)로 서서히 나타나거나 사라지게 합니다.
-            // 예전처럼 경계에서 두 재질의 alpha가 어긋나던 문제(하드엣지로 보이던 원인)를 없애고,
-            // 밴드 구간 전체가 하나의 연속된 그라데이션으로 블렌딩되도록 합니다.
+            // 반경(seeThroughRadius)을 기준으로 [0.85R, 1.15R] 폭의 "페더(feather) 밴드"를 둡니다.
+            // - outside: 밴드 바깥(T == 1)만 원래 재질 그대로 그립니다.
+            // - inside : 밴드 안(0 < T < 1)만 transparent 패스에서 alpha = T로 블렌딩합니다.
+            // 불투명 재질은 three.js가 OPAQUE를 정의해 alpha를 1.0으로 덮어쓰므로(r158은
+            // alphaToCoverage여도 마찬가지) outside에서 alpha 그라데이션을 내면 하드엣지가 됩니다.
             shader.fragmentShader = shader.fragmentShader.replace(
                 '#include <clipping_planes_fragment>',
                 `#include <clipping_planes_fragment>
                 float seeThroughDistance = distance(seeThroughWorldPosition, seeThroughCenter);
                 float seeThroughT = smoothstep(seeThroughRadius * 0.85, seeThroughRadius * 1.15, seeThroughDistance);
-                if (seeThroughT ${inside ? '>= 1.0' : '<= 0.0'}) discard;`
+                if (${inside ? 'seeThroughT <= 0.0 || seeThroughT >= 1.0' : 'seeThroughT < 1.0'}) discard;`
             );
-            // 원래 텍스처의 alphaTest 이후 적용해 그라데이션이 잘리지 않게 합니다.
-            shader.fragmentShader = shader.fragmentShader.replace(
-                '#include <alphatest_fragment>',
-                `#include <alphatest_fragment>
-                diffuseColor.a *= seeThroughT;`
-            );
+            if (inside) {
+                // 원래 텍스처의 alphaTest 이후 적용해 그라데이션이 잘리지 않게 합니다.
+                shader.fragmentShader = shader.fragmentShader.replace(
+                    '#include <alphatest_fragment>',
+                    `#include <alphatest_fragment>
+                    diffuseColor.a *= seeThroughT;`
+                );
+            }
         };
         return material;
     }
