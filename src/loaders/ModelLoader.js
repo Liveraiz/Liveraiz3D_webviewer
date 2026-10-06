@@ -473,7 +473,7 @@ export default class ModelLoader {
             // ✅ 로컬 파일/URL 모두 지원: gltf.userData.fileName 또는 this.modelPath 체크
             // ✅ Dropbox 모델의 경우: this.currentModelName 사용 (ModelSelector에서 전달됨)
             const modelName = (this.currentModelName || gltf.userData?.fileName || this.modelPath || '').toUpperCase();
-            const isPCDModel = modelName.includes('PCD') || modelName.includes('DIEP');
+            const isPCDModel = modelName.includes('PCD') || modelName.includes('DIEP') || modelName.includes('RCC');
             if (this.materialManager) {
                 this.materialManager.setPCDModel(isPCDModel);
                 console.log(`[ModelLoader] Model: ${modelName}, Type: ${isPCDModel ? 'PCD/DIEP' : 'General'}`);

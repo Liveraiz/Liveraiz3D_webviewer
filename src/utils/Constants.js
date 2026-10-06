@@ -412,7 +412,8 @@ export const OPACITY_CONTROLLABLE_KEYWORDS = [
     "vessel", "capillary", "airways wall",
     "myometrium","uterus", "recipient_cavity", "pancreas", "Pancreas",
     "bladder", "tumor", "cancer", "glissonean_pedicle", "fibroid", "body",
-    "stomach wall"
+    "stomach wall",
+    "Fibrotic tissue", "perirenal fat"
 ];
 
 // 정확히 일치할 때만 투명도 조절 허용할 mesh 이름 (폐 절제술 - 정맥) - 사용 중단
