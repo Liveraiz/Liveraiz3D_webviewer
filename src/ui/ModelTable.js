@@ -39,12 +39,12 @@ function supportsProjectLayout(type, rows) {
         return CCC_SEGMENTS.every(name => names.includes(name)) && new Set(names).size === names.length
             && rows.slice(1).every(row => row.length === 3 && allowed.includes(row[0]) && row.slice(1).every(numeric));
     }
-    if (type === 'NEPHRECTOMY') {
+    if (type === 'NEPHRECTOMY' || type === 'RCC') {
         if (rows.length !== 11 || rows.some(row => row.length !== 2)) return false;
         const [procedure, patient] = rows[0];
-        // The legacy parser indexes an object by these headers and prefers KT/LDKT keys.
-        if (!['KT', 'LDKT', 'NEPHRECTOMY', 'Nephrectomy'].includes(procedure) || !patient
-            || procedure === patient || ['KT', 'LDKT'].includes(patient)) return false;
+        // The legacy parser indexes an object by these headers and prefers KT/LDKT/RCC keys.
+        if (!['KT', 'LDKT', 'RCC', 'NEPHRECTOMY', 'Nephrectomy'].includes(procedure) || !patient
+            || procedure === patient || ['KT', 'LDKT', 'RCC'].includes(patient)) return false;
         const names = rows.slice(1).filter((_, index) => index % 2 === 0).flat();
         return KIDNEY_SEGMENTS.every(name => names.includes(name)) && new Set(names).size === names.length
             && rows.slice(2).filter((_, index) => index % 2 === 0).every(row => row.every(numeric));
@@ -57,7 +57,7 @@ function legacyRoute(type, name) {
     if (type.includes('CCC')) return 'createCCCTable';
     if (type === 'LUNG') return 'createLungTable';
     if (name.includes('OTHER') && (type.includes('LDLT') || ['KT', 'LDKT', 'HVT', 'LEFT', 'OTHER', 'LT_OTHER'].includes(type))) return 'createOtherTable';
-    if (type === 'KT' || type === 'LDKT') return 'createKTTable';
+    if (type === 'KT' || type === 'LDKT' || type === 'RCC') return 'createKTTable';
     if (type.includes('LDLT')) {
         if (name.includes('SECTION')) return 'createLiver5SectionTable';
         if (name.includes('RL')) return 'createLDLTTable';
@@ -88,7 +88,8 @@ export function createModelTable(generator, csvData, model = {}, folderPath = ''
             inferredSection = true;
         }
     }
-    const projectLayout = PROJECT_LAYOUTS[type];
+    // RCC(신장암 절제술)는 Nephrectomy와 동일한 고정 레이아웃으로 인식/처리한다.
+    const projectLayout = PROJECT_LAYOUTS[type] || (type === 'RCC' ? PROJECT_LAYOUTS.NEPHRECTOMY : undefined);
     const title = projectLayout?.title || (type === 'DDLT' ? 'Deceased Donor Liver Transplantation' : type || 'Model data');
     const rows = parseTableCsv(source.text);
     // Existing parsers split cells naively. Preserve quoted delimiters/newlines and arbitrary names in a safe generic table.

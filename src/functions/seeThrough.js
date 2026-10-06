@@ -81,6 +81,10 @@ export default class SeeThrough {
             ],
             PANCREAS: [
                 "pancreas"
+            ],
+            // KIDNEY (신장 - RCC/신장절제술 관련, 신장주위지방 포함)
+            KIDNEY: [
+                "perirenal fat"
             ]
         };
 
@@ -90,7 +94,8 @@ export default class SeeThrough {
                 ...seeThroughTargetsByProcedure.LDLT,
                 ...seeThroughTargetsByProcedure.LUNG,
                 ...seeThroughTargetsByProcedure.GYNECOLOGY,
-                ...seeThroughTargetsByProcedure.PANCREAS
+                ...seeThroughTargetsByProcedure.PANCREAS,
+                ...seeThroughTargetsByProcedure.KIDNEY
             ])
         ];
 

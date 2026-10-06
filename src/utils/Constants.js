@@ -84,6 +84,11 @@ export const Constants = {
             method: 'createKTTable',
             displayName: 'LDKT Surgery'
         },
+        RCC: {
+            keywords: ['RCC'],
+            method: 'createKTTable',
+            displayName: 'RCC Surgery'
+        },
         KT: {
             keywords: ['KT'],
             method: 'createKTTable',
