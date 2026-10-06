@@ -182,8 +182,9 @@ export default class SeeThrough {
 
         if (intersects.length > 0) {
             const point = intersects[0].point;
+            // 커서 위치 추적용으로만 사용하고, 실제 화면에는 그리지 않습니다 (불투명한 검은 구가 비치는 문제 방지)
             this.sphereMesh.position.copy(point);
-            this.sphereMesh.visible = true;
+            this.sphereMesh.visible = false;
 
             // [DEBUG] 레이 상에 실제로 몇 겹의 지오메트리가 있는지 확인 (겹치는 게 1개뿐이면 안쪽엔 볼 게 없다는 뜻)
             const now = performance.now();
