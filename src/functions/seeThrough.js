@@ -246,6 +246,9 @@ export default class SeeThrough {
         material.transparent = inside || original.transparent;
         material.depthWrite = inside ? false : original.depthWrite;
         material.userData.isSeeThroughMaterial = true;
+        // 불투명 재질이어도 alpha 값에 따라 MSAA 샘플 커버리지가 줄어들며 경계가 안티에일리어싱되도록 함
+        // (discard만으로는 테두리가 픽셀 단위로 딱 잘려 흐림 효과가 보이지 않음)
+        material.alphaToCoverage = true;
         const originalCacheKey = original.customProgramCacheKey();
         material.customProgramCacheKey = () => `${originalCacheKey}:see-through-region-v1:${inside}`;
 
@@ -272,22 +275,23 @@ export default class SeeThrough {
                 uniform float seeThroughRadius;
                 ${shader.fragmentShader}
             `;
+            // 반경(seeThroughRadius)을 기준으로 [0.85R, 1.15R] 폭의 "페더(feather) 밴드"를 두고,
+            // outside/inside 재질이 동일한 비율(seeThroughT)로 서서히 나타나거나 사라지게 합니다.
+            // 예전처럼 경계에서 두 재질의 alpha가 어긋나던 문제(하드엣지로 보이던 원인)를 없애고,
+            // 밴드 구간 전체가 하나의 연속된 그라데이션으로 블렌딩되도록 합니다.
             shader.fragmentShader = shader.fragmentShader.replace(
                 '#include <clipping_planes_fragment>',
                 `#include <clipping_planes_fragment>
                 float seeThroughDistance = distance(seeThroughWorldPosition, seeThroughCenter);
-                if (seeThroughDistance ${inside ? '>=' : '<'} seeThroughRadius) discard;`
+                float seeThroughT = smoothstep(seeThroughRadius * 0.85, seeThroughRadius * 1.15, seeThroughDistance);
+                if (seeThroughT ${inside ? '>= 1.0' : '<= 0.0'}) discard;`
             );
-            if (inside) {
-                // 원래 텍스처 alphaTest 이후 적용해 그라데이션이 잘리지 않게 합니다.
-                // 경계(discard 지점)보다 넓은 범위(1.15배)로 그라데이션을 퍼뜨려, 구멍 가장자리가
-                // 딱 떨어지는 하드엣지가 아니라 부드럽게 블렌딩되도록 합니다.
-                shader.fragmentShader = shader.fragmentShader.replace(
-                    '#include <alphatest_fragment>',
-                    `#include <alphatest_fragment>
-                    diffuseColor.a *= smoothstep(0.0, seeThroughRadius * 1.15, seeThroughDistance);`
-                );
-            }
+            // 원래 텍스처의 alphaTest 이후 적용해 그라데이션이 잘리지 않게 합니다.
+            shader.fragmentShader = shader.fragmentShader.replace(
+                '#include <alphatest_fragment>',
+                `#include <alphatest_fragment>
+                diffuseColor.a *= seeThroughT;`
+            );
         };
         return material;
     }
