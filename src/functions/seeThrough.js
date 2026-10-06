@@ -3,6 +3,7 @@ import {
     LIVER_KEYWORDS,
     LUNG_RESECTION_KEYWORDS,
     PCD_KEYWORDS,
+    isMeshNameMatchingKeyword,
 } from "../utils/Constants";
 
 export default class SeeThrough {
@@ -103,11 +104,11 @@ export default class SeeThrough {
         console.log(`[SeeThrough] Total see-through target keywords: ${allSeeThroughNames.length}`);
 
         // 모든 매칭되는 Mesh를 배열에 저장
+        // (공백/언더스코어/하이픈 차이를 무시하고 비교하여 "perirenal fat" vs "perirenal_fat" 등도 매칭되도록 함)
         this.scene.traverse((object) => {
             if (object.isMesh) {
-                const objectName = object.name.toLowerCase();
                 const isMatchingMesh = allSeeThroughNames.some((name) =>
-                    objectName.includes(name.toLowerCase())
+                    isMeshNameMatchingKeyword(object.name, name)
                 );
 
                 if (isMatchingMesh) {
