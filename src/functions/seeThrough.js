@@ -280,10 +280,12 @@ export default class SeeThrough {
             );
             if (inside) {
                 // 원래 텍스처 alphaTest 이후 적용해 그라데이션이 잘리지 않게 합니다.
+                // 경계(discard 지점)보다 넓은 범위(1.15배)로 그라데이션을 퍼뜨려, 구멍 가장자리가
+                // 딱 떨어지는 하드엣지가 아니라 부드럽게 블렌딩되도록 합니다.
                 shader.fragmentShader = shader.fragmentShader.replace(
                     '#include <alphatest_fragment>',
                     `#include <alphatest_fragment>
-                    diffuseColor.a *= smoothstep(0.0, seeThroughRadius, seeThroughDistance);`
+                    diffuseColor.a *= smoothstep(0.0, seeThroughRadius * 1.15, seeThroughDistance);`
                 );
             }
         };
