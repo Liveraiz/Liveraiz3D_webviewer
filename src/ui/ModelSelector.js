@@ -2234,7 +2234,7 @@ export default class ModelSelector {
             }
 
             // Use displayLocalModelTable with populated csvData
-            this.displayLocalModelTable({ ...model, csvData, fileName: detectionFileName });
+            this.displayLocalModelTable({ ...model, csvData });
 
         } catch (e) {
             console.warn('[ModelSelector] Failed to load/display CSV table:', e);
