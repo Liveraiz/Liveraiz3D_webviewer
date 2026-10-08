@@ -1821,16 +1821,34 @@ export class TableGenerator {
         // Rt.lobe / Lt.lobe 행
         table += "<tr>";
         table += `<th style='background-color: ${colors["Rt.lobe"]};'>Rt.lobe</th>`;
-        table += `<th style='background-color: ${colors["Lt.lobe"]};'>Lt.lobe</th>`;
+        // "Lt.lobe-S1" 처럼 접미사가 붙은 컬럼도 Lt.lobe 로 인식
+        const ltKey = Object.keys(volumeData).find((k) => k.startsWith("Lt.lobe")) || "Lt.lobe";
+        table += `<th style='background-color: ${colors["Lt.lobe"]};'>${ltKey}</th>`;
         table += "</tr>";
         table += "<tr>";
         table += `<td class='value'>${this.formatVolume(volumeData["Rt.lobe"])}</td>`;
-        table += `<td class='value'>${this.formatVolume(volumeData["Lt.lobe"])}</td>`;
+        table += `<td class='value'>${this.formatVolume(volumeData[ltKey])}</td>`;
         table += "</tr>";
         table += "<tr>";
         table += `<td class='value'>${this.formatPercent(percentData["Rt.lobe"])}</td>`;
-        table += `<td class='value'>${this.formatPercent(percentData["Lt.lobe"])}</td>`;
+        table += `<td class='value'>${this.formatPercent(percentData[ltKey])}</td>`;
         table += "</tr>";
+
+        // Spigelian 행 (있는 경우만)
+        if (volumeData["Spigelian"]) {
+            table += "<tr>";
+            table += `<th style='background-color: ${colors["Spigelian"] || colors["Lt.lobe"]};'>Spigelian</th>`;
+            table += "<th style='background-color: #FFFFFF;'></th>";
+            table += "</tr>";
+            table += "<tr>";
+            table += `<td class='value'>${this.formatVolume(volumeData["Spigelian"])}</td>`;
+            table += "<td class='value'></td>";
+            table += "</tr>";
+            table += "<tr>";
+            table += `<td class='value'>${this.formatPercent(percentData["Spigelian"])}</td>`;
+            table += "<td class='value'></td>";
+            table += "</tr>";
+        }
 
         // Cancer 행 (있는 경우만)
         if (volumeData["Cancer"]) {
