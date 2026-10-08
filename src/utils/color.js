@@ -47,6 +47,7 @@ const COLOR = {
     "Whole Liver": "#BFBFBF",
     "Rt.lobe": "#FFDFC1",
     "Lt.lobe": "#FFFFD5",
+    "Spigelian": "#C8E6C9",
     "Spleen": "#E6CCEF",
     "cyst": "#B8E6B8",
     "Cancer": "#FFCCCC",
