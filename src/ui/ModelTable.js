@@ -100,7 +100,10 @@ export function createModelTable(generator, csvData, model = {}, folderPath = ''
     const trimmedRows = rows.filter(row => row.some(cell => cell.trim())).map(row => row.map(cell => cell.trim()));
     if (!trimmedRows.length) return generic(title);
     let method;
-    if (projectLayout) {
+    if (type === 'CUSTOM') {
+        if (!verticalMeasurements(trimmedRows)) return generic(title);
+        method = 'createLungTable';
+    } else if (projectLayout) {
         if (type === 'LIVER_RESECTION' && normalizedName.includes('CUSTOM') && verticalMeasurements(trimmedRows)) {
             method = 'createLungTable';
         } else if (normalizedName.includes('OTHER') && verticalMeasurements(trimmedRows)) {

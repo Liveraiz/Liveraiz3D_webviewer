@@ -174,6 +174,21 @@ test('new liver CUSTOM and OTHER layouts require compatible vertical measurement
     }
 });
 
+test('JSON CUSTOM case uses the custom table layout for compatible vertical measurements', t => {
+    const tables = generator(t);
+    const csv = 'Segment,Volume (cm³),Percentage (%)\nROI,3.2,20\nRemaining,12.8,80';
+
+    const result = createModelTable(tables, csv, { case: 'custom', name: 'Model' });
+    assert.equal(result.surgeryType, 'CUSTOM');
+    assert.equal(result.method, 'createLungTable');
+    assert.match(result.html, /<th colspan='2' class='surgery-header'>CUSTOM<\/th>/);
+    assert.match(result.html, /3\.2cm³/);
+
+    const incompatible = createModelTable(tables, volumeList, { case: 'CUSTOM', name: 'Model' });
+    assert.equal(incompatible.method, 'generic');
+    assert.match(incompatible.html, /<td>Custom region<\/td><td>12\.345<\/td>/);
+});
+
 test('multiple manifest models retain their case-specific tables after URL refresh', t => {
     const tables = generator(t);
     const { models } = normalizeViewerManifest({ models: [

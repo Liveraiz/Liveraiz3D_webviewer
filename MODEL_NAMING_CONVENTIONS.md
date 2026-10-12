@@ -167,6 +167,7 @@
 ## 10. 파일명 기반 규칙 (참고 – 메쉬 이름 아님)
 
 아래는 메쉬 이름이 아니라 **모델/파일 이름**에 포함된 키워드로 UI에 표시되는 표(Table) 종류를 결정하는 규칙입니다 (`TABLE_TYPES`).
+JSON manifest의 `case` 값이 `CUSTOM`인 경우에도, 호환되는 `Segment/Volume/Percent` CSV에는 동일한 Custom 표를 적용합니다.
 
 | 파일명 키워드                                  | 표 종류                                                                                                                  |
 | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
@@ -191,9 +192,9 @@
 
 #### Custom (`CUSTOM`)
 
-- 예시 파일명: `261015_JJH_custom.glb`
-- 파일명에 `CUSTOM`이 포함되면 `HCC`/`LDLT` 등 다른 키워드가 함께 있어도 **무조건 이 표가 먼저 적용**됨
-- 표 자체는 HCC 전용 레이아웃이 아니라 **Lung 테이블과 동일한 로직(`createLungTable`)**을 재사용하며, 제목만 파일명(또는 감지된 surgeryType, 없으면 `HCC`)으로 표시
+- 예시 파일명: `261015_JJH_custom.glb` (또는 JSON manifest의 `case: "CUSTOM"`)
+- 파일명에 `CUSTOM`이 포함되거나 JSON manifest의 `case`가 `CUSTOM`이면, 호환되는 세로형 `Segment/Volume/Percent` CSV에 이 표가 적용됨
+- 표 자체는 HCC 전용 레이아웃이 아니라 **Lung 테이블과 동일한 로직(`createLungTable`)**을 재사용하며, JSON의 `case: "CUSTOM"`은 제목도 `CUSTOM`으로 표시
 - CSV의 `Segment/Volume/Percent`를 순서대로 읽어 2개씩 짝지어 이름 행 → 볼륨 행 → 퍼센트 행을 반복하고, 첫 번째로 발견되는 전체 항목(`R Lung`/`L Lung` 등 전체 폐 키가 없으면 표시되지 않음)은 맨 마지막에 2칸 병합으로 표시
 - 관련 코드: [src/ui/TableGenerator.js](src/ui/TableGenerator.js#L207-L212) `autoCreateTable()` 내 `isCustomHccModel` 분기
 
