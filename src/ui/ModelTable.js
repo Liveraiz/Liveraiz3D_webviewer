@@ -3,7 +3,7 @@ import { createGenericCsvTable, escapeTableText, parseTableCsv, readVolumeTableC
 const PROJECT_LAYOUTS = {
     LIVER_RESECTION: { method: 'createHCCTable', title: 'Liver Resection' },
     BILIARY_RESECTION: { method: 'createCCCTable', title: 'Bile Duct Resection' },
-    NEPHRECTOMY: { method: 'createKTTable', title: 'Nephrectomy' },
+    NEPHRECTOMY: { method: 'createKTTable', title: 'Neph' },
 };
 const HCC_SEGMENTS = ['Whole Liver', 'Rt.lobe', 'Lt.lobe', 'RAS', 'RPS', 'LLS', 'LMS', 'Spigelian', 'Cancer'];
 const CCC_SEGMENTS = ['Whole Liver', 'Rt.lobe', 'Lt.lobe', 'Spleen', 'cyst'];

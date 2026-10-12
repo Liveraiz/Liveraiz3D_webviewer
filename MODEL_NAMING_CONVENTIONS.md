@@ -331,9 +331,9 @@
 
 ### 10-2. `RCC`의 Nephrectomy 인식 (모델 메타데이터 `case` 기준)
 
-파일명 키워드와는 별개로, S3/Dropbox 매니페스트 등에서 모델의 `case` 값이 `NEPHRECTOMY`로 지정된 경우 고정 레이아웃(`PROJECT_LAYOUTS.NEPHRECTOMY`, 제목 "Nephrectomy")이 적용됩니다. `case` 값이 `RCC`일 때도 이 `NEPHRECTOMY` 레이아웃과 동일하게 인식/처리되도록 별칭(alias) 처리가 추가되었습니다.
+파일명 키워드와는 별개로, S3/Dropbox 매니페스트 등에서 모델의 `case` 값이 `NEPHRECTOMY`로 지정된 경우 고정 레이아웃(`PROJECT_LAYOUTS.NEPHRECTOMY`, 표 제목 "Neph")이 적용됩니다. `case` 값이 `RCC`일 때도 이 `NEPHRECTOMY` 레이아웃과 동일하게 인식/처리되도록 별칭(alias) 처리가 추가되었습니다.
 
-- `case === 'RCC'`이면 `PROJECT_LAYOUTS['NEPHRECTOMY']`로 폴백 → 제목이 "Nephrectomy"로 표시되고, `createKTTable`로 렌더링됨
+- `case === 'RCC'`이면 `PROJECT_LAYOUTS['NEPHRECTOMY']`로 폴백 → 표 제목이 "Neph"로 표시되고, `createKTTable`로 렌더링됨
 - CSV가 11행 × 2열이고 첫 행이 `KT`/`LDKT`/`RCC`/`NEPHRECTOMY` 중 하나 + 환자 이름이며 10개 신장 세그먼트(`Rt.Cortex`, `Lt.Cortex`, `Rt.Column`, `Lt.Column`, `Rt.Medulla`, `Lt.Medulla`, `Rt.Kidney`, `Lt.Kidney`, `Rt.func.V`, `Lt.func.V`)를 포함하면 이 고정 레이아웃이 적용됩니다. RCC는 여기에 `Rt.Tumor`/`Lt.Tumor` 항목 쌍이 추가된 13행 형식도 지원하며, 형식이 맞지 않으면 일반 표(generic table)로 자동 폴백됩니다
 - 파일명 기반 `TABLE_TYPES.RCC`(위 10번 표) 매칭은 그대로 유지되므로, `case`가 없고 파일명에만 `RCC`가 포함된 레거시 CSV도 계속 지원됩니다
 - 관련 코드: [src/ui/ModelTable.js](src/ui/ModelTable.js#L3-L48) `PROJECT_LAYOUTS`, `supportsProjectLayout()`, [src/ui/ModelTable.js](src/ui/ModelTable.js#L92) `createModelTable()`

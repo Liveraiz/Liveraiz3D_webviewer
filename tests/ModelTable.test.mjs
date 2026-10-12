@@ -68,7 +68,7 @@ test('project procedure keys select compatible legacy layouts with full purpose 
     for (const [caseType, csv, title, css, value] of [
         ['LIVER_RESECTION', horizontalLiver, 'Liver Resection', 'hcc-table', '1234.5cm³'],
         ['BILIARY_RESECTION', biliary, 'Bile Duct Resection', 'ccc-table', '1000.0cm³'],
-        ['NEPHRECTOMY', kidney, 'Nephrectomy', 'kt-table', '110.0cm³'],
+        ['NEPHRECTOMY', kidney, 'Neph', 'kt-table', '110.0cm³'],
     ]) {
         const { html, method } = createModelTable(tables, csv, { case: caseType, name: 'Model' });
         assert.notEqual(method, 'generic');
@@ -186,5 +186,5 @@ test('multiple manifest models retain their case-specific tables after URL refre
     assert.equal(models[1], references[1]);
     assert.equal(models[1].tableUrl, 'new-csv-2');
     assert.match(createModelTable(tables, horizontalLiver, models[0]).html, /Liver Resection/);
-    assert.match(createModelTable(tables, kidney, models[1]).html, /Nephrectomy/);
+    assert.match(createModelTable(tables, kidney, models[1]).html, /Neph/);
 });
