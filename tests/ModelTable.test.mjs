@@ -83,19 +83,63 @@ test('project procedure keys select compatible legacy layouts with full purpose 
 
 test('CCC cyst values are shown when the CSV spells cyst with different capitalization', t => {
     const tables = generator(t);
-    const vertical = biliary.replace('\ncyst,5,0.5', '\nCyst,5,0.5');
+    for (const spelling of ['cyst', 'Cyst', 'CYST']) {
+        const vertical = biliary.replace('\ncyst,5,0.5', `\n${spelling},5,0.5`);
+        const horizontal = [
+            `Measure,Whole Liver,Rt.lobe,Lt.lobe,Spleen,${spelling}`,
+            'Volume (cm³),1000,600,400,120,5',
+            '% to WLV,100,60,40,12,0.5',
+        ].join('\n');
+        for (const csv of [vertical, horizontal]) {
+            for (const caseType of ['BILIARY_RESECTION', 'CCC']) {
+                const result = createModelTable(tables, csv, { case: caseType, name: 'Model' });
+                assert.equal(result.method, 'createCCCTable', `${spelling} ${caseType}`);
+                assert.match(result.html, /#B8E6B8;'>cyst<\/th>/);
+                assert.match(result.html, /5\.0cm³/);
+                assert.match(result.html, /0\.5%/);
+                assert.doesNotMatch(result.html, />0cm³<\/td>|>0\.00%<\/td>/);
+            }
+        }
+    }
+});
+
+test('CCC layout shows Lt.lobe-S1 and Spigelian rows', t => {
+    const tables = generator(t);
+    const vertical = 'Segment,Volume (cm³),Percentage (%)\nWhole Liver,1022.6,100\nRt.lobe,811.0,79.31\nLt.lobe-S1,190.0,18.58\nSpigelian,21.5,2.11\nSpleen,147.2,14.39\ncyst,0.4,0.04\nCancer,8.8,0.86';
     const horizontal = [
-        'Measure,Whole Liver,Rt.lobe,Lt.lobe,Spleen,Cyst',
-        'Volume (cm³),1000,600,400,120,5',
-        '% to WLV,100,60,40,12,0.5',
+        'Measure,Whole Liver,Rt.lobe,Lt.lobe-S1,Spigelian,Spleen,cyst,Cancer',
+        'Volume (cm³),1022.6,811.0,190.0,21.5,147.2,0.4,8.8',
+        '% to WLV,100,79.31,18.58,2.11,14.39,0.04,0.86',
     ].join('\n');
 
-    for (const [csv, caseType] of [[vertical, 'BILIARY_RESECTION'], [vertical, 'CCC'], [horizontal, 'BILIARY_RESECTION']]) {
-        const result = createModelTable(tables, csv, { case: caseType, name: 'Model' });
-        assert.equal(result.method, 'createCCCTable');
-        assert.match(result.html, /5\.0cm³/);
-        assert.match(result.html, /0\.5%/);
-        assert.doesNotMatch(result.html, />0cm³<\/td>/);
+    const lowercase = vertical.replace('Lt.lobe-S1', 'lt.lobe-s1').replace('Spigelian', 'spigelian');
+    for (const caseType of ['CCC', 'BILIARY_RESECTION']) {
+        for (const csv of [vertical, horizontal, lowercase]) {
+            const { html, method } = createModelTable(tables, csv, { case: caseType, name: 'Model' });
+            assert.equal(method, 'createCCCTable');
+            const order = ['Whole Liver', 'Spleen', 'cyst', 'Rt.lobe', 'Lt.lobe-S1', 'Spigelian', 'Cancer']
+                .map(name => html.indexOf(`>${name}</th>`));
+            assert.ok(order.every((index, i) => index > 0 && (i === 0 || index > order[i - 1])), order.join());
+            for (const value of ['1022.6cm³', '147.2cm³', '0.4cm³', '14.39%', '0.04%', '811.0cm³', '190.0cm³',
+                '79.31%', '18.58%', '21.5cm³', '2.11%', '8.8cm³', '0.86%']) assert.ok(html.includes(value), value);
+            assert.match(html, /#C8E6C9;'>Spigelian<\/th>/);
+            assert.match(html, /#FFFFD5;'>Lt\.lobe-S1<\/th>/);
+        }
+    }
+});
+
+test('CCC case falls back to the original CSV instead of showing missing, duplicate or unknown segments as 0', t => {
+    const tables = generator(t);
+    for (const csv of [
+        biliary.replace('\ncyst,5,0.5', ''),
+        biliary.replace('Lt.lobe,400,40', 'Lt.lobe,400,40\nLt.lobe-S1,390,39'),
+        `${biliary}\nExtra unknown segment,7,0.7`,
+    ]) {
+        for (const caseType of ['CCC', 'BILIARY_RESECTION']) {
+            const { method, html } = createModelTable(tables, csv, { case: caseType, name: 'Model' });
+            assert.equal(method, 'generic');
+            assert.doesNotMatch(html, /0cm³|0\.00%/);
+        }
     }
 });
 
@@ -169,7 +213,7 @@ test('legacy explicit cases and model-specific Section/RL/HVT/Left/CUSTOM/OTHER 
     const routes = [
         ['HCC', 'CUSTOM', 'createLungTable'], ['HCC', 'Section', 'createHCCTable'],
         ['CCC', 'CUSTOM', 'createLungTable'], ['', 'CUSTOM', 'createLungTable'],
-        ['CCC', 'Model', 'createCCCTable'], ['LUNG', 'Model', 'createLungTable'],
+        ['LUNG', 'Model', 'createLungTable'],
         ['KT', 'Model', 'createKTTable'], ['LDKT', 'Model', 'createKTTable'],
         ['LDLT', '5-Section', 'createLiver5SectionTable'], ['LDLT', 'RL', 'createLDLTTable'],
         ['LDLT', 'HVT', 'createHVTTable'], ['LDLT', 'Left', 'createLeftTable'],
@@ -180,6 +224,7 @@ test('legacy explicit cases and model-specific Section/RL/HVT/Left/CUSTOM/OTHER 
     for (const [caseType, name, method] of routes) {
         assert.equal(createModelTable(tables, 'Segment,Volume,Percentage\nA,10,100', { case: caseType, name }, 'LDLT folder').method, method);
     }
+    assert.equal(createModelTable(tables, biliary, { case: 'CCC', name: 'Model' }, 'LDLT folder').method, 'createCCCTable');
     assert.equal(createModelTable(tables, horizontalLiver, { case: 'HCC', name: 'Section' }, 'LDLT folder').surgeryType, 'HCC');
 });
 

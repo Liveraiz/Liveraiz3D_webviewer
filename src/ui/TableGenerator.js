@@ -1671,7 +1671,7 @@ export class TableGenerator {
         var headers = parsedRows[0];
         const canonicalName = name => {
             const trimmed = name.trim();
-            return ["Whole Liver", "Rt.lobe", "Lt.lobe", "Spleen", "cyst", "Cancer"]
+            return ["Whole Liver", "Rt.lobe", "Lt.lobe", "Lt.lobe-S1", "Spigelian", "Spleen", "cyst", "Cancer"]
                 .find(segment => segment.toLowerCase() === trimmed.toLowerCase()) || trimmed;
         };
 
