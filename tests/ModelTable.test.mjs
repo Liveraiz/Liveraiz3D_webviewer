@@ -76,6 +76,27 @@ test('project procedure keys select compatible legacy layouts with full purpose 
         assert.ok(html.includes(css));
         assert.ok(html.includes(value));
     }
+    const ccc = createModelTable(tables, biliary, { case: 'BILIARY_RESECTION', name: 'Model' });
+    assert.match(ccc.html, /5\.0cm³/);
+    assert.match(ccc.html, /0\.5%/);
+});
+
+test('CCC cyst values are shown when the CSV spells cyst with different capitalization', t => {
+    const tables = generator(t);
+    const vertical = biliary.replace('\ncyst,5,0.5', '\nCyst,5,0.5');
+    const horizontal = [
+        'Measure,Whole Liver,Rt.lobe,Lt.lobe,Spleen,Cyst',
+        'Volume (cm³),1000,600,400,120,5',
+        '% to WLV,100,60,40,12,0.5',
+    ].join('\n');
+
+    for (const [csv, caseType] of [[vertical, 'BILIARY_RESECTION'], [vertical, 'CCC'], [horizontal, 'BILIARY_RESECTION']]) {
+        const result = createModelTable(tables, csv, { case: caseType, name: 'Model' });
+        assert.equal(result.method, 'createCCCTable');
+        assert.match(result.html, /5\.0cm³/);
+        assert.match(result.html, /0\.5%/);
+        assert.doesNotMatch(result.html, />0cm³<\/td>/);
+    }
 });
 
 test('incompatible, incomplete, or additional unhandled project CSV fields are retained as a generic table', t => {

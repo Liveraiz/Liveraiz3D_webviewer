@@ -7,6 +7,8 @@ const PROJECT_LAYOUTS = {
 };
 const HCC_SEGMENTS = ['Whole Liver', 'Rt.lobe', 'Lt.lobe', 'RAS', 'RPS', 'LLS', 'LMS', 'Spigelian', 'Cancer'];
 const CCC_SEGMENTS = ['Whole Liver', 'Rt.lobe', 'Lt.lobe', 'Spleen', 'cyst'];
+const CCC_ALLOWED_SEGMENTS = [...CCC_SEGMENTS, 'Cancer'];
+const normalizeCccName = name => CCC_ALLOWED_SEGMENTS.find(segment => segment.toLowerCase() === name.trim().toLowerCase()) || name;
 const KIDNEY_SEGMENTS = ['Rt.Cortex', 'Lt.Cortex', 'Rt.Column', 'Lt.Column', 'Rt.Medulla', 'Lt.Medulla', 'Rt.Kidney', 'Lt.Kidney', 'Rt.func.V', 'Lt.func.V'];
 const numeric = value => /^\s*(?:\d+(?:\.\d*)?|\.\d+)\s*(?:%|cm³|mL|ml)?\s*$/.test(value || '') && Number.isFinite(parseFloat(value));
 
@@ -31,13 +33,13 @@ function verticalMeasurements(rows) {
 function supportsProjectLayout(type, rows) {
     if (type === 'LIVER_RESECTION') return horizontalMeasurements(rows, HCC_SEGMENTS);
     if (type === 'BILIARY_RESECTION') {
-        const allowed = [...CCC_SEGMENTS, 'Cancer'];
-        if (horizontalMeasurements(rows, CCC_SEGMENTS, allowed)) return true;
+        const horizontalRows = [rows[0].map(normalizeCccName), ...rows.slice(1)];
+        if (horizontalMeasurements(horizontalRows, CCC_SEGMENTS, CCC_ALLOWED_SEGMENTS)) return true;
         const headers = rows[0];
         if (headers.length !== 3 || !/segment/i.test(headers[0]) || !/volume/i.test(headers[1]) || !/percent|%/i.test(headers[2])) return false;
-        const names = rows.slice(1).map(row => row[0]);
+        const names = rows.slice(1).map(row => normalizeCccName(row[0]));
         return CCC_SEGMENTS.every(name => names.includes(name)) && new Set(names).size === names.length
-            && rows.slice(1).every(row => row.length === 3 && allowed.includes(row[0]) && row.slice(1).every(numeric));
+            && rows.slice(1).every(row => row.length === 3 && CCC_ALLOWED_SEGMENTS.includes(normalizeCccName(row[0])) && row.slice(1).every(numeric));
     }
     if (type === 'NEPHRECTOMY' || type === 'RCC') {
         const hasTumorPair = type === 'RCC' && rows.length === 13;

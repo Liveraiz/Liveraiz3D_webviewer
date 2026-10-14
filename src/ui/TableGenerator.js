@@ -1669,6 +1669,11 @@ export class TableGenerator {
 
         var parsedRows = rows.map((row) => row.split(","));
         var headers = parsedRows[0];
+        const canonicalName = name => {
+            const trimmed = name.trim();
+            return ["Whole Liver", "Rt.lobe", "Lt.lobe", "Spleen", "cyst", "Cancer"]
+                .find(segment => segment.toLowerCase() === trimmed.toLowerCase()) || trimmed;
+        };
 
         // 가로 형식: Measure,Whole Liver,Rt.lobe,... / Volume (cm³),... / % to WLV,...
         if (headers[0].trim().toLowerCase() === "measure") {
@@ -1684,7 +1689,7 @@ export class TableGenerator {
                         : null;
                 if (!target) continue;
                 for (let j = 1; j < headers.length; j++) {
-                    const name = headers[j].trim();
+                    const name = canonicalName(headers[j]);
                     if (name) target[name] = (row[j] || "").trim();
                 }
             }
@@ -1715,7 +1720,7 @@ export class TableGenerator {
         if (parsedRows.length > 1) {
             for (let i = 1; i < parsedRows.length; i++) {
                 const row = parsedRows[i];
-                const segment = row[segmentIdx]?.trim() || "";
+                const segment = canonicalName(row[segmentIdx] || "");
                 const volume = row[volumeIdx]?.trim() || "";
                 const percent = row[percentIdx]?.trim() || "";
 
