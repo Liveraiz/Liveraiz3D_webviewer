@@ -114,6 +114,8 @@ export function createModelTable(generator, csvData, model = {}, folderPath = ''
     } else if (projectLayout) {
         if (type === 'LIVER_RESECTION' && normalizedName.includes('CUSTOM') && verticalMeasurements(trimmedRows)) {
             method = 'createLungTable';
+        } else if (type === 'LIVER_RESECTION' && normalizedName.includes('CCC') && supportsCccLayout(trimmedRows)) {
+            method = 'createCCCTable';
         } else if (normalizedName.includes('OTHER') && verticalMeasurements(trimmedRows)) {
             method = 'createOtherTable';
         } else {
