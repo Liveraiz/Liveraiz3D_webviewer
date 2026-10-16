@@ -6,12 +6,21 @@ const PROJECT_LAYOUTS = {
     NEPHRECTOMY: { method: 'createKTTable', title: 'Neph' },
 };
 const HCC_SEGMENTS = ['Whole Liver', 'Rt.lobe', 'Lt.lobe', 'RAS', 'RPS', 'LLS', 'LMS', 'Spigelian', 'Cancer'];
-const CCC_SEGMENTS = ['Whole Liver', 'Rt.lobe', 'Spleen', 'cyst'];
+const CCC_SEGMENTS = ['Whole Liver', 'Spleen', 'cyst'];
 // The CCC layout has one left-lobe slot, filled by either "Lt.lobe" or "Lt.lobe-S1".
 const CCC_LEFT_LOBES = ['Lt.lobe', 'Lt.lobe-S1'];
-const CCC_ALLOWED_SEGMENTS = [...CCC_SEGMENTS, ...CCC_LEFT_LOBES, 'Spigelian', 'Cancer'];
+// Section-split CCC cases list the HCC sections instead of (or alongside) the lobes.
+const CCC_SECTIONS = ['RAS', 'RPS', 'LLS', 'LMS'];
+const CCC_ALLOWED_SEGMENTS = [...CCC_SEGMENTS, 'Rt.lobe', ...CCC_LEFT_LOBES, ...CCC_SECTIONS, 'Spigelian', 'Cancer'];
 const normalizeCccName = name => CCC_ALLOWED_SEGMENTS.find(segment => segment.toLowerCase() === name.trim().toLowerCase()) || name;
-const hasOneCccLeftLobe = names => names.filter(name => CCC_LEFT_LOBES.includes(name)).length === 1;
+/** Lobe cases need Rt.lobe plus one left lobe; section cases need all four sections, with the lobes optional as a pair. */
+function hasCccLiverSplit(names) {
+    const leftLobes = names.filter(name => CCC_LEFT_LOBES.includes(name)).length;
+    const hasRtLobe = names.includes('Rt.lobe');
+    const sections = CCC_SECTIONS.filter(name => names.includes(name)).length;
+    if (sections === CCC_SECTIONS.length) return leftLobes === Number(hasRtLobe);
+    return sections === 0 && hasRtLobe && leftLobes === 1;
+}
 const KIDNEY_SEGMENTS = ['Rt.Cortex', 'Lt.Cortex', 'Rt.Column', 'Lt.Column', 'Rt.Medulla', 'Lt.Medulla', 'Rt.Kidney', 'Lt.Kidney', 'Rt.func.V', 'Lt.func.V'];
 const numeric = value => /^\s*(?:\d+(?:\.\d*)?|\.\d+)\s*(?:%|cm³|mL|ml)?\s*$/.test(value || '') && Number.isFinite(parseFloat(value));
 
@@ -35,11 +44,11 @@ function verticalMeasurements(rows) {
 /** The CCC layout shows fixed slots, so missing, duplicate or unknown segments would render as fake 0 values or vanish. */
 function supportsCccLayout(rows) {
     const horizontalRows = [rows[0].map(normalizeCccName), ...rows.slice(1)];
-    if (horizontalMeasurements(horizontalRows, CCC_SEGMENTS, CCC_ALLOWED_SEGMENTS)) return hasOneCccLeftLobe(horizontalRows[0]);
+    if (horizontalMeasurements(horizontalRows, CCC_SEGMENTS, CCC_ALLOWED_SEGMENTS)) return hasCccLiverSplit(horizontalRows[0]);
     const headers = rows[0];
     if (headers.length !== 3 || !/segment/i.test(headers[0]) || !/volume/i.test(headers[1]) || !/percent|%/i.test(headers[2])) return false;
     const names = rows.slice(1).map(row => normalizeCccName(row[0]));
-    return CCC_SEGMENTS.every(name => names.includes(name)) && hasOneCccLeftLobe(names) && new Set(names).size === names.length
+    return CCC_SEGMENTS.every(name => names.includes(name)) && hasCccLiverSplit(names) && new Set(names).size === names.length
         && rows.slice(1).every(row => row.length === 3 && CCC_ALLOWED_SEGMENTS.includes(normalizeCccName(row[0])) && row.slice(1).every(numeric));
 }
 

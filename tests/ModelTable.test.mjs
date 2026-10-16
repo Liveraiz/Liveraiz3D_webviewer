@@ -128,6 +128,36 @@ test('CCC layout shows Lt.lobe-S1 and Spigelian rows', t => {
     }
 });
 
+test('CCC cases split into sections use the HCC-style section layout', t => {
+    const tables = generator(t);
+    const withLobes = ['Segment,Volume (cm³),Percentage (%)', 'Whole Liver,1000,100', 'Rt.lobe,600,60', 'Lt.lobe,380,38',
+        'RAS,250,25', 'RPS,350,35', 'LLS,200,20', 'LMS,180,18', 'Spigelian,20,2', 'Spleen,120,12', 'cyst,5,0.5', 'Cancer,3,0.3'].join('\n');
+    const sectionsOnly = withLobes.replace('\nRt.lobe,600,60\nLt.lobe,380,38', '').replace('\nSpigelian,20,2', '').replace('RAS', 'ras');
+    const horizontal = [
+        'Measure,Whole Liver,Rt.lobe,Lt.lobe-S1,RAS,RPS,LLS,LMS,Spigelian,Spleen,cyst,Cancer',
+        'Volume (cm³),1000,600,380,250,350,200,180,20,120,5,3',
+        '% to WLV,100,60,38,25,35,20,18,2,12,0.5,0.3',
+    ].join('\n');
+    for (const caseType of ['CCC', 'BILIARY_RESECTION']) {
+        for (const csv of [withLobes, horizontal, sectionsOnly]) {
+            const { html, method } = createModelTable(tables, csv, { case: caseType, name: 'Model' });
+            assert.equal(method, 'createCCCTable');
+            const lobes = csv === sectionsOnly ? [] : ['Rt\.lobe', 'Lt\.lobe(-S1)?'];
+            const expected = ['Whole Liver', 'Spleen', 'cyst', ...lobes, 'RAS', 'LLS', 'RPS', 'LMS', 'Cancer', ...(lobes.length ? ['Spigelian'] : [])];
+            const order = expected.map(name => html.search(new RegExp(`>${name}</th>`)));
+            assert.ok(order.every((index, i) => index > 0 && (i === 0 || index > order[i - 1])), order.join());
+            assert.match(html, /#FFC1CC;'>RAS<\/th>/);
+            for (const value of ['250.0cm³', '25%', '350.0cm³', '200.0cm³', '180.0cm³', '18%', '3.0cm³']) assert.ok(html.includes(value), value);
+            assert.doesNotMatch(html, />0cm³<\/td>|>0\.00%<\/td>/);
+        }
+    }
+    for (const csv of [
+        withLobes.replace('\nLMS,180,18', ''),
+        withLobes.replace('\nLt.lobe,380,38', ''),
+        sectionsOnly.replace('\nSpleen,120,12', ''),
+    ]) assert.equal(createModelTable(tables, csv, { case: 'CCC', name: 'Model' }).method, 'generic');
+});
+
 test('CCC case falls back to the original CSV instead of showing missing, duplicate or unknown segments as 0', t => {
     const tables = generator(t);
     for (const csv of [

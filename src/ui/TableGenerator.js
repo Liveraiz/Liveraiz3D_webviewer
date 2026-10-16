@@ -1671,7 +1671,7 @@ export class TableGenerator {
         var headers = parsedRows[0];
         const canonicalName = name => {
             const trimmed = name.trim();
-            return ["Whole Liver", "Rt.lobe", "Lt.lobe", "Lt.lobe-S1", "Spigelian", "Spleen", "cyst", "Cancer"]
+            return ["Whole Liver", "Rt.lobe", "Lt.lobe", "Lt.lobe-S1", "RAS", "RPS", "LLS", "LMS", "Spigelian", "Spleen", "cyst", "Cancer"]
                 .find(segment => segment.toLowerCase() === trimmed.toLowerCase()) || trimmed;
         };
 
@@ -1809,66 +1809,41 @@ export class TableGenerator {
         table += `<td colspan='2' class='value'>${this.formatVolume(volumeData["Whole Liver"])}</td>`;
         table += "</tr>";
 
-        // Spleen / cyst 행
-        table += "<tr>";
-        table += `<th style='background-color: ${colors["Spleen"]};'>Spleen</th>`;
-        table += `<th style='background-color: ${colors["cyst"]};'>cyst</th>`;
-        table += "</tr>";
-        table += "<tr>";
-        table += `<td class='value'>${this.formatVolume(volumeData["Spleen"])}</td>`;
-        table += `<td class='value'>${this.formatVolume(volumeData["cyst"])}</td>`;
-        table += "</tr>";
-        table += "<tr>";
-        table += `<td class='value'>${this.formatPercent(percentData["Spleen"])}</td>`;
-        table += `<td class='value'>${this.formatPercent(percentData["cyst"])}</td>`;
-        table += "</tr>";
+        // HCC 와 같은 section 색상
+        const sectionColors = { RAS: "#FFC1CC", RPS: "#E6CCEF", LLS: "#FFE0A3", LMS: "#FFF9C4" };
+        const colorOf = (name) => colors[name] || sectionColors[name]
+            || (name.startsWith("Lt.lobe") || name === "Spigelian" ? colors["Lt.lobe"] : "#FFFFFF");
 
-        // Rt.lobe / Lt.lobe 행
-        table += "<tr>";
-        table += `<th style='background-color: ${colors["Rt.lobe"]};'>Rt.lobe</th>`;
+        // 두 segment 를 나란히: 이름 / Volume / Percent 3행. null 슬롯은 빈 칸
+        const pair = (left, right) => {
+            const cells = [left, right];
+            const row = (render) => "<tr>" + cells.map(render).join("") + "</tr>";
+            return row((name) => name
+                    ? `<th style='background-color: ${colorOf(name)};'>${name}</th>`
+                    : "<th style='background-color: #FFFFFF;'></th>")
+                + row((name) => `<td class='value'>${name ? this.formatVolume(volumeData[name]) : ""}</td>`)
+                + row((name) => `<td class='value'>${name ? this.formatPercent(percentData[name]) : ""}</td>`);
+        };
+
+        table += pair("Spleen", "cyst");
+
         // "Lt.lobe-S1" 처럼 접미사가 붙은 컬럼도 Lt.lobe 로 인식
         const ltKey = Object.keys(volumeData).find((k) => k.startsWith("Lt.lobe")) || "Lt.lobe";
-        table += `<th style='background-color: ${colors["Lt.lobe"]};'>${ltKey}</th>`;
-        table += "</tr>";
-        table += "<tr>";
-        table += `<td class='value'>${this.formatVolume(volumeData["Rt.lobe"])}</td>`;
-        table += `<td class='value'>${this.formatVolume(volumeData[ltKey])}</td>`;
-        table += "</tr>";
-        table += "<tr>";
-        table += `<td class='value'>${this.formatPercent(percentData["Rt.lobe"])}</td>`;
-        table += `<td class='value'>${this.formatPercent(percentData[ltKey])}</td>`;
-        table += "</tr>";
+        const isSectionSplit = ["RAS", "RPS", "LLS", "LMS"].every((name) => volumeData[name] !== undefined);
 
-        // Spigelian 행 (있는 경우만)
-        if (volumeData["Spigelian"]) {
-            table += "<tr>";
-            table += `<th style='background-color: ${colors["Spigelian"] || colors["Lt.lobe"]};'>Spigelian</th>`;
-            table += "<th style='background-color: #FFFFFF;'></th>";
-            table += "</tr>";
-            table += "<tr>";
-            table += `<td class='value'>${this.formatVolume(volumeData["Spigelian"])}</td>`;
-            table += "<td class='value'></td>";
-            table += "</tr>";
-            table += "<tr>";
-            table += `<td class='value'>${this.formatPercent(percentData["Spigelian"])}</td>`;
-            table += "<td class='value'></td>";
-            table += "</tr>";
-        }
-
-        // Cancer 행 (있는 경우만)
-        if (volumeData["Cancer"]) {
-            table += "<tr>";
-            table += `<th style='background-color: ${colors["Cancer"]};'>Cancer</th>`;
-            table += "<th style='background-color: #FFFFFF;'></th>";
-            table += "</tr>";
-            table += "<tr>";
-            table += `<td class='value'>${this.formatVolume(volumeData["Cancer"])}</td>`;
-            table += "<td class='value'></td>";
-            table += "</tr>";
-            table += "<tr>";
-            table += `<td class='value'>${this.formatPercent(percentData["Cancer"])}</td>`;
-            table += "<td class='value'></td>";
-            table += "</tr>";
+        if (isSectionSplit) {
+            // Section 분할: HCC 표와 같은 배치 (Rt/Lt lobe → RAS/LLS → RPS/LMS → Cancer/Spigelian)
+            if (volumeData["Rt.lobe"]) table += pair("Rt.lobe", ltKey);
+            table += pair("RAS", "LLS");
+            table += pair("RPS", "LMS");
+            if (volumeData["Cancer"] || volumeData["Spigelian"]) {
+                table += pair(volumeData["Cancer"] ? "Cancer" : null, volumeData["Spigelian"] ? "Spigelian" : null);
+            }
+        } else {
+            table += pair("Rt.lobe", ltKey);
+            // Spigelian / Cancer 행 (있는 경우만)
+            if (volumeData["Spigelian"]) table += pair("Spigelian", null);
+            if (volumeData["Cancer"]) table += pair("Cancer", null);
         }
 
         table += "</tbody></table>";
