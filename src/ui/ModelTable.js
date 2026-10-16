@@ -142,11 +142,17 @@ export function createModelTable(generator, csvData, model = {}, folderPath = ''
         if (trimmedRows[0].length === 2 && /segment/i.test(trimmedRows[0][0]) && /volume/i.test(trimmedRows[0][1])
             && !['createLungTable', 'createOtherTable'].includes(method)) return generic(title);
     }
+    // Section-split CCC cases with nothing beyond the HCC columns and Spleen read best as the Liver Resection table.
+    let hccTitle = null;
+    if (method === 'createCCCTable' && horizontalMeasurements(trimmedRows, HCC_SEGMENTS, [...HCC_SEGMENTS, 'Spleen'])) {
+        method = 'createHCCTable';
+        hccTitle = PROJECT_LAYOUTS.LIVER_RESECTION.title;
+    }
     const legacyCsv = trimmedRows.map((row, rowIndex) => row.map(cell => {
         // HCC's segment-detail renderer escapes header names itself. Values and every
         // other legacy renderer still need escaped text before their HTML interpolation.
         return method === 'createHCCTable' && rowIndex === 0 ? cell : escapeTableText(cell);
     }).join(',')).join('\r\n');
-    const displayTitle = !projectLayout && (method === 'createHCCTable' || normalizedName.includes('CUSTOM')) ? name || title : title;
+    const displayTitle = hccTitle || (!projectLayout && (method === 'createHCCTable' || normalizedName.includes('CUSTOM')) ? name || title : title);
     return { html: generator[method](legacyCsv, escapeTableText(displayTitle)), surgeryType: type, method };
 }

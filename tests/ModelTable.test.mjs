@@ -158,7 +158,7 @@ test('CCC cases split into sections use the HCC-style section layout', t => {
     ]) assert.equal(createModelTable(tables, csv, { case: 'CCC', name: 'Model' }).method, 'generic');
 });
 
-test('CCC cases without a cyst still use the CCC layout', t => {
+test('section-split CCC cases without a cyst use the Liver Resection table', t => {
     const tables = generator(t);
     // NSU_CCC: sections and lobes with Spleen last and no cyst column.
     const csv = [
@@ -168,9 +168,10 @@ test('CCC cases without a cyst still use the CCC layout', t => {
     ].join('\r\n');
     for (const caseType of ['CCC', 'BILIARY_RESECTION']) {
         const { html, method } = createModelTable(tables, csv, { case: caseType, name: 'NSU_CCC' });
-        assert.equal(method, 'createCCCTable');
-        assert.doesNotMatch(html, />cyst<\/th>/);
-        assert.doesNotMatch(html, />0cm³<\/td>|>0\.00%<\/td>/);
+        assert.equal(method, 'createHCCTable');
+        assert.match(html, /Liver Resection/);
+        assert.match(html, /Spleen Volume/);
+        assert.doesNotMatch(html, /seg-detail-table'/);
         for (const value of ['150.4cm³', '565.4cm³', '279.3cm³', '7.5cm³', '32.0cm³']) assert.ok(html.includes(value), value);
     }
     assert.equal(createModelTable(tables, biliary.replace('\ncyst,5,0.5', ''), { case: 'CCC', name: 'Model' }).method, 'createCCCTable');
