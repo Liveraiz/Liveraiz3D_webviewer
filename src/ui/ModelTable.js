@@ -6,12 +6,14 @@ const PROJECT_LAYOUTS = {
     NEPHRECTOMY: { method: 'createKTTable', title: 'Neph' },
 };
 const HCC_SEGMENTS = ['Whole Liver', 'Rt.lobe', 'Lt.lobe', 'RAS', 'RPS', 'LLS', 'LMS', 'Spigelian', 'Cancer'];
-const CCC_SEGMENTS = ['Whole Liver', 'Spleen', 'cyst'];
+const CCC_SEGMENTS = ['Whole Liver', 'Spleen'];
+// Not every CCC case has a cyst; when present it fills the slot beside Spleen.
+const CCC_OPTIONAL_SEGMENTS = ['cyst'];
 // The CCC layout has one left-lobe slot, filled by either "Lt.lobe" or "Lt.lobe-S1".
 const CCC_LEFT_LOBES = ['Lt.lobe', 'Lt.lobe-S1'];
 // Section-split CCC cases list the HCC sections instead of (or alongside) the lobes.
 const CCC_SECTIONS = ['RAS', 'RPS', 'LLS', 'LMS'];
-const CCC_ALLOWED_SEGMENTS = [...CCC_SEGMENTS, 'Rt.lobe', ...CCC_LEFT_LOBES, ...CCC_SECTIONS, 'Spigelian', 'Cancer'];
+const CCC_ALLOWED_SEGMENTS = [...CCC_SEGMENTS, ...CCC_OPTIONAL_SEGMENTS, 'Rt.lobe', ...CCC_LEFT_LOBES, ...CCC_SECTIONS, 'Spigelian', 'Cancer'];
 const normalizeCccName = name => CCC_ALLOWED_SEGMENTS.find(segment => segment.toLowerCase() === name.trim().toLowerCase()) || name;
 /** Lobe cases need Rt.lobe plus one left lobe; section cases need all four sections, with the lobes optional as a pair. */
 function hasCccLiverSplit(names) {

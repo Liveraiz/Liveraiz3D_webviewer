@@ -1825,7 +1825,7 @@ export class TableGenerator {
                 + row((name) => `<td class='value'>${name ? this.formatPercent(percentData[name]) : ""}</td>`);
         };
 
-        table += pair("Spleen", "cyst");
+        table += pair("Spleen", volumeData["cyst"] !== undefined ? "cyst" : null);
 
         // "Lt.lobe-S1" 처럼 접미사가 붙은 컬럼도 Lt.lobe 로 인식
         const ltKey = Object.keys(volumeData).find((k) => k.startsWith("Lt.lobe")) || "Lt.lobe";
