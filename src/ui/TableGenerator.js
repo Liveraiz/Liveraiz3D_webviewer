@@ -1832,8 +1832,6 @@ export class TableGenerator {
                 + row((name) => `<td class='value'>${name ? this.formatPercent(percentData[name]) : ""}</td>`);
         };
 
-        table += pair("Spleen", volumeData["cyst"] !== undefined ? "cyst" : null);
-
         // "Lt.lobe-S1" 처럼 접미사가 붙은 컬럼도 Lt.lobe 로 인식
         const ltKey = Object.keys(volumeData).find((k) => k.startsWith("Lt.lobe")) || "Lt.lobe";
         // Determine which lobe names to use for display
@@ -1841,20 +1839,17 @@ export class TableGenerator {
         const isSectionSplit = ["RAS", "RPS", "LLS", "LMS"].every((name) => volumeData[name] !== undefined);
         const ltLobeDisplayKey = volumeData["Remnant"] !== undefined ? "Remnant" : ltKey;
 
+        if (volumeData["Rt.lobe"] || volumeData["ext_Rt.lobe"]) table += pair(rtLobeDisplayKey, ltLobeDisplayKey);
         if (isSectionSplit) {
-            // Section 분할: HCC 표와 같은 배치 (Rt/Lt lobe → RAS/LLS → RPS/LMS → Cancer/Spigelian)
-            if (volumeData["Rt.lobe"] || volumeData["ext_Rt.lobe"]) table += pair(rtLobeDisplayKey, ltLobeDisplayKey);
+            // Section 분할: lobe 다음에 RAS/LLS → RPS/LMS 배치
             table += pair("RAS", "LLS");
             table += pair("RPS", "LMS");
-            if (volumeData["Cancer"] || volumeData["Spigelian"]) {
-                table += pair(volumeData["Cancer"] ? "Cancer" : null, volumeData["Spigelian"] ? "Spigelian" : null);
-            }
-        } else {
-            if (volumeData["Rt.lobe"] || volumeData["ext_Rt.lobe"]) table += pair(rtLobeDisplayKey, ltLobeDisplayKey);
-            // Spigelian / Cancer 행 (있는 경우만)
-            if (volumeData["Spigelian"]) table += pair("Spigelian", null);
-            if (volumeData["Cancer"]) table += pair("Cancer", null);
         }
+        if (volumeData["Spigelian"] !== undefined || volumeData["Cancer"] !== undefined) {
+            table += pair(volumeData["Spigelian"] !== undefined ? "Spigelian" : null,
+                volumeData["Cancer"] !== undefined ? "Cancer" : null);
+        }
+        table += pair("Spleen", volumeData["cyst"] !== undefined ? "cyst" : null);
 
         table += "</tbody></table>";
 

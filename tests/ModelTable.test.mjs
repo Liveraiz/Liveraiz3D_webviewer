@@ -117,7 +117,7 @@ test('CCC layout shows Lt.lobe-S1 and Spigelian rows', t => {
         for (const csv of [vertical, horizontal, lowercase]) {
             const { html, method } = createModelTable(tables, csv, { case: caseType, name: 'Model' });
             assert.equal(method, 'createCCCTable');
-            const order = ['Whole Liver', 'Spleen', 'cyst', 'Rt.lobe', 'Lt.lobe-S1', 'Spigelian', 'Cancer']
+            const order = ['Whole Liver', 'Rt.lobe', 'Lt.lobe-S1', 'Spigelian', 'Cancer', 'Spleen', 'cyst']
                 .map(name => html.indexOf(`>${name}</th>`));
             assert.ok(order.every((index, i) => index > 0 && (i === 0 || index > order[i - 1])), order.join());
             for (const value of ['1022.6cm³', '147.2cm³', '0.4cm³', '14.39%', '0.04%', '811.0cm³', '190.0cm³',
@@ -143,7 +143,7 @@ test('CCC cases split into sections use the HCC-style section layout', t => {
             const { html, method } = createModelTable(tables, csv, { case: caseType, name: 'Model' });
             assert.equal(method, 'createCCCTable');
             const lobes = csv === sectionsOnly ? [] : ['Rt\.lobe', 'Lt\.lobe(-S1)?'];
-            const expected = ['Whole Liver', 'Spleen', 'cyst', ...lobes, 'RAS', 'LLS', 'RPS', 'LMS', 'Cancer', ...(lobes.length ? ['Spigelian'] : [])];
+            const expected = ['Whole Liver', ...lobes, 'RAS', 'LLS', 'RPS', 'LMS', ...(lobes.length ? ['Spigelian'] : []), 'Cancer', 'Spleen', 'cyst'];
             const order = expected.map(name => html.search(new RegExp(`>${name}</th>`)));
             assert.ok(order.every((index, i) => index > 0 && (i === 0 || index > order[i - 1])), order.join());
             assert.match(html, /#FFC1CC;'>RAS<\/th>/);
@@ -194,6 +194,8 @@ test('CCC extended right lobe and remnant use the dedicated table without losing
             assert.equal(method, 'createCCCTable');
             assert.match(html, />ext_Rt\.lobe<\/th>/);
             assert.match(html, />Remnant<\/th>/);
+            assert.match(html, />Spigelian<\/th><th[^>]*>Cancer<\/th><\/tr>/);
+            assert.match(html, /<tr><th[^>]*>Spleen<\/th><th[^>]*><\/th><\/tr><tr><td[^>]*>148\.7cm³<\/td><td[^>]*><\/td><\/tr><tr><td[^>]*>8\.87%<\/td><td[^>]*><\/td><\/tr><\/tbody>/);
             for (const value of ['1031.7cm³', '644.9cm³', '61.54%', '38.46%', '39.9cm³', '3.3cm³', '148.7cm³']) {
                 assert.ok(html.includes(value), value);
             }
