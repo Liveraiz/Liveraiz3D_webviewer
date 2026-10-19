@@ -385,7 +385,7 @@ export const PCD_KEYWORDS = [
 ];
 
 // 오브젝트 리스트 패널 그룹핑용 키워드 (폐엽/동맥/정맥/기관지)
-export const LOBE_GROUP_KEYWORDS = ["LUL", "LLL", "RUL", "RML", "RLL", "lobe"];
+export const LOBE_GROUP_KEYWORDS = ["LUL", "LLL", "RUL", "RML", "RLL", "lobe", "Remnant"];
 // 폐구역(segment) 번호 표기 - 단어 단위(토큰) 매칭 전용, S1~S10 및 a/b/c 하위구역 포함
 export const LOBE_SEGMENT_TOKENS = [
     "s1", "s2", "s3", "s4", "s5", "s6", "s7", "s8", "s9", "s10",
