@@ -177,6 +177,40 @@ test('section-split CCC cases without a cyst use the Liver Resection table', t =
     assert.equal(createModelTable(tables, biliary.replace('\ncyst,5,0.5', ''), { case: 'CCC', name: 'Model' }).method, 'createCCCTable');
 });
 
+test('CCC extended right lobe and remnant use the dedicated table without losing values', t => {
+    const tables = generator(t);
+    const horizontal = [
+        'Measure,Whole Liver,Spigelian,Cancer,Spleen,ext_Rt.lobe,Remnant',
+        'Volume (cm³),1676.5,39.9,3.3,148.7,1031.7,644.9',
+        '% to WLV,100.00,2.38,0.20,8.87,61.54,38.46',
+    ].join('\n');
+    const rows = parseTableCsv(horizontal);
+    const vertical = ['Segment,Volume (cm³),Percentage (%)', ...rows[0].slice(1)
+        .map((name, index) => `${name},${rows[1][index + 1]},${rows[2][index + 1]}`)].join('\n');
+    const sections = `${vertical}\nRAS,250,25\nRPS,350,35\nLLS,200,20\nLMS,180,18`;
+    for (const caseType of ['CCC', 'BILIARY_RESECTION']) {
+        for (const csv of [horizontal, vertical, sections, vertical.replace('ext_Rt.lobe', 'EXT_RT.LOBE').replace('Remnant', 'remnant')]) {
+            const { html, method } = createModelTable(tables, csv, { case: caseType });
+            assert.equal(method, 'createCCCTable');
+            assert.match(html, />ext_Rt\.lobe<\/th>/);
+            assert.match(html, />Remnant<\/th>/);
+            for (const value of ['1031.7cm³', '644.9cm³', '61.54%', '38.46%', '39.9cm³', '3.3cm³', '148.7cm³']) {
+                assert.ok(html.includes(value), value);
+            }
+            assert.doesNotMatch(html, />Lt\.lobe<\/th>/);
+        }
+    }
+    for (const csv of [vertical, sections]) {
+        for (const extra of ['Rt.lobe,500,30', 'Lt.lobe,400,24']) {
+            assert.equal(createModelTable(tables, `${csv}\n${extra}`, { case: 'CCC' }).method, 'generic');
+        }
+    }
+    const zero = createModelTable(tables, vertical.replace('Remnant,644.9,38.46', 'Remnant,0,0'), { case: 'CCC' });
+    assert.equal(zero.method, 'createCCCTable');
+    assert.match(zero.html, />Remnant<\/th>/);
+    assert.match(zero.html, />0\.0cm³<\/td>/);
+});
+
 test('CCC case falls back to the original CSV instead of showing missing, duplicate or unknown segments as 0', t => {
     const tables = generator(t);
     for (const csv of [

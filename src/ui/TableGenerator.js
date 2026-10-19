@@ -1671,7 +1671,7 @@ export class TableGenerator {
         var headers = parsedRows[0];
         const canonicalName = name => {
             const trimmed = name.trim();
-            return ["Whole Liver", "Rt.lobe", "Lt.lobe", "Lt.lobe-S1", "RAS", "RPS", "LLS", "LMS", "Spigelian", "Spleen", "cyst", "Cancer"]
+            return ["Whole Liver", "Rt.lobe", "ext_Rt.lobe", "Lt.lobe", "Lt.lobe-S1", "Remnant", "RAS", "RPS", "LLS", "LMS", "Spigelian", "Spleen", "cyst", "Cancer"]
                 .find(segment => segment.toLowerCase() === trimmed.toLowerCase()) || trimmed;
         };
 
@@ -1839,7 +1839,7 @@ export class TableGenerator {
         // Determine which lobe names to use for display
         const rtLobeDisplayKey = volumeData["ext_Rt.lobe"] ? "ext_Rt.lobe" : "Rt.lobe";
         const isSectionSplit = ["RAS", "RPS", "LLS", "LMS"].every((name) => volumeData[name] !== undefined);
-        const ltLobeDisplayKey = isSectionSplit && volumeData["Remnant"] ? "Remnant" : ltKey;
+        const ltLobeDisplayKey = volumeData["Remnant"] !== undefined ? "Remnant" : ltKey;
 
         if (isSectionSplit) {
             // Section 분할: HCC 표와 같은 배치 (Rt/Lt lobe → RAS/LLS → RPS/LMS → Cancer/Spigelian)
@@ -1850,7 +1850,7 @@ export class TableGenerator {
                 table += pair(volumeData["Cancer"] ? "Cancer" : null, volumeData["Spigelian"] ? "Spigelian" : null);
             }
         } else {
-            if (volumeData["Rt.lobe"] || volumeData["ext_Rt.lobe"]) table += pair(rtLobeDisplayKey, ltKey);
+            if (volumeData["Rt.lobe"] || volumeData["ext_Rt.lobe"]) table += pair(rtLobeDisplayKey, ltLobeDisplayKey);
             // Spigelian / Cancer 행 (있는 경우만)
             if (volumeData["Spigelian"]) table += pair("Spigelian", null);
             if (volumeData["Cancer"]) table += pair("Cancer", null);

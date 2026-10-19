@@ -9,19 +9,21 @@ const HCC_SEGMENTS = ['Whole Liver', 'Rt.lobe', 'Lt.lobe', 'RAS', 'RPS', 'LLS', 
 const CCC_SEGMENTS = ['Whole Liver', 'Spleen'];
 // Not every CCC case has a cyst; when present it fills the slot beside Spleen.
 const CCC_OPTIONAL_SEGMENTS = ['cyst'];
-// The CCC layout has one left-lobe slot, filled by either "Lt.lobe" or "Lt.lobe-S1".
-const CCC_LEFT_LOBES = ['Lt.lobe', 'Lt.lobe-S1'];
+// Each CCC lobe slot accepts one name, including extended resection/remnant labels.
+const CCC_RIGHT_LOBES = ['Rt.lobe', 'ext_Rt.lobe'];
+const CCC_LEFT_LOBES = ['Lt.lobe', 'Lt.lobe-S1', 'Remnant'];
 // Section-split CCC cases list the HCC sections instead of (or alongside) the lobes.
 const CCC_SECTIONS = ['RAS', 'RPS', 'LLS', 'LMS'];
-const CCC_ALLOWED_SEGMENTS = [...CCC_SEGMENTS, ...CCC_OPTIONAL_SEGMENTS, 'Rt.lobe', ...CCC_LEFT_LOBES, ...CCC_SECTIONS, 'Spigelian', 'Cancer'];
+const CCC_ALLOWED_SEGMENTS = [...CCC_SEGMENTS, ...CCC_OPTIONAL_SEGMENTS, ...CCC_RIGHT_LOBES, ...CCC_LEFT_LOBES, ...CCC_SECTIONS, 'Spigelian', 'Cancer'];
 const normalizeCccName = name => CCC_ALLOWED_SEGMENTS.find(segment => segment.toLowerCase() === name.trim().toLowerCase()) || name;
-/** Lobe cases need Rt.lobe plus one left lobe; section cases need all four sections, with the lobes optional as a pair. */
+/** Lobe cases need one right and one left slot; section cases allow the pair to be absent. */
 function hasCccLiverSplit(names) {
     const leftLobes = names.filter(name => CCC_LEFT_LOBES.includes(name)).length;
-    const hasRtLobe = names.includes('Rt.lobe');
+    const rightLobes = names.filter(name => CCC_RIGHT_LOBES.includes(name)).length;
+    if (rightLobes > 1 || leftLobes > 1) return false;
     const sections = CCC_SECTIONS.filter(name => names.includes(name)).length;
-    if (sections === CCC_SECTIONS.length) return leftLobes === Number(hasRtLobe);
-    return sections === 0 && hasRtLobe && leftLobes === 1;
+    if (sections === CCC_SECTIONS.length) return leftLobes === rightLobes;
+    return sections === 0 && rightLobes === 1 && leftLobes === 1;
 }
 const KIDNEY_SEGMENTS = ['Rt.Cortex', 'Lt.Cortex', 'Rt.Column', 'Lt.Column', 'Rt.Medulla', 'Lt.Medulla', 'Rt.Kidney', 'Lt.Kidney', 'Rt.func.V', 'Lt.func.V'];
 const numeric = value => /^\s*(?:\d+(?:\.\d*)?|\.\d+)\s*(?:%|cm³|mL|ml)?\s*$/.test(value || '') && Number.isFinite(parseFloat(value));
