@@ -1761,26 +1761,26 @@ export class TableGenerator {
                 color: ${theme.textColor};
                 table-layout: fixed;
             }
-            
-            .ccc-table th, 
+
+            .ccc-table th,
             .ccc-table td {
                 border: 1px solid ${theme.tableBorder};
                 padding: 8px;
                 text-align: center;
                 width: 50%;
             }
-            
+
             .ccc-table th {
                 font-weight: bold;
             }
-            
+
             .ccc-table thead th {
                 background-color: ${theme.header};
                 color: ${theme.headerText};
             }
-            
+
             .value { background-color: ${theme.valueBg}; }
-            
+
             .surgery-header {
                 background-color: ${theme.header};
                 color: ${theme.headerText};
@@ -1811,8 +1811,15 @@ export class TableGenerator {
 
         // HCC 와 같은 section 색상
         const sectionColors = { RAS: "#FFC1CC", RPS: "#E6CCEF", LLS: "#FFE0A3", LMS: "#FFF9C4" };
-        const colorOf = (name) => colors[name] || sectionColors[name]
-            || (name.startsWith("Lt.lobe") || name === "Spigelian" ? colors["Lt.lobe"] : "#FFFFFF");
+        const colorOf = (name) => {
+            // Handle special cases for ext_Rt.lobe and Remnant
+            if (name === "ext_Rt.lobe") return colors["Rt.lobe"];
+            if (name === "Remnant") return colors["Lt.lobe"];
+
+            // Then fall back to original logic
+            return colors[name] || sectionColors[name]
+                || (name.startsWith("Lt.lobe") || name === "Spigelian" ? colors["Lt.lobe"] : "#FFFFFF");
+        };
 
         // 두 segment 를 나란히: 이름 / Volume / Percent 3행. null 슬롯은 빈 칸
         const pair = (left, right) => {
@@ -1829,18 +1836,21 @@ export class TableGenerator {
 
         // "Lt.lobe-S1" 처럼 접미사가 붙은 컬럼도 Lt.lobe 로 인식
         const ltKey = Object.keys(volumeData).find((k) => k.startsWith("Lt.lobe")) || "Lt.lobe";
+        // Determine which lobe names to use for display
+        const rtLobeDisplayKey = volumeData["ext_Rt.lobe"] ? "ext_Rt.lobe" : "Rt.lobe";
         const isSectionSplit = ["RAS", "RPS", "LLS", "LMS"].every((name) => volumeData[name] !== undefined);
+        const ltLobeDisplayKey = isSectionSplit && volumeData["Remnant"] ? "Remnant" : ltKey;
 
         if (isSectionSplit) {
             // Section 분할: HCC 표와 같은 배치 (Rt/Lt lobe → RAS/LLS → RPS/LMS → Cancer/Spigelian)
-            if (volumeData["Rt.lobe"]) table += pair("Rt.lobe", ltKey);
+            if (volumeData["Rt.lobe"] || volumeData["ext_Rt.lobe"]) table += pair(rtLobeDisplayKey, ltLobeDisplayKey);
             table += pair("RAS", "LLS");
             table += pair("RPS", "LMS");
             if (volumeData["Cancer"] || volumeData["Spigelian"]) {
                 table += pair(volumeData["Cancer"] ? "Cancer" : null, volumeData["Spigelian"] ? "Spigelian" : null);
             }
         } else {
-            table += pair("Rt.lobe", ltKey);
+            if (volumeData["Rt.lobe"] || volumeData["ext_Rt.lobe"]) table += pair(rtLobeDisplayKey, ltKey);
             // Spigelian / Cancer 행 (있는 경우만)
             if (volumeData["Spigelian"]) table += pair("Spigelian", null);
             if (volumeData["Cancer"]) table += pair("Cancer", null);
