@@ -2,7 +2,7 @@
 
 import { COLOR, tableColor } from "../utils/color.js";
 import { Constants } from "../utils/Constants.js";
-import { createModelTable } from './ModelTable.js';
+import { createModelTable, normalizeCccSegmentName } from './ModelTable.js';
 
 const KNOWN_HCC_COLUMNS = [
     "Measure",
@@ -1669,11 +1669,7 @@ export class TableGenerator {
 
         var parsedRows = rows.map((row) => row.split(","));
         var headers = parsedRows[0];
-        const canonicalName = name => {
-            const trimmed = name.trim();
-            return ["Whole Liver", "Rt.lobe", "ext_Rt.lobe", "Lt.lobe", "Lt.lobe-S1", "Remnant", "RAS", "RPS", "LLS", "LMS", "Spigelian", "Spleen", "cyst", "Cancer"]
-                .find(segment => segment.toLowerCase() === trimmed.toLowerCase()) || trimmed;
-        };
+        const canonicalName = normalizeCccSegmentName;
 
         // 가로 형식: Measure,Whole Liver,Rt.lobe,... / Volume (cm³),... / % to WLV,...
         if (headers[0].trim().toLowerCase() === "measure") {

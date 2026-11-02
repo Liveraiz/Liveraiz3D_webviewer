@@ -252,8 +252,18 @@ JSON manifest의 `case` 값이 `CUSTOM`인 경우에도, 호환되는 `Segment/V
 #### CCC Surgery (`CCC`)
 
 - 예시 파일명: `CCC_patient04.glb`
-- 순서 고정: `Whole Liver`(2칸 병합) → `Spleen`/`cyst` 쌍 → `Rt.lobe`/`Lt.lobe` 쌍 → `Cancer`(있을 때만, 왼쪽 칸만 사용)
+- 아래 항목명은 **GLB 메쉬 이름이 아니라 테이블 CSV의 Segment 값 또는 가로형 CSV의 컬럼명**입니다. 모델의 메쉬 이름과 별개로 CSV가 CCC 전용 레이아웃 조건을 만족해야 합니다.
+- 기본 필수 항목: `Whole Liver`, `Spleen`
+- 간 분할은 다음 중 하나를 지원합니다.
+  - 엽 분할: 오른쪽 항목 1개(`Rt.lobe` 또는 `ext_Rt.lobe`)와 왼쪽 항목 1개(`Lt.lobe`, `Lt.lobe-S1`, `Remnant` 중 하나)
+  - 구역 분할: `RAS`, `RPS`, `LLS`, `LMS` 전체
+  - 구역 분할과 엽 분할을 같이 제공하는 경우 좌우 엽은 둘 다 있거나 둘 다 없어야 합니다.
+- 선택 항목: `cyst`, `Spigelian`, `Cancer`
+- 이름은 대소문자를 구분하지 않으며, 공백·점·하이픈·밑줄 등 영숫자가 아닌 구분자는 정규화해 비교합니다. 오른쪽 확장 엽은 `ext_Rt.lobe`, `Extended Rt. lobe`, `Extended Right Lobe` 표기를 지원합니다. 예를 들어 `Ext. Rt. lobe`도 `ext_Rt.lobe`로 인식됩니다.
+- 출력 순서: `Whole Liver`(2칸 병합) → 오른쪽/왼쪽 엽 쌍(엽 분할이 있을 때) → `RAS`/`LLS` 쌍 및 `RPS`/`LMS` 쌍(구역 분할일 때) → `Spigelian`/`Cancer` 쌍(둘 중 하나 이상 있을 때) → `Spleen`/`cyst` 쌍
+- 파일명에 `CCC`가 있거나 manifest의 `case`가 `CCC`이면 CCC 테이블 후보가 됩니다. `case: "LIVER_RESECTION"`인 모델은 파일명에 `CCC`가 있고 CSV가 CCC 형식일 때 CCC 테이블을 사용합니다. 형식이 맞지 않거나 필수 항목·분할 구성이 빠지면 값 누락을 피하기 위해 일반 표로 표시합니다. 구역 분할만 있고 선택 항목이 `Spleen` 외에는 없는 일부 형식은 Liver Resection(HCC) 표로 표시됩니다.
 - 관련 코드: [src/ui/TableGenerator.js](src/ui/TableGenerator.js#L1758-L1875) `_generateCCCTableHTML()`
+- CSV의 CCC 항목 검증/정규화: [src/ui/ModelTable.js](src/ui/ModelTable.js#L8-L83) `supportsCccLayout()`, [src/ui/TableGenerator.js](src/ui/TableGenerator.js#L1662-L1732) `createCCCTable()`
 
 | 왼쪽 칸                          | 오른쪽 칸 |
 | -------------------------------- | --------- |

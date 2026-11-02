@@ -15,7 +15,29 @@ const CCC_LEFT_LOBES = ['Lt.lobe', 'Lt.lobe-S1', 'Remnant'];
 // Section-split CCC cases list the HCC sections instead of (or alongside) the lobes.
 const CCC_SECTIONS = ['RAS', 'RPS', 'LLS', 'LMS'];
 const CCC_ALLOWED_SEGMENTS = [...CCC_SEGMENTS, ...CCC_OPTIONAL_SEGMENTS, ...CCC_RIGHT_LOBES, ...CCC_LEFT_LOBES, ...CCC_SECTIONS, 'Spigelian', 'Cancer'];
-const normalizeCccName = name => CCC_ALLOWED_SEGMENTS.find(segment => segment.toLowerCase() === name.trim().toLowerCase()) || name;
+const CCC_SEGMENT_ALIASES = new Map([
+    ['wholeliver', 'Whole Liver'],
+    ['rtlobe', 'Rt.lobe'],
+    ['extrtlobe', 'ext_Rt.lobe'],
+    ['extendedrtlobe', 'ext_Rt.lobe'],
+    ['extendedrightlobe', 'ext_Rt.lobe'],
+    ['ltlobe', 'Lt.lobe'],
+    ['ltlobes1', 'Lt.lobe-S1'],
+    ['remnant', 'Remnant'],
+    ['ras', 'RAS'],
+    ['rps', 'RPS'],
+    ['lls', 'LLS'],
+    ['lms', 'LMS'],
+    ['spigelian', 'Spigelian'],
+    ['spleen', 'Spleen'],
+    ['cyst', 'cyst'],
+    ['cancer', 'Cancer'],
+]);
+export const normalizeCccSegmentName = name => {
+    const trimmed = String(name ?? '').trim();
+    const key = trimmed.toLowerCase().replace(/[^a-z0-9]/g, '');
+    return CCC_SEGMENT_ALIASES.get(key) || trimmed;
+};
 /** Lobe cases need one right and one left slot; section cases allow the pair to be absent. */
 function hasCccLiverSplit(names) {
     const leftLobes = names.filter(name => CCC_LEFT_LOBES.includes(name)).length;
@@ -47,13 +69,13 @@ function verticalMeasurements(rows) {
 
 /** The CCC layout shows fixed slots, so missing, duplicate or unknown segments would render as fake 0 values or vanish. */
 function supportsCccLayout(rows) {
-    const horizontalRows = [rows[0].map(normalizeCccName), ...rows.slice(1)];
+    const horizontalRows = [rows[0].map(normalizeCccSegmentName), ...rows.slice(1)];
     if (horizontalMeasurements(horizontalRows, CCC_SEGMENTS, CCC_ALLOWED_SEGMENTS)) return hasCccLiverSplit(horizontalRows[0]);
     const headers = rows[0];
     if (headers.length !== 3 || !/segment/i.test(headers[0]) || !/volume/i.test(headers[1]) || !/percent|%/i.test(headers[2])) return false;
-    const names = rows.slice(1).map(row => normalizeCccName(row[0]));
+    const names = rows.slice(1).map(row => normalizeCccSegmentName(row[0]));
     return CCC_SEGMENTS.every(name => names.includes(name)) && hasCccLiverSplit(names) && new Set(names).size === names.length
-        && rows.slice(1).every(row => row.length === 3 && CCC_ALLOWED_SEGMENTS.includes(normalizeCccName(row[0])) && row.slice(1).every(numeric));
+        && rows.slice(1).every(row => row.length === 3 && CCC_ALLOWED_SEGMENTS.includes(normalizeCccSegmentName(row[0])) && row.slice(1).every(numeric));
 }
 
 /** Only opt into fixed clinical layouts when they can actually consume every provided value. */

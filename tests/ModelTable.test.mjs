@@ -327,12 +327,19 @@ test('new liver CUSTOM and OTHER layouts require compatible vertical measurement
 
 test('Liver Resection models named CCC use the CCC layout when the CSV fits it', t => {
     const tables = generator(t);
-    for (const name of ['CCC', 'Patient_ccc_model']) {
-        const result = createModelTable(tables, biliary, { case: 'LIVER_RESECTION', name });
+    const aliasCsv = [
+        'Measure,Whole Liver,Ext. Rt. lobe,Lt. lobe,Spleen,Cancer',
+        'Volume (cm³),1000,600,400,120,3',
+        '% to WLV,100,60,40,12,0.3',
+    ].join('\n');
+    for (const [name, csv] of [['CCC', biliary], ['Patient_ccc_model', biliary], ['KYM_CCC', aliasCsv]]) {
+        const result = createModelTable(tables, csv, { case: 'LIVER_RESECTION', name });
         assert.equal(result.method, 'createCCCTable');
         assert.match(result.html, /ccc-table/);
         assert.match(result.html, /Liver Resection/);
-        assert.match(result.html, /5\.0cm³/);
+        assert.match(result.html, /600\.0cm³/);
+        assert.match(result.html, /400\.0cm³/);
+        assert.match(result.html, /120\.0cm³/);
     }
     assert.equal(createModelTable(tables, horizontalLiver, { case: 'LIVER_RESECTION', name: 'CCC' }).method, 'createHCCTable');
     assert.equal(createModelTable(tables, biliary, { case: 'LIVER_RESECTION', name: 'Model' }).method, 'generic');
