@@ -42,6 +42,7 @@ import { ViewerManifestSession } from "../services/ViewerManifestSession";
 import { getViewerManifestLogoUrl } from "../services/ViewerModelManifestService";
 import { ViewerAuthRecovery, applyRecoveredViewerSession } from "../services/ViewerAuthRecovery";
 import { ViewerSessionNotice } from "../ui/ViewerSessionNotice";
+import { openPublicViewerProject } from "../services/ViewerPublicProject";
 
 export default class LiverViewer {
     constructor(containerId) {
@@ -530,6 +531,7 @@ export default class LiverViewer {
         }
 
         if (entry.provider === VIEWER_PROVIDER.S3) {
+            if (entry.publicAccess) return (modelSelector) => openPublicViewerProject(this, entry, modelSelector);
             return async (modelSelector) => {
                 let manifestLoaded = false;
                 const session = new ViewerManifestSession(entry.projectId, entry.launchToken,
@@ -897,6 +899,18 @@ export default class LiverViewer {
 
     handleLoadError(error) {
         ErrorHandler.handle(error, "Model Loading");
+        if (this.viewerEntry.publicAccess) {
+            const session = this.viewerManifestSession;
+            const showRetry = () => {
+                if (this.viewerManifestSession !== session || session?.closed) return;
+                const failure = new Error("Public model loading failed.");
+                failure.code = "VIEWER_PUBLIC_MODEL_LOAD_FAILED";
+                this.viewerSessionNotice?.showError(failure);
+            };
+            if (isS3DownloadUrlError(error)) session?.ensureFresh(true).then(showRetry).catch(() => {});
+            else showRetry();
+            return;
+        }
         if (this.externalModelProvider === VIEWER_PROVIDER.S3 && isS3DownloadUrlError(error)) {
             ErrorHandler.showErrorMessage(
                 "The S3 download URL has expired. Please restart the viewer from the portal."

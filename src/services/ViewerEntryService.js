@@ -11,11 +11,13 @@ export function parseViewerEntry(location = window.location) {
     const provider = providerParam ? providerParam.toLowerCase() : null;
 
     if (provider === VIEWER_PROVIDER.S3) {
+        const publicAccess = urlParams.get("public") === "true";
         return {
             provider: VIEWER_PROVIDER.S3,
             externalModelRequest: true,
             projectId: urlParams.get("projectId"),
-            launchToken: new URLSearchParams(location.hash.replace(/^#/, "")).get("launch"),
+            publicAccess,
+            launchToken: publicAccess ? null : new URLSearchParams(location.hash.replace(/^#/, "")).get("launch"),
         };
     }
 
