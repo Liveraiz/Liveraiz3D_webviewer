@@ -307,8 +307,13 @@ ipcMain.handle('read-file', async (event, filePath) => {
             content = Array.from(buffer);
             debugLog(`[IPC] Binary file read successfully, size: ${buffer.length} bytes`);
         } else {
-            // Read as UTF-8 text
-            content = fs.readFileSync(filePath, 'utf-8');
+            // Read as text: UTF-8, falling back to CP949 (Korean Windows CSV)
+            const buffer = fs.readFileSync(filePath);
+            try {
+                content = new TextDecoder('utf-8', { fatal: true }).decode(buffer);
+            } catch {
+                content = new TextDecoder('euc-kr').decode(buffer);
+            }
             debugLog(`[IPC] Text file read successfully, size: ${content.length} bytes`);
         }
         

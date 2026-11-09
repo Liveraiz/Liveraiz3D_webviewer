@@ -5,6 +5,7 @@
  */
 
 import { Constants } from './Constants.js';
+import { readFileText } from './textDecoding.js';
 
 export class LocalFileManager {
     constructor() {
@@ -225,11 +226,8 @@ export class LocalFileManager {
      * @returns {Promise<string>} CSV 데이터 문자열
      */
     readCsvFile(csvFile) {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = (e) => resolve(e.target.result);
-            reader.onerror = () => reject(new Error('CSV 파일 읽기 실패'));
-            reader.readAsText(csvFile);
+        return readFileText(csvFile).catch(() => {
+            throw new Error('CSV 파일 읽기 실패');
         });
     }
 

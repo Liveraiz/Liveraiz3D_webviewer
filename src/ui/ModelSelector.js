@@ -5,6 +5,7 @@ import { DeviceDetector } from "../utils/DeviceDetector";
 import { TableGenerator } from "./TableGenerator";
 import { createModelTable } from "./ModelTable.js";
 import { Constants } from "../utils/Constants";
+import { decodeText, readFileText } from "../utils/textDecoding.js";
 import { LocalFileManager } from "../services/LocalFileManager";
 import { VIEWER_PROVIDER } from "../services/ViewerEntryService";
 import {
@@ -169,7 +170,7 @@ export default class ModelSelector {
             try {
                 const response = await fetch(this.getAssetUrl(model, "tableUrl"));
                 if (!response.ok) throw new Error(`Unable to load table (${response.status}).`);
-                const tableText = await response.text();
+                const tableText = decodeText(await response.arrayBuffer());
 
                 const { html: tableHTML } = createModelTable(
                     this.tableGenerator,
@@ -2203,11 +2204,8 @@ export default class ModelSelector {
             // 2. File object exists (Dev: webkitdirectory input)
             else if (model.csvFile) {
                 console.log('[ModelSelector] Reading CSV from File object');
-                csvData = await new Promise((resolve, reject) => {
-                    const reader = new FileReader();
-                    reader.onload = (e) => resolve(e.target.result);
-                    reader.onerror = () => reject(new Error('CSV 파일 읽기 실패'));
-                    reader.readAsText(model.csvFile);
+                csvData = await readFileText(model.csvFile).catch(() => {
+                    throw new Error('CSV 파일 읽기 실패');
                 });
             }
             // 3. Electron path (Production)

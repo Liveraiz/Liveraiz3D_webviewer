@@ -1,3 +1,4 @@
+import { readFileText } from "../utils/textDecoding.js";
 /**
  * LocalFileManager.js
  * 로컬 파일 처리 및 매칭 관리 클래스
@@ -91,12 +92,7 @@ export class LocalFileManager {
      * @returns {Promise<string>} CSV 텍스트 데이터
      */
     readCSVFile(csvFile) {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = (e) => resolve(e.target.result);
-            reader.onerror = (e) => reject(e);
-            reader.readAsText(csvFile);
-        });
+        return readFileText(csvFile);
     }
 
     /**
