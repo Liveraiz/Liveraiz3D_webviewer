@@ -17,7 +17,7 @@ import { Constants, initializeGlobalStyles } from "../utils/Constants";
 //import ToggleButton from "../ui/ToggleButton";
 // import meshOutlineMarker from "../controls/meshOutlineMarker";
 import ModelSelector from "../ui/ModelSelector";
-// import Stats from "three/examples/jsm/libs/stats.module.js";
+import { DevPerformancePanel } from "../ui/DevPerformancePanel";
 import MeshTransform from "../controls/meshTransform";
 import ViewerState from "./ViewerState";
 import { PanelManager } from "../ui/PanelManager";
@@ -81,16 +81,9 @@ export default class LiverViewer {
             this.viewerManifestSession = null;
             this.onModelSelectorReady = this.createModelSelectorReadyHandler(this.viewerEntry);
 
-            // Stats 초기화
-            // this.stats = new Stats();
-            // this.stats.showPanel(0);
-            // document.body.appendChild(this.stats.dom);
-            // this.stats.dom.style.position = "absolute";
-            // this.stats.dom.style.right = "0px";
-            // this.stats.dom.style.left = "auto";
-            // this.stats.dom.style.bottom = "0px";
-            // this.stats.dom.style.top = "auto";
-            // this.stats.dom.style.zIndex = "800"; // TextPanel보다 낮은 z-index 설정
+            // 개발 모드 전용 성능 패널 (FPS/MS/MB + draw call·triangle 통계)
+            // Renderer 생성 이후 setupRenderer()에서 초기화됨
+            this.devPerfPanel = null;
 
             // ViewerState 초기화
             this.viewerState = new ViewerState();
@@ -302,6 +295,11 @@ export default class LiverViewer {
         if (!this.renderer.labelRenderer) {
             console.error("CSS2DRenderer not initialized");
         }
+
+        // 개발 모드에서만 FPS/렌더 통계 패널 생성 (프로덕션 빌드에는 포함되지 않음)
+        if (import.meta.env.DEV) {
+            this.devPerfPanel = new DevPerformancePanel(this.renderer.renderer);
+        }
     }
 
     setupCamera() {
@@ -464,7 +462,7 @@ export default class LiverViewer {
                     console.error("모델 로드 에러:", error);
                     this.handleLoadError(error);
                 },
-                modelPath: "./models/260807-dangam.glb",
+                modelPath: "./models/251218-dangam.glb",
                 // URL 파라미터가 없으면 기본 모델 자동 로드, 있으면 ModelSelector에서 선택하도록
                 autoLoad: !this.viewerEntry.provider,
             });
@@ -879,7 +877,7 @@ export default class LiverViewer {
                     console.log(`[LiverViewer] ROI Model detected: ${modelName}, activating ROI vessel feature...`);
                     // Scene setup is complete; no delayed callback can reactivate a different model.
                     this.toolbar.resetMeasurementButtons();
-                    this.toolbar.lungVesselROI.enableLungVesselROI();
+                    this.toolbar.lungVesselROI.enableLungVesselROI({ autoActivated: true });
                 }
             }
 
@@ -1020,7 +1018,7 @@ export default class LiverViewer {
         this.lastFrameTime = currentTime - (elapsed % this.frameInterval);
 
         try {
-            // this.stats.begin();
+            this.devPerfPanel?.begin();
 
             const delta = Math.min(elapsed / 1000, 0.1);
 
@@ -1103,7 +1101,7 @@ export default class LiverViewer {
                 this.renderNeeded = false;
             }
 
-            // this.stats.end();
+            this.devPerfPanel?.end();
         } catch (error) {
             console.error("Error in animation loop:", error);
         }
@@ -1267,6 +1265,12 @@ export default class LiverViewer {
             if (this.renderer) {
                 this.renderer.dispose();
                 this.renderer = null;
+            }
+
+            // 15-1. 개발 모드 성능 패널 정리
+            if (this.devPerfPanel) {
+                this.devPerfPanel.dispose();
+                this.devPerfPanel = null;
             }
 
             // 16. Camera 정리

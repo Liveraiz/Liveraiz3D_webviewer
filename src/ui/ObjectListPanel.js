@@ -95,6 +95,10 @@ export class ObjectListPanel {
         // mesh별 material별 초기 렌더링 상태 저장용 Map
         // key: meshId + '_' + materialIndex, value: { opacity, transparent, side, visible }
         this._meshMaterialInitialStateMap = new Map();
+
+        // 서랍형(접기/펼치기) 섹션(카테고리/그룹)의 펼침 상태 저장용 Map
+        // key: 섹션 id (예: "category:lobes", "group:Volumes"), value: boolean
+        this.sectionExpandedState = new Map();
     }
 
     _ensureMaterialRenderBase(material) {
@@ -385,8 +389,56 @@ export class ObjectListPanel {
         this.contentContainer.querySelector(`[data-category="${category}"] button`)?.focus();
     }
 
+    // 서랍형 섹션(카테고리/그룹)의 펼침 상태 조회. 최초 1회만 기본값을 사용하고,
+    // 이후에는 사용자가 직접 토글한 상태를 재렌더링 후에도 그대로 유지함
+    isSectionExpanded(sectionId, defaultExpanded) {
+        if (!this.sectionExpandedState.has(sectionId)) {
+            this.sectionExpandedState.set(sectionId, defaultExpanded);
+        }
+        return this.sectionExpandedState.get(sectionId);
+    }
+
+    // 서랍형 섹션 펼침/접기 토글
+    // - 모바일: 화면 공간이 좁으므로 하나를 펼치면 같은 그룹의 나머지 섹션은 자동으로 닫힘(배타적 아코디언)
+    // - 데스크탑: 여러 섹션을 동시에 펼쳐둘 수 있음
+    toggleSection(sectionId, siblingSectionIds = []) {
+        const wasExpanded = this.sectionExpandedState.get(sectionId) ?? false;
+        const nextExpanded = !wasExpanded;
+        const isMobile = Boolean(this.liverViewer?.toolbar?.isMobile);
+        if (isMobile && nextExpanded) {
+            siblingSectionIds.forEach((id) => {
+                if (id !== sectionId) this.sectionExpandedState.set(id, false);
+            });
+        }
+        this.sectionExpandedState.set(sectionId, nextExpanded);
+    }
+
+    // 서랍형 섹션을 토글하고 목록을 다시 그린 뒤, 방금 펼쳐진 섹션이 화면에 보이도록 스크롤 이동한다.
+    // 모바일처럼 세로 공간이 좁아 펼쳐진 내용이 화면 밖으로 밀려나는 경우를 보완하기 위함
+    // (헤더를 스크롤 영역 상단으로 당겨와 그 아래로 펼쳐지는 내용을 최대한 볼 수 있게 함)
+    toggleSectionAndReveal(sectionId, siblingSectionIds = []) {
+        this.toggleSection(sectionId, siblingSectionIds);
+        this.updateObjectList(this._lastMeshListForTabs || []);
+        if (this.sectionExpandedState.get(sectionId)) {
+            requestAnimationFrame(() => {
+                const el = this.contentContainer?.querySelector(`[data-section-id="${sectionId}"]`);
+                el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            });
+        }
+    }
+
+    // 서랍형 섹션 펼침/접기 화살표 아이콘 (펼침 상태에 따라 회전)
+    getExpandIcon(expanded) {
+        const iconColor = this.isDarkMode ? "white" : "black";
+        return `<svg class="group-expand-icon" viewBox="0 0 24 24" width="18" height="18" fill="${iconColor}" style="transition: transform 0.2s ease; transform: rotate(${expanded ? 90 : 0}deg);">
+                <path d="M8.59 16.59 13.17 12 8.59 7.41 10 6l6 6-6 6z"/>
+            </svg>`;
+    }
+
     // 활성 탭 전용 "전체 보이기/숨기기" 행 생성
-    createCategoryToggleRow(category) {
+    // options.expandable이 true면 접기/펼치기 화살표가 추가되고, 행(토글 버튼 제외) 클릭 시 onToggleExpand가 호출됨
+    createCategoryToggleRow(category, options = {}) {
+        const { expandable = false, expanded = false, onToggleExpand = null, countLabel = null, sectionId = null } = options;
         const meshes = this.getCategoryMeshes(category);
         const label = ObjectListPanel.CATEGORY_LABELS[category] || category;
         const allVisible = meshes.length > 0 && meshes.every((mesh) => mesh.visible);
@@ -394,6 +446,7 @@ export class ObjectListPanel {
         const row = document.createElement("div");
         row.classList.add("category-toggle-row");
         row.dataset.category = category;
+        if (sectionId) row.dataset.sectionId = sectionId;
         Object.assign(row.style, {
             display: "flex",
             justifyContent: "space-between",
@@ -403,17 +456,35 @@ export class ObjectListPanel {
                 ? "rgba(255, 255, 255, 0.08)"
                 : "rgba(70, 70, 70, 0.08)",
             borderRadius: "5px",
-            marginBottom: "15px",
+            marginBottom: expandable && expanded ? "6px" : "15px",
+            cursor: expandable ? "pointer" : "default",
         });
+
+        const rowLeft = document.createElement("div");
+        Object.assign(rowLeft.style, {
+            display: "flex",
+            alignItems: "center",
+            gap: "4px",
+            minWidth: "0",
+        });
+
+        if (expandable) {
+            const chevron = document.createElement("span");
+            chevron.classList.add("category-expand-chevron");
+            chevron.style.display = "flex";
+            chevron.innerHTML = this.getExpandIcon(expanded);
+            rowLeft.appendChild(chevron);
+        }
 
         const rowLabel = document.createElement("span");
         rowLabel.classList.add("category-toggle-label");
-        rowLabel.textContent = `Toggle all ${label}`;
+        rowLabel.textContent = countLabel ? `${label} · ${countLabel}` : `Toggle all ${label}`;
         Object.assign(rowLabel.style, {
             fontSize: "13px",
             fontWeight: "600",
             color: this.isDarkMode ? "white" : "black",
         });
+        rowLeft.appendChild(rowLabel);
 
         const toggleButton = document.createElement("button");
         toggleButton.classList.add("category-toggle-visibility-btn");
@@ -430,21 +501,43 @@ export class ObjectListPanel {
             alignItems: "center",
             justifyContent: "center",
         });
-        toggleButton.addEventListener("click", () => {
+        toggleButton.addEventListener("click", (e) => {
+            e.stopPropagation();
             this.toggleCategoryVisibility(category);
         });
 
-        row.appendChild(rowLabel);
+        if (expandable) {
+            row.setAttribute('role', 'button');
+            row.tabIndex = 0;
+            row.setAttribute('aria-expanded', String(expanded));
+            row.addEventListener('click', () => onToggleExpand?.());
+            row.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    onToggleExpand?.();
+                }
+            });
+        }
+
+        row.appendChild(rowLeft);
         row.appendChild(toggleButton);
         return row;
     }
 
-    setPlanningMode(active) {
+    setPlanningMode(active, options = {}) {
         this.isPlanningMode = Boolean(active);
         this.contentContainer.style.paddingBottom = active && this.liverViewer?.toolbar?.isMobile ? '100px' : '20px';
         this.activeCategoryTab = 'all';
         this.updateObjectList(this._lastMeshListForTabs || []);
-        if (active && !this.isOpen) this.togglePanel?.();
+        // 모델 로드 시 자동으로 Planning 모드가 활성화된 경우(options.autoActivated)에는
+        // Mesh 목록(좌측) 패널을 자동으로 열지 않음 — 모바일에서 우측 패널만 열리는 게 자연스러움
+        // (사용자가 직접 Planning 버튼을 눌러 활성화한 경우는 기존처럼 편의상 자동으로 열어줌)
+        if (options.autoActivated) return;
+        // 모바일에서 다른 패널(오른쪽 Volume 패널 등)이 이미 열려 있다면, 그 뒤에 이어서
+        // Mesh 패널까지 자동으로 열 필요는 없음 (두 패널이 연달아 열리는 것을 방지)
+        const isMobile = Boolean(this.liverViewer?.toolbar?.isMobile);
+        const anotherPanelAlreadyOpen = isMobile && this.panelManager?.activePanel && this.panelManager.activePanel !== this;
+        if (active && !this.isOpen && !anotherPanelAlreadyOpen) this.togglePanel?.();
     }
 
     renderLungList(meshes) {
@@ -466,13 +559,39 @@ export class ObjectListPanel {
         }
         if (categories.length) this.contentContainer.appendChild(this.createCategoryTabBar(categories));
         const selected = this.activeCategoryTab === 'all' ? categories : [this.activeCategoryTab];
+        // "All" 탭에서는 카테고리별로 서랍형(접기/펼치기) 섹션을 렌더링 (모바일 화면 공간 절약용)
+        const isAllTab = this.activeCategoryTab === 'all';
+        const allSectionIds = categories.map(category => `category:${category}`);
+        const isMobile = Boolean(this.liverViewer?.toolbar?.isMobile);
         selected.forEach(category => {
             const members = sorted.filter(mesh => getLungCategory(mesh) === category);
-            if (this.isPlanningMode || this.activeCategoryTab !== 'all') {
+            let membersContainer = this.contentContainer;
+
+            if (isAllTab) {
+                const sectionId = `category:${category}`;
+                const expanded = this.isSectionExpanded(sectionId, !isMobile);
+                const heading = this.createCategoryToggleRow(category, {
+                    expandable: true,
+                    expanded,
+                    countLabel: String(members.length),
+                    sectionId,
+                    onToggleExpand: () => this.toggleSectionAndReveal(sectionId, allSectionIds),
+                });
+                this.contentContainer.appendChild(heading);
+
+                if (!expanded) return; // 접힌 섹션은 내부 mesh row 렌더링 생략
+
+                const content = document.createElement('div');
+                content.classList.add('category-section-content');
+                Object.assign(content.style, { display: 'flex', flexDirection: 'column', marginBottom: '15px' });
+                this.contentContainer.appendChild(content);
+                membersContainer = content;
+            } else {
                 const heading = this.createCategoryToggleRow(category);
                 heading.querySelector('.category-toggle-label').textContent = `${ObjectListPanel.CATEGORY_LABELS[category]} · ${members.length}`;
                 this.contentContainer.appendChild(heading);
             }
+
             members.forEach(mesh => {
                 const material = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
                 const row = this.createControlRow({
@@ -487,16 +606,30 @@ export class ObjectListPanel {
                     button.setAttribute('aria-label', `${action}: ${mesh.name}`);
                 });
                 if (isGgoMeshName(mesh.name)) row.title = `${mesh.name} · GGO`;
-                this.contentContainer.appendChild(row);
+                membersContainer.appendChild(row);
             });
         });
         if (volumes.length && this.activeCategoryTab === 'all') {
+            const sectionId = 'group:Volumes';
+            const expanded = this.isSectionExpanded(sectionId, !isMobile);
             this.contentContainer.appendChild(this.createControlRow({
                 name: 'Volumes', id: 'Volumes', color: '#888888',
                 visible: volumes.some(mesh => mesh.visible),
                 opacity: volumes.reduce((sum, mesh) => sum + (Array.isArray(mesh.material) ? mesh.material[0] : mesh.material).opacity, 0) / volumes.length,
                 material: null, isVolumeGroup: true, volumeMeshes: volumes,
+                expandable: true,
+                expanded,
+                sectionId,
+                onToggleExpand: () => this.toggleSectionAndReveal(sectionId, [sectionId]),
             }));
+            if (expanded) {
+                volumes
+                    .slice()
+                    .sort((a, b) => a.name.localeCompare(b.name, 'en', { numeric: true, sensitivity: 'base' }))
+                    .forEach((mesh) => {
+                        this.contentContainer.appendChild(this.createMeshControlRow(mesh, 1, "Volumes"));
+                    });
+            }
         }
     }
 
@@ -753,6 +886,10 @@ export class ObjectListPanel {
                 return orderA - orderB;
             });
 
+        // 서랍형 그룹(Volumes/Right Group/Left Group/Superior Rectal) 펼침 상태 관리용
+        const isMobileView = Boolean(this.liverViewer?.toolbar?.isMobile);
+        const groupSectionIds = ['group:Volumes', 'group:Right Group', 'group:Left Group', 'group:Superior Rectal'];
+
         // 계층 구조에 따라 렌더링
         const renderHierarchy = (info, level = 0) => {
             // Volumes 그룹인 경우 특별 처리
@@ -765,6 +902,8 @@ export class ObjectListPanel {
                 const avgOpacity = volumeMeshes.reduce((sum, m) => {
                     return sum + (m.material ? m.material.opacity : 1.0);
                 }, 0) / volumeMeshes.length;
+                const sectionId = 'group:Volumes';
+                const expanded = this.isSectionExpanded(sectionId, !isMobileView);
                 const groupRow = this.createControlRow({
                     name: "Volumes",
                     id: "Volumes",
@@ -776,8 +915,20 @@ export class ObjectListPanel {
                     parent: null,
                     isVolumeGroup: true,
                     volumeMeshes: volumeMeshes,
+                    expandable: true,
+                    expanded,
+                    sectionId,
+                    onToggleExpand: () => this.toggleSectionAndReveal(sectionId, groupSectionIds),
                 });
                 this.contentContainer.appendChild(groupRow);
+                if (expanded) {
+                    volumeMeshes
+                        .slice()
+                        .sort((a, b) => a.name.localeCompare(b.name, 'en', { numeric: true, sensitivity: 'base' }))
+                        .forEach((mesh) => {
+                            this.contentContainer.appendChild(this.createMeshControlRow(mesh, level + 1, "Volumes"));
+                        });
+                }
                 return;
             }
             // _R/_L 그룹인 경우 특별 처리
@@ -803,7 +954,9 @@ export class ObjectListPanel {
                     groupName = "Superior Rectal";
                     groupColor = "#c766ffff";
                 }
-                
+
+                const sectionId = `group:${groupName}`;
+                const expanded = this.isSectionExpanded(sectionId, !isMobileView);
                 const groupRow = this.createControlRow({
                     name: groupName,
                     id: groupName,
@@ -815,8 +968,20 @@ export class ObjectListPanel {
                     parent: null,
                     isCustomGroup: true,
                     groupMeshes: groupMeshes,
+                    expandable: true,
+                    expanded,
+                    sectionId,
+                    onToggleExpand: () => this.toggleSectionAndReveal(sectionId, groupSectionIds),
                 });
                 this.contentContainer.appendChild(groupRow);
+                if (expanded) {
+                    groupMeshes
+                        .slice()
+                        .sort((a, b) => a.name.localeCompare(b.name, 'en', { numeric: true, sensitivity: 'base' }))
+                        .forEach((mesh) => {
+                            this.contentContainer.appendChild(this.createMeshControlRow(mesh, level + 1, groupName));
+                        });
+                }
                 return;
             }
             // 일반 메시 처리
@@ -1079,6 +1244,32 @@ export class ObjectListPanel {
         return container;
     }
 
+    // 서랍형 그룹(Volumes/Right Group/Left Group/Superior Rectal)을 펼쳤을 때,
+    // 그룹에 속한 개별 mesh에 대해 단일 control row를 생성 (일반 메시 row와 동일한 UI/동작)
+    createMeshControlRow(mesh, level = 0, parentName = null) {
+        let color = "#FFFFFF";
+        const firstMaterial = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
+        if (firstMaterial && firstMaterial.color) {
+            color = "#" + firstMaterial.color.getHexString();
+        }
+        let opacity = 1.0;
+        if (Array.isArray(mesh.material)) {
+            opacity = mesh.material[0]?.opacity ?? 1.0;
+        } else if (mesh.material) {
+            opacity = mesh.material.opacity;
+        }
+        return this.createControlRow({
+            name: mesh.name,
+            id: mesh.name,
+            color,
+            visible: mesh.visible,
+            opacity,
+            material: mesh.material,
+            level,
+            parent: parentName,
+        });
+    }
+
     createControlRow({
         name,
         id,
@@ -1090,6 +1281,10 @@ export class ObjectListPanel {
         parent = null,
         isVolumeGroup = false,
         volumeMeshes = null,
+        expandable = false,
+        expanded = false,
+        onToggleExpand = null,
+        sectionId = null,
     }) {
         const row = document.createElement("div");
         row.classList.add("control-row");
@@ -1221,6 +1416,23 @@ export class ObjectListPanel {
             minWidth: "28px", // 추가: 최소 너비 설정
             flexShrink: "0", // 추가: 크기 고정
         };
+
+        // 서랍형 그룹(Volumes/Right Group/Left Group 등) 접기·펼치기 버튼
+        // (expandable=true인 그룹 row에만 추가됨; 눌러서 그룹 내 개별 mesh row를 펼쳐 볼 수 있음)
+        if (expandable) {
+            const expandButton = document.createElement("button");
+            expandButton.classList.add("group-expand-button");
+            expandButton.type = 'button';
+            Object.assign(expandButton.style, buttonStyle);
+            expandButton.setAttribute('aria-label', `${expanded ? 'Collapse' : 'Expand'} ${name}`);
+            expandButton.setAttribute('aria-expanded', String(expanded));
+            expandButton.innerHTML = this.getExpandIcon(expanded);
+            expandButton.addEventListener("click", (e) => {
+                e.stopPropagation();
+                onToggleExpand?.();
+            });
+            buttonContainer.appendChild(expandButton);
+        }
 
         // Toggle visibility 버튼
         const toggleButton = document.createElement("button");
@@ -1445,6 +1657,22 @@ export class ObjectListPanel {
 
         // 각 row에 mesh id 데이터 속성 추가
         row.setAttribute("data-mesh-id", name);
+        if (sectionId) row.dataset.sectionId = sectionId;
+
+        // 서랍형 그룹 row는 배경 클릭으로도 펼침/접기 가능 (버튼 클릭은 각 버튼에서 stopPropagation 처리됨)
+        if (expandable) {
+            row.style.cursor = "pointer";
+            row.setAttribute('role', 'button');
+            row.tabIndex = 0;
+            row.setAttribute('aria-expanded', String(expanded));
+            row.addEventListener('click', () => onToggleExpand?.());
+            row.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    onToggleExpand?.();
+                }
+            });
+        }
 
         return row;
     }
@@ -2766,13 +2994,20 @@ export class ObjectListPanel {
         let startY = 0;
         let startScrollTop = 0;
 
+        // 버튼/입력 요소 및 서랍형 섹션 헤더(role="button")는 드래그 스크롤 대상에서 제외
+        // (제외하지 않으면 모바일에서 touchstart의 preventDefault가 탭의 click 합성 자체를 막아
+        //  서랍 펼침/접기 토글이 동작하지 않게 됨)
+        const isDragScrollExcludedTarget = (target) =>
+            target.tagName === "BUTTON" ||
+            target.tagName === "INPUT" ||
+            !!target.closest("button") ||
+            !!target.closest("input") ||
+            !!target.closest('[role="button"]');
+
         // 마우스 다운 이벤트
         this.contentContainer.addEventListener("mousedown", (e) => {
             // 버튼이나 링크 등 인터랙티브 요소는 제외
-            if (e.target.tagName === "BUTTON" || 
-                e.target.tagName === "INPUT" || 
-                e.target.closest("button") ||
-                e.target.closest("input")) {
+            if (isDragScrollExcludedTarget(e.target)) {
                 return;
             }
 
@@ -2824,10 +3059,7 @@ export class ObjectListPanel {
         let isTouchDragging = false;
 
         const handleTouchStart = (e) => {
-            if (e.target.tagName === "BUTTON" || 
-                e.target.tagName === "INPUT" || 
-                e.target.closest("button") ||
-                e.target.closest("input")) {
+            if (isDragScrollExcludedTarget(e.target)) {
                 return;
             }
 

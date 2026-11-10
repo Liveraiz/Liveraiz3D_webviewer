@@ -48,7 +48,7 @@ export default class Toolbar {
                 isMobile: this.isMobile,
                 nonDesaturatedMeshNames: this.lungRoiNonDesaturatedMeshNames,
                 targetRegionMeshNames: this.lungRoiTargetRegionMeshNames,
-                onStateChange: active => this.syncPlanningMode(active),
+                onStateChange: (active, options) => this.syncPlanningMode(active, options),
             }
         );
 
@@ -1487,7 +1487,7 @@ export default class Toolbar {
             Array.from(this.meshes?.values() || []));
     }
 
-    syncPlanningMode(active) {
+    syncPlanningMode(active, options = {}) {
         const button = this.lungVesselROIButton;
         if (button) {
             button.classList.toggle('active', active);
@@ -1496,7 +1496,7 @@ export default class Toolbar {
             if (active) this.activeMeasurementButton = button;
             else if (this.activeMeasurementButton === button) this.activeMeasurementButton = null;
         }
-        this.liverViewer?.objectListPanel?.setPlanningMode(active);
+        this.liverViewer?.objectListPanel?.setPlanningMode(active, options);
         // The open mobile mesh panel must not cover its Planning exit button.
         if (this.toolbar) this.toolbar.style.zIndex = active && this.isMobile ? '960' : '900';
         this.liverViewer?.requestRender?.();

@@ -218,8 +218,12 @@ export default class LungVesselROI {
 
     /**
      * 폐혈관 ROI 모드 활성화 (See Through와 동일한 방식)
+     * @param {Object} [options]
+     * @param {boolean} [options.autoActivated] - 모델 로드 시 자동 활성화된 경우 true.
+     *   이 경우 하위 onStateChange 콜백에서 Mesh 목록(좌측) 패널을 자동으로 열지 않도록 전달됨
+     *   (모바일에서 우측 패널과 좌측 패널이 연달아 열리는 것을 방지)
      */
-    enableLungVesselROI() {
+    enableLungVesselROI(options = {}) {
         if (this.isActive) return;
         this.activationCount += 1;
         const activationLabel = `activation-${this.activationCount}`;
@@ -413,7 +417,7 @@ export default class LungVesselROI {
         // });
 
         this.isActive = true;
-        this.onStateChange(true);
+        this.onStateChange(true, options);
 
         this.logMaterialSettings(`${activationLabel} after-enable`);
 
