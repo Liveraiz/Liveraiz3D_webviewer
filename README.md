@@ -63,6 +63,8 @@ npm run dist:win   # Windows NSIS 설치 파일과 portable 파일
 
 ## 모델 데이터
 
+3D 작업자용 문서: [전체 메쉬 네이밍 규칙](MODEL_NAMING_CONVENTIONS.md), [폐 Planning / GGO 제작 가이드](docs/LUNG_PLANNING_ASSET_GUIDE.md). 폐 가이드에는 구조물별 정렬, `seg`/`remnant` 분류, GGO 분리·명명 방법과 셰이더 원리가 포함되어 있습니다.
+
 Dropbox 폴더에서 모델 목록을 로드하려면 `model.json`에 모델 파일과 썸네일의 공유 링크를 정의합니다.
 
 ```json

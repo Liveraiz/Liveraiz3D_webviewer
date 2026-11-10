@@ -13,7 +13,8 @@ import {
     CANCER_GROUP_KEYWORDS,
     isOpacityControllableMeshName,
     Constants,
-} from "../utils/Constants";
+} from "../utils/Constants.js";
+import { compareLungMeshes, getLungCategory, isGgoMeshName, isLungModel, LUNG_CATEGORY_ORDER } from '../utils/lungStructures.js';
 
 export class ObjectListPanel {
     constructor({ liverViewer, panelManager, isDarkMode }) {
@@ -115,6 +116,12 @@ export class ObjectListPanel {
         this._ensureMaterialRenderBase(material);
 
         material.opacity = opacity;
+        if (material.userData.isGgoMaterial) {
+            material.transparent = true;
+            material.depthWrite = false;
+            material.needsUpdate = true;
+            return;
+        }
 
         if (opacity < 1) {
             material.transparent = true;
@@ -215,6 +222,9 @@ export class ObjectListPanel {
 
     // 이름을 기반으로 탭 필터용 카테고리 결정 (Lobes/Arteries/Veins/Bronchus/Cancer)
     getMeshCategory(name) {
+        if (this.isLungList) {
+            return getLungCategory(this.objects.get(name) || { name });
+        }
         const lowerName = name.toLowerCase();
         // nodule/nodule margin 계열은 Cancer 카테고리로 우선 분류
         if (CANCER_GROUP_KEYWORDS.some((keyword) => lowerName.includes(keyword.toLowerCase()))) {
@@ -263,6 +273,7 @@ export class ObjectListPanel {
         cancer: "Cancer",
         right: "Right",
         left: "Left",
+        other: "Other",
     };
 
     // 탭 정렬 순서 (All 다음 Right/Left가 가장 먼저 오도록 고정)
@@ -287,6 +298,8 @@ export class ObjectListPanel {
             const button = document.createElement("button");
             button.classList.add("category-tab-button");
             button.dataset.tabActive = isActive ? "1" : "0";
+            button.type = 'button';
+            button.setAttribute('aria-pressed', String(isActive));
             button.textContent = key === "all" ? "All" : categoryMeta[key];
             Object.assign(button.style, {
                 padding: "5px 12px",
@@ -305,7 +318,9 @@ export class ObjectListPanel {
             button.addEventListener("click", () => {
                 this.activeCategoryTab = key;
                 this.updateObjectList(this._lastMeshListForTabs || []);
+                this.contentContainer.querySelector(`[data-category-filter="${key}"]`)?.focus();
             });
+            button.dataset.categoryFilter = key;
             tabBar.appendChild(button);
         });
 
@@ -326,6 +341,7 @@ export class ObjectListPanel {
 
     // 메쉬 자신 또는 조상(부모) 중 하나라도 카테고리에 매칭되면 true
     meshBelongsToCategory(mesh, name, category) {
+        if (this.isLungList) return getLungCategory(mesh) === category;
         if (this.getMeshCategory(name) === category) return true;
 
         const scene = this.liverViewer?.scene;
@@ -366,6 +382,7 @@ export class ObjectListPanel {
 
         // 각 row의 visibility/opacity 아이콘을 정확히 반영하기 위해 리스트를 다시 그림
         this.updateObjectList(this._lastMeshListForTabs || []);
+        this.contentContainer.querySelector(`[data-category="${category}"] button`)?.focus();
     }
 
     // 활성 탭 전용 "전체 보이기/숨기기" 행 생성
@@ -400,6 +417,9 @@ export class ObjectListPanel {
 
         const toggleButton = document.createElement("button");
         toggleButton.classList.add("category-toggle-visibility-btn");
+        toggleButton.type = 'button';
+        toggleButton.setAttribute('aria-label', `${allVisible ? 'Hide' : 'Show'} all ${label}`);
+        toggleButton.setAttribute('aria-pressed', String(allVisible));
         toggleButton.innerHTML = this.getVisibilityIcon(allVisible);
         Object.assign(toggleButton.style, {
             background: "none",
@@ -419,6 +439,67 @@ export class ObjectListPanel {
         return row;
     }
 
+    setPlanningMode(active) {
+        this.isPlanningMode = Boolean(active);
+        this.contentContainer.style.paddingBottom = active && this.liverViewer?.toolbar?.isMobile ? '100px' : '20px';
+        this.activeCategoryTab = 'all';
+        this.updateObjectList(this._lastMeshListForTabs || []);
+        if (active && !this.isOpen) this.togglePanel?.();
+    }
+
+    renderLungList(meshes) {
+        const eligible = meshes.filter(mesh => mesh.isMesh && mesh.material && mesh.name
+            && !/^(XY|YZ|XZ|START|END|EMPTY|Camera|Light|Cube)$/i.test(mesh.name));
+        const volumes = eligible.filter(mesh => /vol/i.test(mesh.name));
+        const sorted = eligible.filter(mesh => !/vol/i.test(mesh.name)).sort(compareLungMeshes);
+        eligible.forEach(mesh => this.objects.set(mesh.name, mesh));
+        this.addToggleAllButton();
+        const categories = [...LUNG_CATEGORY_ORDER, 'other'].filter(category =>
+            sorted.some(mesh => getLungCategory(mesh) === category));
+        if (this.activeCategoryTab !== 'all' && !categories.includes(this.activeCategoryTab)) this.activeCategoryTab = 'all';
+        if (this.isPlanningMode) {
+            const title = document.createElement('p');
+            title.className = 'lung-planning-title';
+            title.textContent = 'Planning · ROI vessel';
+            Object.assign(title.style, { fontSize: '13px', fontWeight: '600', margin: '0 0 12px', color: this.isDarkMode ? '#ffffff' : '#222222' });
+            this.contentContainer.appendChild(title);
+        }
+        if (categories.length) this.contentContainer.appendChild(this.createCategoryTabBar(categories));
+        const selected = this.activeCategoryTab === 'all' ? categories : [this.activeCategoryTab];
+        selected.forEach(category => {
+            const members = sorted.filter(mesh => getLungCategory(mesh) === category);
+            if (this.isPlanningMode || this.activeCategoryTab !== 'all') {
+                const heading = this.createCategoryToggleRow(category);
+                heading.querySelector('.category-toggle-label').textContent = `${ObjectListPanel.CATEGORY_LABELS[category]} · ${members.length}`;
+                this.contentContainer.appendChild(heading);
+            }
+            members.forEach(mesh => {
+                const material = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
+                const row = this.createControlRow({
+                    name: mesh.name, id: mesh.name,
+                    color: `#${material.color?.getHexString() || 'ffffff'}`,
+                    visible: mesh.visible, opacity: material.opacity,
+                    material: mesh.material, level: 0, parent: null,
+                });
+                row.dataset.lungCategory = category;
+                row.querySelectorAll('button').forEach(button => {
+                    const action = button.querySelector('.opacity-control-icon') ? 'Change opacity' : 'Toggle visibility';
+                    button.setAttribute('aria-label', `${action}: ${mesh.name}`);
+                });
+                if (isGgoMeshName(mesh.name)) row.title = `${mesh.name} · GGO`;
+                this.contentContainer.appendChild(row);
+            });
+        });
+        if (volumes.length && this.activeCategoryTab === 'all') {
+            this.contentContainer.appendChild(this.createControlRow({
+                name: 'Volumes', id: 'Volumes', color: '#888888',
+                visible: volumes.some(mesh => mesh.visible),
+                opacity: volumes.reduce((sum, mesh) => sum + (Array.isArray(mesh.material) ? mesh.material[0] : mesh.material).opacity, 0) / volumes.length,
+                material: null, isVolumeGroup: true, volumeMeshes: volumes,
+            }));
+        }
+    }
+
     updateObjectList(meshes) {
         console.log("Updating object list");
         this.clearObjectList();
@@ -427,6 +508,13 @@ export class ObjectListPanel {
         this._lastMeshListForTabs = meshes;
         if (this.activeCategoryTab === undefined) {
             this.activeCategoryTab = "all";
+        }
+        this.isLungList = isLungModel(this.liverViewer?.toolbar?.currentLoadedModel || '', meshes);
+        this.panel.classList.toggle('lung-list', this.isLungList);
+        this.contentContainer.style.scrollbarWidth = this.isLungList ? 'thin' : 'none';
+        if (this.isLungList) {
+            this.renderLungList(meshes);
+            return;
         }
 
         // 필터링할 키워드 목록
@@ -860,6 +948,18 @@ export class ObjectListPanel {
         styleSheet.textContent = `
             .object-list-panel div::-webkit-scrollbar {
                 display: none;
+            }
+            .object-list-panel.lung-list div::-webkit-scrollbar {
+                display: block;
+                width: 6px;
+            }
+            .object-list-panel.lung-list div::-webkit-scrollbar-thumb {
+                background: #888;
+                border-radius: 3px;
+            }
+            .object-list-panel.lung-list button:focus-visible {
+                outline: 2px solid ${Constants.COLORS.PRIMARY_ACCENT};
+                outline-offset: 2px;
             }
         `;
         document.head.appendChild(styleSheet);
@@ -1567,6 +1667,7 @@ export class ObjectListPanel {
         // 토글 버튼 생성
         const toggleButton = document.createElement("button");
         toggleButton.innerHTML = this.getVisibilityIcon(this.allObjectsVisible);
+        toggleButton.setAttribute('aria-label', 'Toggle all meshes');
         Object.assign(toggleButton.style, {
             background: "none",
             border: "none",
@@ -1842,6 +1943,15 @@ export class ObjectListPanel {
     }
 
     clearList() {
+        this.contentContainer.style.paddingBottom = '20px';
+        this._lastMeshListForTabs = [];
+        this.activeCategoryTab = 'all';
+        this.isPlanningMode = false;
+        this.isLungList = false;
+        this._meshOpacityMap.clear();
+        this._meshMaterialPrevStateMap.clear();
+        this._meshMaterialInitialStateMap.clear();
+        this.clearObjectList();
         console.log("Clearing object list");
         // 패널 의 모든 객체 목록을 제거
         const panel = document.getElementById("objectListPanel");
@@ -2042,8 +2152,9 @@ export class ObjectListPanel {
         });
 
         // 카테고리 전체 토글 행(라벨/배경/아이콘) 즉시 업데이트
-        const categoryToggleRow = this.panel.querySelector(".category-toggle-row");
-        if (categoryToggleRow) {
+        const planningTitle = this.panel.querySelector('.lung-planning-title');
+        if (planningTitle) planningTitle.style.color = isDarkMode ? '#ffffff' : '#222222';
+        this.panel.querySelectorAll(".category-toggle-row").forEach(categoryToggleRow => {
             categoryToggleRow.style.backgroundColor = isDarkMode
                 ? "rgba(255, 255, 255, 0.08)"
                 : "rgba(70, 70, 70, 0.08)";
@@ -2062,7 +2173,7 @@ export class ObjectListPanel {
                 const allVisible = meshes.length > 0 && meshes.every((mesh) => mesh.visible);
                 toggleVisibilityBtn.innerHTML = this.getVisibilityIcon(allVisible);
             }
-        }
+        });
 
         // 계층 구조 아이콘 색상 업데이트
         const hierarchyIcons = this.panel.querySelectorAll(

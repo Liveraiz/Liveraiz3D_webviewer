@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { LIVER_KEYWORDS, MESH_CONSTANTS, isBileDuctDepthThroughMeshName } from "../utils/Constants";
+import { LIVER_KEYWORDS, MESH_CONSTANTS, isBileDuctDepthThroughMeshName } from "../utils/Constants.js";
 
 export default class MaterialManager {
     /**
@@ -376,6 +376,7 @@ export default class MaterialManager {
             mesh.material.transparent = true;
         }
         mesh.material.depthTest = true;
+        this.preserveGgoRenderMode(mesh);
 
         // MeshTooltip에 opacity 변경 알림
         if (this.meshTooltip) {
@@ -419,7 +420,7 @@ export default class MaterialManager {
                 const isLungVesselROIMat = Array.isArray(mesh.material)
                     ? mesh.material.some((mat) => mat.userData?.isLungVesselROIMaterial)
                     : mesh.material.userData?.isLungVesselROIMaterial;
-                if (isSeeThroughMat || isLungVesselROIMat) return;
+                if (isSeeThroughMat || isLungVesselROIMat || this.preserveGgoRenderMode(mesh)) return;
 
                 // material의 opacity 확인
                 const opacity = Array.isArray(mesh.material) 
@@ -488,7 +489,7 @@ export default class MaterialManager {
             const isLungVesselROIMat = Array.isArray(mesh.material)
                 ? mesh.material.some((mat) => mat.userData?.isLungVesselROIMaterial)
                 : mesh.material.userData?.isLungVesselROIMaterial;
-            if (isSeeThroughMat || isLungVesselROIMat) return;
+            if (isSeeThroughMat || isLungVesselROIMat || this.preserveGgoRenderMode(mesh)) return;
 
             // material의 opacity 확인
             const opacity = Array.isArray(mesh.material) 
@@ -546,8 +547,21 @@ export default class MaterialManager {
      * ✅ opacity 값에 따라 depthWrite/transparent 동적 설정
      * @param {THREE.Mesh} mesh - 대상 메시
      */
+    preserveGgoRenderMode(mesh) {
+        const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+        const ggoMaterials = materials.filter(material => material?.userData?.isGgoMaterial);
+        ggoMaterials.forEach(material => {
+            material.transparent = true;
+            material.depthWrite = false;
+            material.depthTest = true;
+            material.alphaTest = 0;
+        });
+        return ggoMaterials.length > 0;
+    }
+
     applyTransparencyOptimization(mesh) {
         if (!mesh || !mesh.material) return;
+        if (this.preserveGgoRenderMode(mesh)) return;
         
         const applyToMaterial = (material) => {
             // opacity 값에 따라 동적 설정

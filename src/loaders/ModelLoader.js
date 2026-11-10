@@ -5,6 +5,8 @@ import { RGBELoader } from "three/examples/jsm/loaders/RGBELoader";
 import { EXCLUDE_KEYWORDS } from "../utils/Constants";
 import { LocalFileManager } from "../utils/LocalFileManager";
 import LungVesselROI from "../functions/LungVesselROI";
+import { applyGgoStyle } from '../materials/GgoMaterial.js';
+import { isLungVesselMeshName } from '../utils/lungStructures.js';
 
 export default class ModelLoader {
     constructor({
@@ -479,51 +481,9 @@ export default class ModelLoader {
                 console.log(`[ModelLoader] Model: ${modelName}, Type: ${isPCDModel ? 'PCD/DIEP' : 'General'}`);
             }
 
-            // ========== ROI 모델 판정 및 설정 ==========
-            // ✅ ROI 키워드 포함 시 자동 활성화
+            // ROI presets are applied only after the new model is in the scene.
             const isROIModel = modelName.includes('ROI');
-            console.log(`[ModelLoader] ROI Detection:`, {
-                modelName: modelName,
-                isROIModel: isROIModel,
-                hasToolbar: !!this.toolbar,
-                hasLungVesselROI: !!this.toolbar?.lungVesselROI
-            });
-            if (isROIModel && this.toolbar && this.toolbar.lungVesselROI) {
-                this.toolbar.lungVesselROI.enableLungVesselROI();
-                
-                // ✅ 현재 모델명을 Toolbar에 전달 (로컬 파일 로드 대응)
-                if (this.toolbar.setCurrentModel) {
-                    this.toolbar.setCurrentModel(modelName);
-                }
-                
-                // ✅ ROI 버튼 강제 표시 (display와 visibility 모두 설정)
-                if (this.toolbar.lungVesselROIButton) {
-                    this.toolbar.lungVesselROIButton.style.display = "flex";
-                    this.toolbar.lungVesselROIButton.style.visibility = "visible";
-                    this.toolbar.lungVesselROIButton.style.opacity = "1";
-                    this.toolbar.lungVesselROIButton.dataset.roiVisibility = "visible";
-                    console.log("[ModelLoader] ROI button display properties set");
-                }
-                
-                // 또는 업데이트 메서드도 호출 (백업)
-                if (this.toolbar.updateLungROIButtonVisibility) {
-                    this.toolbar.updateLungROIButtonVisibility();
-                }
-                
-                console.log(`[ModelLoader] ROI Model detected: ${modelName}, ROI enabled and button shown`);
-            } else {
-                // ROI 모델이 아닌 경우 - ROI 버튼 숨김 및 현재 모델명 업데이트
-                if (this.toolbar && this.toolbar.lungVesselROIButton) {
-                    this.toolbar.lungVesselROIButton.style.display = "none";
-                    this.toolbar.lungVesselROIButton.dataset.roiVisibility = "hidden";
-                    console.log("[ModelLoader] Non-ROI model loaded - ROI button hidden");
-                }
-                
-                if (this.toolbar && this.toolbar.setCurrentModel) {
-                    this.toolbar.setCurrentModel(modelName);
-                    console.log(`[ModelLoader] Current model updated to: ${modelName}`);
-                }
-            }
+            this.toolbar?.setCurrentModel?.(modelName);
 
             // 모델 로딩 완료 - 100%
             if (this.loadingBar) {
@@ -546,9 +506,7 @@ export default class ModelLoader {
                 model.traverse((child) => {
                     if (!child.isMesh || !child.material) return;
                     const objectName = child.name.toLowerCase();
-                    const isVesselOrBronchus = LungVesselROI.VESSEL_BRONCHUS_KEYWORDS.some((keyword) =>
-                        objectName.includes(keyword.toLowerCase())
-                    );
+                    const isVesselOrBronchus = isLungVesselMeshName(objectName);
                     if (!isVesselOrBronchus) return;
 
                     const materials = Array.isArray(child.material) ? child.material : [child.material];
@@ -604,6 +562,7 @@ export default class ModelLoader {
                         LungVesselROI.applyDefaultNoduleMarginStyle(child);
                     }
 
+                    const isGgo = applyGgoStyle(child);
                     if (child.material) {
                         // See-through 효과를 위해 FrontSide를 DoubleSide로 변경
                         child.material.side = THREE.DoubleSide;
@@ -611,7 +570,7 @@ export default class ModelLoader {
                         // 투명도가 있는 경우 (pelvis / nodule margin은 제외 - 이미 전용 opacity로 설정됨)
                         const isPelvis = child.name.toLowerCase().includes('pelvis');
                         const isNoduleMargin = child.name.toLowerCase().replace(/[\s_-]+/g, " ").includes('nodule margin');
-                        if (child.material.transparent && !isPelvis && !isNoduleMargin) {
+                        if (child.material.transparent && !isPelvis && !isNoduleMargin && !isGgo) {
                             // 초기 투명도 값을 0.60으로 설정 (소수점 2자리)
                             child.material.opacity = 0.60;
                             // 알파 테스트 값 설정 (소수점 2자리)

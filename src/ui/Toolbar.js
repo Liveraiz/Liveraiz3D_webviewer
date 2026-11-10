@@ -2,6 +2,7 @@
 import SeeThrough from "../functions/seeThrough";
 import LungVesselROI from "../functions/LungVesselROI";
 import * as THREE from "three";
+import { isLungModel } from '../utils/lungStructures.js';
 
 export default class Toolbar {
     constructor(options) {
@@ -47,6 +48,7 @@ export default class Toolbar {
                 isMobile: this.isMobile,
                 nonDesaturatedMeshNames: this.lungRoiNonDesaturatedMeshNames,
                 targetRegionMeshNames: this.lungRoiTargetRegionMeshNames,
+                onStateChange: active => this.syncPlanningMode(active),
             }
         );
 
@@ -1180,7 +1182,7 @@ export default class Toolbar {
         // LungVesselROI 버튼 (폐혈관 영역 강조 기능)
         this.lungVesselROIButton = this.createButton(
             this.getLungVesselROIIcon(),
-            "Lung Vessel ROI",
+            "Planning / ROI vessel",
             "lung-vessel-roi"
         );
 
@@ -1194,6 +1196,8 @@ export default class Toolbar {
         this.applyLungROIIconTheme(this.liverViewer?.isDarkMode);
         this.lungVesselROIButton.dataset.roiVisibility = "hidden";
         this.lungVesselROIButton.style.display = "none";
+        this.lungVesselROIButton.setAttribute('aria-label', 'Planning / ROI vessel');
+        this.lungVesselROIButton.setAttribute('aria-pressed', 'false');
 
         this.lungVesselROIButton.onclick = () => {
             // ✅ ModelSelector 또는 현재 로드된 모델명으로 확인 (로컬 파일 로드 대응)
@@ -1206,8 +1210,8 @@ export default class Toolbar {
                 finalModelName: currentModelName
             });
             
-            if (!currentModelName || !["ROI_LUNG", "R_ROI_LUNG", "L_ROI_LUNG"].includes(currentModelName.toUpperCase())) {
-                console.warn("[Toolbar] Lung Vessel ROI is available only for ROI Lung models.");
+            if (!this.isLungPlanningAvailable()) {
+                console.warn("[Toolbar] Planning is available for lung models.");
                 return;
             }
 
@@ -1478,15 +1482,32 @@ export default class Toolbar {
         return this.getLungROIIcon();
     }
 
+    isLungPlanningAvailable() {
+        return isLungModel(this.currentLoadedModel || this.modelSelector?.getCurrentModelName?.() || '',
+            Array.from(this.meshes?.values() || []));
+    }
+
+    syncPlanningMode(active) {
+        const button = this.lungVesselROIButton;
+        if (button) {
+            button.classList.toggle('active', active);
+            button.setAttribute('aria-pressed', String(active));
+            this.applyButtonStyle(button, active);
+            if (active) this.activeMeasurementButton = button;
+            else if (this.activeMeasurementButton === button) this.activeMeasurementButton = null;
+        }
+        this.liverViewer?.objectListPanel?.setPlanningMode(active);
+        // The open mobile mesh panel must not cover its Planning exit button.
+        if (this.toolbar) this.toolbar.style.zIndex = active && this.isMobile ? '960' : '900';
+        this.liverViewer?.requestRender?.();
+    }
+
     updateLungROIButtonVisibility() {
         if (!this.lungVesselROIButton) {
             return;
         }
 
-        // ✅ ModelSelector 또는 현재 로드된 모델명으로 확인 (로컬 파일 로드 대응)
-        const modelSelectorName = this.modelSelector?.getCurrentModelName?.() || "";
-        const currentModelName = this.currentLoadedModel || modelSelectorName;
-        const isROIModel = ["ROI_LUNG", "R_ROI_LUNG", "L_ROI_LUNG"].includes(currentModelName.toUpperCase());
+        const isROIModel = this.isLungPlanningAvailable();
 
         this.lungVesselROIButton.dataset.roiVisibility = isROIModel ? "visible" : "hidden";
         this.lungVesselROIButton.style.display = isROIModel ? "flex" : "none";

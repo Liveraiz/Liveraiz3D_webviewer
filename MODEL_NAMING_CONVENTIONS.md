@@ -3,6 +3,8 @@
 이 문서는 Blender/제작 단계에서 `.glb`/`.gltf` 모델을 만들 때 **메쉬 이름을 어떻게 짓느냐에 따라 뷰어에서 자동으로 적용되는 동작**을 정리한 것입니다.
 뷰어 코드는 메쉬 이름(문자열)을 검사해서 투명도 조절 가능 여부, 이동/회전 가능 여부, 2D 라벨 부착 여부, 자동 셰이더 적용, 리스트 정렬/숨김 등을 자동으로 결정합니다. 새 모델을 제작하거나 기존 모델을 수정할 때 아래 규칙을 참고하세요.
 
+폐 모델 작업자는 [폐 Planning 모델 제작 및 GGO 표현 가이드](docs/LUNG_PLANNING_ASSET_GUIDE.md)를 먼저 확인하세요. 납품 체크리스트, `seg`/`remnant` 분류, GGO 이름의 적용/미적용 예시, 원본 재질 처리, 셰이더 설정값을 정리했습니다.
+
 > 매칭은 기본적으로 **대소문자 구분 없이**, 이름에 키워드 문자열이 **포함(includes)** 되어 있으면 적용됩니다 (정확히 일치해야 하는 경우는 별도 표시).
 
 ---
@@ -30,7 +32,8 @@
 ### 1-3. 로드 시 자동 투명도 처리 (이름 기반, 패널과 무관하게 즉시 적용)
 
 - 이름에 `pelvis` 포함 → `opacity = 0.2` 자동 적용 (아래 3-2번 일반 투명 규칙에서 제외됨)
-- 그 외 `material.transparent === true`로 만들어진 메쉬는 로드 시 `opacity = 0.60`, `alphaTest = 0.30`이 자동으로 설정됨 (pelvis 제외)
+- GGO 메쉬 → 전용 재질의 기본 `opacity = 0.68`, `alphaTest = 0` 적용. 위치별 노이즈와 경계 계수가 추가로 곱해짐
+- 그 외 일반 단일 재질의 `material.transparent === true` 메쉬는 로드 시 `opacity = 0.60`, `alphaTest = 0.30`이 자동으로 설정됨 (`pelvis`, `nodule margin`, GGO 전용 스타일 제외)
 - 관련 코드: [src/loaders/ModelLoader.js](src/loaders/ModelLoader.js#L783-L823)
 
 ---
@@ -68,6 +71,9 @@
 | `fibroid`          | Fibrosis 셰이더 (`applyFibrosisShader`)                 | 자궁근종절제술(myomectomy) – 부인과(GYNECOLOGY) 모델의 근종(fibroid) 메쉬                 |
 | `muscle`           | Muscle 셰이더 – 붉은 근섬유 질감 (`applyMuscleShader`) | DIEP 피판 유방재건술(DIEP flap) 모델의 복직근(muscle) 메쉬 –`DIEP_KEYWORDS`와 동일 대상 |
 | `prostate`         | Prostate 셰이더 (`applyProstateShader`)                 | 대장/직장 절제술(colectomy) 모델에서 랜드마크로 표시되는 Prostate 메쉬                     |
+| `GGO`, `GGO_1`, `T_GGO_2`, `ground-glass opacity` | GGO cloud 셰이더 (`applyGgoStyle`) | 별도로 분할한 GGO 영역의 희끗한 반투명 질감 |
+
+GGO는 독립된 메쉬로 제작합니다. `GGO` 토큰(뒤 숫자 허용) 또는 `ground glass` 이름을 인식하며, `cancer`나 `infiltration`이라는 이름만으로는 GGO를 추정하지 않습니다. 메쉬 형상은 유지하고, 고정된 3D 노이즈·밝기 변화·부드러운 경계로 표현합니다. 기본 opacity는 0.68이며 목록에서 조절할 수 있습니다. ROI를 켜거나 꺼도 질감을 유지합니다. 이는 메쉬 표면의 시각화이며 CT 밀도나 실제 체적 산란을 재현하는 방식은 아닙니다.
 
 - 관련 코드: [src/loaders/ModelLoader.js](src/loaders/ModelLoader.js#L757-L780)
 
@@ -81,6 +87,10 @@
 - 관련 코드: [src/utils/Constants.js](src/utils/Constants.js#L440-L456)
 
 ### 5-2. 정렬 우선순위 (`getObjectSortOrder`)
+
+폐 모델에서 이름에 `seg` 또는 `remnant`가 포함된 메쉬는 대소문자·구분자 유무와 관계없이 Lobes로 분류합니다(예: `Seg8`, `RULseg1`, `LUL_segment_3`, `RULremnant`). 단, `Seg8_arteries`, `Remnant_veins`, `Seg8_bronchus`처럼 구조물 종류가 명시되면 해당 분류를 우선합니다.
+
+**폐 모델 우선 규칙:** 모델명에 `LUNG`이 있거나 폐엽 약어(`RUL/RML/RLL/LUL/LLL`), 기관지, GGO 메쉬가 있으면 `Lobes → Arteries → Veins → Bronchus → Cancer → Other → Volumes` 순으로 정렬합니다. `S8_arteries`처럼 복합 이름은 혈관 종류를 우선하며, 같은 종류 안에서는 `A2 → A10`처럼 숫자 순으로 정렬합니다. GGO는 병변 탐색을 위해 Cancer 목록에 함께 표시되며 진단을 의미하지 않습니다. 아래 기존 규칙은 그 외 모델에 적용됩니다.
 
 1. `Right Group`, `Left Group`, `Superior Rectal` (그대로 일치) → 최상단 고정
 2. Colectomy 케이스 전용 순서: `colon` → `Mesorectum` → `TME plane_L/R` → `Urinary_Bladder` → `Ureter` → `Prostate` → `Vas_Deferens` → `Common_Iliiac_Artery` → `Common_Illiac_Vein` → `Superior Rectal` → `Levator_ani` → `Obturator_Internus Muscle`
@@ -113,10 +123,14 @@
 
 ## 7. Lung Vessel ROI 모드
 
-- **모델(파일)명**에 `ROI`가 포함되어 있으면 로드 후 자동으로 폐혈관 ROI 모드가 활성화됩니다. (메쉬 이름이 아니라 모델/파일 이름 기준)
+- 기존 ROI vessel 버튼을 **Planning / ROI vessel** 진입 버튼으로 재사용합니다. 새 floating 버튼은 추가하지 않습니다.
+- 폐 모델에서는 ROI 전용 파일명 없이도 버튼을 사용할 수 있습니다. ON이면 기존 ROI 강조와 함께 메쉬 패널이 열리고 구조물별 제목·개수·일괄 표시/숨김이 나타납니다. OFF이면 기본 정렬 목록으로 돌아갑니다.
+- 모델을 교체하거나 다른 측정 모드를 선택하면 Planning 상태도 해제됩니다. ROI 이름을 가진 폐 모델의 자동 활성화는 씬 로딩 완료 후 한 번 실행됩니다.
+
+- 폐 모델로 인식되고 **모델(파일)명**에 `ROI`가 포함되어 있으면 로드 완료 후 자동으로 폐혈관 ROI 모드가 활성화됩니다. (메쉬 이름이 아니라 모델/파일 이름 기준)
 - 타겟 영역 기준 메쉬 이름: `target a`, `target_a`, `target-a` (공백/언더스코어/하이픈 차이 무시하고 비교) → 이 메쉬들의 바운딩박스를 기준으로 교차하는 폐혈관만 컬러 유지
-- 폐혈관으로 인식되는 이름 키워드: `pulmonary_artery`, `pulmonary_vein`, `bronchus`, `airway`, `airways`, `airways wall`, `vessel`, `artery`, `arteries`, `vein`, `veins`, `capillary`
-- 항상 컬러 유지(흑백 desaturate 예외) 키워드: `nodules`, `nodule`, `nodules margin`, `nodule margin`, 그리고 이름에 `line` 또는 `label`이 포함된 메쉬
+- 폐혈관/기관지로 인식되는 이름 예시: `pulmonary_artery`, `pulmonary_vein`, `bronchus`, `bronchi`, `airway`, `trachea`, `vessel`, `artery`, `arteries`, `vein`, `veins`, `capillary`, `A2`, `V2`, `B2`
+- 항상 컬러 또는 전용 스타일 유지(흑백 desaturate 예외): `nodule`, `cancer`, `tumor`, `label`, `arteries`가 포함된 메쉬, Target A 및 GGO 메쉬. `line`만 있는 메쉬는 목록의 Cancer 분류와 달리 ROI 컬러 유지 예외가 아닙니다.
 - 관련 코드: [src/functions/LungVesselROI.js](src/functions/LungVesselROI.js#L66-L120)
 
 ---

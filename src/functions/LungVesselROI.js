@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { isGgoMeshName, isLungVesselMeshName } from '../utils/lungStructures.js';
 
 /**
  * LungVesselROI - Region of Interest 시각화
@@ -30,6 +31,7 @@ export default class LungVesselROI {
             isMobile = false,
             nonDesaturatedMeshNames = [],
             targetRegionMeshNames = ["target a", "target_a", "target-a"],
+            onStateChange = () => {},
         } = {}
     ) {
         this.scene = scene;
@@ -37,6 +39,7 @@ export default class LungVesselROI {
         this.renderer = renderer;
         this.roiRadius = isMobile ? roiRadius * 1.5 : roiRadius;
         this.isMobile = isMobile;
+        this.onStateChange = onStateChange;
         this.nonDesaturatedMeshNames = nonDesaturatedMeshNames.map((name) =>
             name.toLowerCase()
         );
@@ -217,6 +220,7 @@ export default class LungVesselROI {
      * 폐혈관 ROI 모드 활성화 (See Through와 동일한 방식)
      */
     enableLungVesselROI() {
+        if (this.isActive) return;
         this.activationCount += 1;
         const activationLabel = `activation-${this.activationCount}`;
         this.logMaterialSettings(`${activationLabel} before-enable`);
@@ -225,15 +229,14 @@ export default class LungVesselROI {
         // sortObjects를 활성화해서 깊이 순서대로 렌더링
         this.renderer.sortObjects = true;
 
-        // ROI를 적용할 메시 이름들
-        const lungVesselNames = LungVesselROI.VESSEL_BRONCHUS_KEYWORDS;
-
         // Nodule 예외 메시 이름들 (항상 컬러 유지)
         const nodulesExceptionNames = [
             "nodules",
             "nodule",
             "nodules margin",
             "nodule margin",
+            "cancer",
+            "tumor",
         ];
 
         // desaturated 예외 메시 이름들 (항상 컬러 유지)
@@ -280,6 +283,7 @@ export default class LungVesselROI {
                 // arteries가 포함된 메시(예: S5_acc_arteries)는 Target A 교차 여부와 무관하게 항상 컬러 유지
                 const isArteriesMesh = objectName.includes("arteries");
                 const isNonDesaturatedException =
+                    isGgoMeshName(object.name) ||
                     isLabelMesh ||
                     isArteriesMesh ||
                     nonDesaturatedNames.some((name) =>
@@ -292,9 +296,7 @@ export default class LungVesselROI {
                     this.nodulesExceptionMeshes.push(object);
                 } else {
                     // 폐혈관 여부 확인
-                    const isMatchingMesh = lungVesselNames.some((name) =>
-                        objectName.includes(name.toLowerCase())
-                    );
+                    const isMatchingMesh = isLungVesselMeshName(objectName);
 
                     if (isMatchingMesh) {
                         // Lung vessel 메시가 target과 교차하는지 확인
@@ -328,6 +330,7 @@ export default class LungVesselROI {
                     // desaturated 예외 메시는 항상 컬러 유지
                     const isLabelMesh = objectName.includes("label");
                     const isNonDesaturatedException =
+                        isGgoMeshName(object.name) ||
                         isLabelMesh ||
                         nonDesaturatedNames.some((name) =>
                             objectName.includes(this.normalizeMeshName(name))
@@ -339,9 +342,7 @@ export default class LungVesselROI {
                             this.nodulesExceptionMeshes.push(object);
                         }
                     } else {
-                        const isMatchingMesh = lungVesselNames.some((name) =>
-                            objectName.includes(name.toLowerCase())
-                        );
+                        const isMatchingMesh = isLungVesselMeshName(objectName);
 
                         if (isMatchingMesh && !this.lungVesselMeshes.includes(object)) {
                             this.lungVesselMeshes.push(object);
@@ -365,7 +366,7 @@ export default class LungVesselROI {
 
         // 2. Nodule 메시들도 renderOrder 설정 (nodule margin은 혈관보다 먼저 그려지도록 낮게 배치)
         this.nodulesExceptionMeshes.forEach((mesh, index) => {
-            const isNoduleMargin = this.normalizeMeshName(mesh.name).includes("nodule margin");
+            const isNoduleMargin = !isGgoMeshName(mesh.name) && this.normalizeMeshName(mesh.name).includes("nodule margin");
             mesh.renderOrder = (isNoduleMargin ? 150 : 200) + index;
             this.applyROIExceptionMaterial(mesh, isNoduleMargin ? 0.15 : undefined);
             if (isNoduleMargin) {
@@ -412,6 +413,7 @@ export default class LungVesselROI {
         // });
 
         this.isActive = true;
+        this.onStateChange(true);
 
         this.logMaterialSettings(`${activationLabel} after-enable`);
 
@@ -424,6 +426,7 @@ export default class LungVesselROI {
      * 폐혈관 ROI 모드 비활성화
      */
     disableLungVesselROI() {
+        if (!this.isActive) return;
         const activationLabel = `activation-${this.activationCount}`;
         this.logMaterialSettings(`${activationLabel} before-disable`);
 
@@ -432,6 +435,24 @@ export default class LungVesselROI {
 
         // === nodule margin depth-aware 복제본 제거 ===
         this.clearMarginCrossingOverlays();
+
+        // Preserve edits made through the mesh list while disposing only temporary ROI materials.
+        this.originalMaterials.forEach((original, mesh) => {
+            if (mesh.material === original) return;
+            const originals = Array.isArray(original) ? original : [original];
+            const current = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+            current.forEach((material, index) => {
+                const base = originals[index];
+                if (!base || material === base) return;
+                // A forced ROI opacity is a display preset, not a user edit.
+                if (material.opacity !== material.userData.roiInitialOpacity) {
+                    base.opacity = material.opacity;
+                    base.transparent = base.userData.isGgoMaterial || base.opacity < 1 || base.transparent;
+                    base.needsUpdate = true;
+                }
+                material.dispose();
+            });
+        });
 
         // === 모든 메시의 원본 상태 복원 ===
         this.lungVesselMeshes.forEach((mesh) => {
@@ -478,6 +499,7 @@ export default class LungVesselROI {
         this.originalMeshSettings.clear();
 
         this.isActive = false;
+        this.onStateChange(false);
 
         this.logMaterialSettings(`${activationLabel} after-disable`);
         console.log(`LungVesselROI ${activationLabel} disabled - all meshes and renderer settings restored`);
@@ -490,31 +512,29 @@ export default class LungVesselROI {
         const originalMaterial = this.originalMaterials.get(mesh);
         if (!originalMaterial) return;
 
-        const newMaterial = originalMaterial.clone();
-        newMaterial.transparent = true;
-        
-        // Z-fighting 방지: 깊이 쓰기 비활성화 및 폴리곤 오프셋 적용
-        newMaterial.depthWrite = false;
-        newMaterial.polygonOffset = true;
-        newMaterial.polygonOffsetFactor = -1;
-        newMaterial.polygonOffsetUnits = -1;
-        // 매 프레임 실행되는 updateTransparentMeshRenderOrder의 강제 리셋에서 제외
-        newMaterial.userData.isLungVesselROIMaterial = true;
-
-        newMaterial.onBeforeCompile = (shader) => {
-            shader.fragmentShader = `
-                ${shader.fragmentShader.replace(
-                    "#include <dithering_fragment>",
-                    `
-                    float gray = dot(gl_FragColor.rgb, vec3(0.299, 0.587, 0.114));
+        const convert = original => {
+            const newMaterial = original.clone();
+            newMaterial.transparent = true;
+            newMaterial.depthWrite = false;
+            newMaterial.polygonOffset = true;
+            newMaterial.polygonOffsetFactor = -1;
+            newMaterial.polygonOffsetUnits = -1;
+            newMaterial.userData.isLungVesselROIMaterial = true;
+            newMaterial.userData.roiInitialOpacity = newMaterial.opacity;
+            const baseKey = original.customProgramCacheKey();
+            newMaterial.customProgramCacheKey = () => `${baseKey}:roi-desaturated`;
+            newMaterial.onBeforeCompile = (shader, renderer) => {
+                original.onBeforeCompile.call(newMaterial, shader, renderer);
+                shader.fragmentShader = shader.fragmentShader.replace(
+                    '#include <dithering_fragment>',
+                    `float gray = dot(gl_FragColor.rgb, vec3(0.299, 0.587, 0.114));
                     gl_FragColor.rgb = vec3(gray);
-                    #include <dithering_fragment>
-                    `
-                )}
-            `;
+                    #include <dithering_fragment>`
+                );
+            };
+            return newMaterial;
         };
-
-        mesh.material = newMaterial;
+        mesh.material = Array.isArray(originalMaterial) ? originalMaterial.map(convert) : convert(originalMaterial);
     }
 
     /**
@@ -570,6 +590,9 @@ export default class LungVesselROI {
 
         const applyToMaterial = (material) => {
             const roiMaterial = material.clone();
+            roiMaterial.userData.roiInitialOpacity = roiMaterial.opacity;
+            // GGO owns its cloud shader and keeps depth testing for correct vessel occlusion.
+            if (material.userData.isGgoMaterial) return roiMaterial;
             if (forcedOpacity !== undefined) {
                 roiMaterial.opacity = forcedOpacity;
             }
@@ -583,6 +606,7 @@ export default class LungVesselROI {
                 roiMaterial.userData.isLungVesselROIMaterial = true;
             }
             roiMaterial.needsUpdate = true;
+            roiMaterial.userData.roiInitialOpacity = roiMaterial.opacity;
             return roiMaterial;
         };
 

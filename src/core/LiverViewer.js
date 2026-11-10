@@ -874,15 +874,12 @@ export default class LiverViewer {
             // 이 시점에는 model이 scene에 추가되고 모든 초기화가 완료됨
             if (this.toolbar && this.toolbar.lungVesselROI && this.toolbar.currentLoadedModel) {
                 const modelName = this.toolbar.currentLoadedModel.toUpperCase();
-                if (modelName.includes('ROI')) {
+                this.toolbar.updateLungROIButtonVisibility();
+                if (modelName.includes('ROI') && this.toolbar.isLungPlanningAvailable()) {
                     console.log(`[LiverViewer] ROI Model detected: ${modelName}, activating ROI vessel feature...`);
-                    // 약간의 delay 추가 (모든 render 완료 후)
-                    setTimeout(() => {
-                        if (this.toolbar.lungVesselROI && !this.toolbar.lungVesselROI.isActive) {
-                            this.toolbar.lungVesselROI.enableLungVesselROI();
-                            console.log("[LiverViewer] ROI Vessel automatically activated after model load complete");
-                        }
-                    }, 100);
+                    // Scene setup is complete; no delayed callback can reactivate a different model.
+                    this.toolbar.resetMeasurementButtons();
+                    this.toolbar.lungVesselROI.enableLungVesselROI();
                 }
             }
 
