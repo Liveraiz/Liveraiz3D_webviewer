@@ -1107,8 +1107,10 @@ export class ObjectListPanel {
         this.contentContainer.appendChild(measurementTitle);
         this.contentContainer.appendChild(this.measurementContainer);
 
-        // 메시 이름 표시 토글 버튼 추가 (하단 고정)
-        this.createMeshTooltipToggle();
+        // 메시 이름 표시 토글 버튼 추가 (하단 고정, 모바일에서는 사용하지 않으므로 숨김)
+        if (!this.liverViewer?.isMobile) {
+            this.createMeshTooltipToggle();
+        }
         const styleSheet = document.createElement("style");
         styleSheet.textContent = `
             .object-list-panel div::-webkit-scrollbar {

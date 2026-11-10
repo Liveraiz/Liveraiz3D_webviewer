@@ -1497,8 +1497,6 @@ export default class Toolbar {
             else if (this.activeMeasurementButton === button) this.activeMeasurementButton = null;
         }
         this.liverViewer?.objectListPanel?.setPlanningMode(active, options);
-        // The open mobile mesh panel must not cover its Planning exit button.
-        if (this.toolbar) this.toolbar.style.zIndex = active && this.isMobile ? '960' : '900';
         this.liverViewer?.requestRender?.();
     }
 
