@@ -417,7 +417,7 @@ export const OPACITY_CONTROLLABLE_KEYWORDS = [
     "vessel", "capillary", "airways wall",
     "myometrium","uterus", "recipient_cavity", "pancreas", "Pancreas",
     "bladder", "tumor", "cancer", "glissonean_pedicle", "fibroid", "body",
-    "stomach wall", "ggo", "ground glass",
+    "stomach wall", "ggo",
     "Fibrotic tissue", "perirenal fat"
 ];
 

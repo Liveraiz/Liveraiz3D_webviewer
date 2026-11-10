@@ -38,8 +38,8 @@ test('lung detection accepts local filenames and anatomy without changing liver/
 });
 
 test('only explicitly named GGO regions receive cloud styling, including multi-material meshes', () => {
-    for (const name of ['GGO', 'ggo1', 'T_GGO_2', 'GGO.001', 'ground-glass opacity']) assert.equal(isGgoMeshName(name), true);
-    for (const name of ['cancer', 'infiltration', 'nodule', 'eggocyte']) assert.equal(isGgoMeshName(name), false);
+    for (const name of ['GGO', 'ggo1', 'T_GGO_2', 'GGO.001']) assert.equal(isGgoMeshName(name), true);
+    for (const name of ['cancer', 'infiltration', 'nodule', 'eggocyte', 'ground glass', 'ground-glass opacity', 'ground_glass']) assert.equal(isGgoMeshName(name), false);
     const shared = new THREE.MeshStandardMaterial({ color: 'red' });
     const solid = mesh('Cancer', shared);
     const ggo = mesh('GGO', [shared, shared]);

@@ -48,7 +48,6 @@
 | --- | --- | --- |
 | `GGO`, `GGO1`, `GGO_1`, `GGO.001` | 예 | 독립된 GGO 토큰, 뒤 숫자 및 구분자를 허용합니다. |
 | `T_GGO_2`, `RUL_GGO_1` | 예 | 앞뒤 단어가 구분되어 있습니다. |
-| `ground glass`, `ground-glass opacity` | 예 | ground glass 표기를 인식합니다. |
 | `RULGGO`, `GGOregion` | 아니요 | GGO가 다른 영문 단어에 붙어 있어 토큰으로 인식되지 않습니다. `RUL_GGO`, `GGO_region`으로 지정합니다. |
 | `Cancer`, `Nodule`, `infiltration` | 아니요 | 해당 이름만으로 GGO 영역을 추정하지 않습니다. |
 

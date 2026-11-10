@@ -71,9 +71,9 @@
 | `fibroid`          | Fibrosis 셰이더 (`applyFibrosisShader`)                 | 자궁근종절제술(myomectomy) – 부인과(GYNECOLOGY) 모델의 근종(fibroid) 메쉬                 |
 | `muscle`           | Muscle 셰이더 – 붉은 근섬유 질감 (`applyMuscleShader`) | DIEP 피판 유방재건술(DIEP flap) 모델의 복직근(muscle) 메쉬 –`DIEP_KEYWORDS`와 동일 대상 |
 | `prostate`         | Prostate 셰이더 (`applyProstateShader`)                 | 대장/직장 절제술(colectomy) 모델에서 랜드마크로 표시되는 Prostate 메쉬                     |
-| `GGO`, `GGO_1`, `T_GGO_2`, `ground-glass opacity` | GGO cloud 셰이더 (`applyGgoStyle`) | 별도로 분할한 GGO 영역의 희끗한 반투명 질감 |
+| `GGO`, `GGO_1`, `T_GGO_2` | GGO cloud 셰이더 (`applyGgoStyle`) | 별도로 분할한 GGO 영역의 희끗한 반투명 질감 |
 
-GGO는 독립된 메쉬로 제작합니다. `GGO` 토큰(뒤 숫자 허용) 또는 `ground glass` 이름을 인식하며, `cancer`나 `infiltration`이라는 이름만으로는 GGO를 추정하지 않습니다. 메쉬 형상은 유지하고, 고정된 3D 노이즈·밝기 변화·부드러운 경계로 표현합니다. 기본 opacity는 0.68이며 목록에서 조절할 수 있습니다. ROI를 켜거나 꺼도 질감을 유지합니다. 이는 메쉬 표면의 시각화이며 CT 밀도나 실제 체적 산란을 재현하는 방식은 아닙니다.
+GGO는 독립된 메쉬로 제작합니다. `GGO` 토큰(뒤 숫자 허용)을 인식하며, `cancer`나 `infiltration`이라는 이름만으로는 GGO를 추정하지 않습니다. 메쉬 형상은 유지하고, 고정된 3D 노이즈·밝기 변화·부드러운 경계로 표현합니다. 기본 opacity는 0.68이며 목록에서 조절할 수 있습니다. ROI를 켜거나 꺼도 질감을 유지합니다. 이는 메쉬 표면의 시각화이며 CT 밀도나 실제 체적 산란을 재현하는 방식은 아닙니다.
 
 - 관련 코드: [src/loaders/ModelLoader.js](src/loaders/ModelLoader.js#L757-L780)
 

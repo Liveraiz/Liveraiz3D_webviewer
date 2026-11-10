@@ -1,8 +1,7 @@
 export const LUNG_CATEGORY_ORDER = ['lobes', 'arteries', 'veins', 'bronchus', 'cancer'];
 
 export function isGgoMeshName(name = '') {
-    return /(?:^|[^a-z0-9])ggo\d*(?=$|[^a-z0-9])/i.test(name)
-        || /ground[\s_-]*glass(?:[\s_-]*opacity)?/i.test(name);
+    return /(?:^|[^a-z0-9])ggo\d*(?=$|[^a-z0-9])/i.test(name);
 }
 
 export function getLungMeshCategory(name = '') {
