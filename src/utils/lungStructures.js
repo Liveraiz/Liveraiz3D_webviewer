@@ -4,6 +4,22 @@ export function isGgoMeshName(name = '') {
     return /(?:^|[^a-z0-9])ggo\d*(?=$|[^a-z0-9])/i.test(name);
 }
 
+// "Nodule_margin_20", "nodule-margins-10"처럼 구분자가 달라도 동일하게 인식하도록 공백으로 정규화
+function normalizeMeshNameForMargin(name = '') {
+    return String(name).toLowerCase().replace(/[\s_-]+/g, ' ').trim();
+}
+
+// nodule margin 메시 여부 (예: "nodule_margin_20", "nodules margin 10")
+export function isNoduleMarginMeshName(name = '') {
+    return /\bnodules?\s+margins?\s*\d*\b/.test(normalizeMeshNameForMargin(name));
+}
+
+// 메시 이름에서 margin 수치를 추출 (예: "nodule_margin_20" → 20). 없으면 null
+export function getNoduleMarginValue(name = '') {
+    const match = normalizeMeshNameForMargin(name).match(/nodules?\s+margins?\s*(\d+)/);
+    return match ? Number(match[1]) : null;
+}
+
 export function getLungMeshCategory(name = '') {
     const text = String(name).toLowerCase().replace(/[_-]+/g, ' ');
     if (isGgoMeshName(name) || /cancer|tumou?r|nodule|margin|label|\bline\b/.test(text)) return 'cancer';

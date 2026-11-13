@@ -14,7 +14,7 @@ import {
     isOpacityControllableMeshName,
     Constants,
 } from "../utils/Constants.js";
-import { compareLungMeshes, getLungCategory, isGgoMeshName, isLungModel, LUNG_CATEGORY_ORDER } from '../utils/lungStructures.js';
+import { compareLungMeshes, getLungCategory, isGgoMeshName, isLungModel, isNoduleMarginMeshName, getNoduleMarginValue, LUNG_CATEGORY_ORDER } from '../utils/lungStructures.js';
 
 export class ObjectListPanel {
     constructor({ liverViewer, panelManager, isDarkMode }) {
@@ -155,6 +155,45 @@ export class ObjectListPanel {
             }
         }
         this.objects.clear(); // objects Map도 초기화
+    }
+
+    // nodule margin 메시가 여러 개 있을 때 기본으로 하나만(이름에 "20"이 붙은 메시 우선) 보이도록 설정.
+    // mesh.userData 플래그로 모델(메시 인스턴스)당 한 번만 적용되며, 이후 사용자가 수동으로 전환한 상태는 유지됨.
+    _applyNoduleMarginDefaults(meshes) {
+        const marginMeshes = (meshes || []).filter(
+            (mesh) => mesh && mesh.name && isNoduleMarginMeshName(mesh.name)
+        );
+        if (marginMeshes.length < 2) return;
+        if (marginMeshes.every((mesh) => mesh.userData?._noduleMarginExclusiveApplied)) return;
+
+        let selected = marginMeshes.find((mesh) => getNoduleMarginValue(mesh.name) === 20);
+        if (!selected) {
+            selected = marginMeshes.find((mesh) => mesh.visible) || marginMeshes[0];
+        }
+        marginMeshes.forEach((mesh) => {
+            mesh.visible = mesh === selected;
+            mesh.userData = mesh.userData || {};
+            mesh.userData._noduleMarginExclusiveApplied = true;
+        });
+    }
+
+    // nodule margin 메시 중 하나를 켰을 때 나머지 margin 메시들을 자동으로 꺼서 서로 배타적으로 동작하게 함
+    _applyNoduleMarginExclusivity(selectedName) {
+        const rowByMeshId = new Map();
+        this.contentContainer.querySelectorAll('[data-mesh-id]').forEach((row) => {
+            rowByMeshId.set(row.getAttribute('data-mesh-id'), row);
+        });
+        this.objects.forEach((mesh, meshId) => {
+            if (meshId === selectedName || !mesh || !mesh.visible) return;
+            if (!isNoduleMarginMeshName(meshId)) return;
+            const row = rowByMeshId.get(meshId);
+            if (row && typeof row.setVisibility === 'function') {
+                row.setVisibility(false);
+            } else {
+                mesh.visible = false;
+                if (this.onToggleObject) this.onToggleObject(meshId, false);
+            }
+        });
     }
 
     // 오브젝트 정렬 순서 정의
@@ -636,6 +675,9 @@ export class ObjectListPanel {
     updateObjectList(meshes) {
         console.log("Updating object list");
         this.clearObjectList();
+
+        // nodule margin 메시들의 기본 가시성(20이 붙은 메시만 on)을 모델 로드당 1회 적용
+        this._applyNoduleMarginDefaults(meshes);
 
         // 탭 필터용: 마지막으로 받은 mesh 목록 저장, 활성 탭은 최초 1회만 기본값 지정
         this._lastMeshListForTabs = meshes;
@@ -1377,6 +1419,11 @@ export class ObjectListPanel {
         let displayName = name.replace(/_/g, " ");
         displayName = displayName.replace(/Superior/gi, "Sup");
         displayName = ObjectListPanel.restoreMissingDecimalInMm(displayName);
+        // nodule margin 메시는 이름이 길어 패널에서 잘려 수치를 구분하기 어려우므로 "Margin 20"처럼 축약 표시
+        const noduleMarginValue = getNoduleMarginValue(name);
+        if (noduleMarginValue !== null) {
+            displayName = `Margin ${noduleMarginValue}`;
+        }
         label.textContent = displayName;
         // 툴팁 추가 - 전체 이름 표시
         // 툴팁도 동일하게 약어 처리
@@ -1440,6 +1487,47 @@ export class ObjectListPanel {
         const toggleButton = document.createElement("button");
         Object.assign(toggleButton.style, buttonStyle);
         toggleButton.innerHTML = this.getVisibilityIcon(visible);
+
+        // 단일 메시(비그룹) row의 visibility 상태를 일괄 반영하는 헬퍼.
+        // 사용자의 클릭뿐 아니라 nodule margin 배타 처리처럼 외부에서 강제로
+        // 상태를 바꿔야 할 때도 동일한 로직(아이콘/라벨/콜백 갱신)을 재사용하기 위해 분리함
+        const applySingleVisibility = (newVisible) => {
+            visible = newVisible;
+
+            // 버튼 아이콘 업데이트
+            toggleButton.innerHTML = this.getVisibilityIcon(visible);
+            toggleButton.style.opacity = visible ? "1" : "0.5";
+
+            // opacity 버튼 업데이트
+            const opacityButton = Array.from(buttonContainer.children).find(
+                (button) => button.querySelector(".opacity-control-icon")
+            );
+            if (opacityButton) {
+                if (!visible) {
+                    row.opacityState = 3;
+                    opacityButton.innerHTML = this.getOpacityIcon(this.isDarkMode).none;
+                } else {
+                    row.opacityState = 1;
+                    opacityButton.innerHTML = this.getOpacityIcon(this.isDarkMode).medium;
+                }
+            }
+
+            // label opacity 업데이트
+            const labelEl = row.querySelector("span");
+            if (labelEl) {
+                labelEl.style.opacity = visible ? "1" : "0.5";
+            }
+
+            // 콜백 호출 (실제 메시 visibility는 콜백에서 처리)
+            if (this.onToggleObject) {
+                this.onToggleObject(name, visible);
+            }
+
+            this.updateObjectVisibility(name, visible);
+        };
+        // 외부(예: nodule margin 배타 처리)에서 이 row의 visibility를 닫힌 클로저 상태까지
+        // 일관되게 갱신할 수 있도록 row에 노출
+        row.setVisibility = applySingleVisibility;
 
         toggleButton.addEventListener("click", (e) => {
             e.stopPropagation();
@@ -1509,38 +1597,13 @@ export class ObjectListPanel {
             }
             
             // 일반 메시 처리
-            visible = !visible;
+            const newVisibility = !visible;
+            applySingleVisibility(newVisibility);
 
-            // 버튼 아이콘 업데이트
-            toggleButton.innerHTML = this.getVisibilityIcon(visible);
-            toggleButton.style.opacity = visible ? "1" : "0.5";
-
-            // opacity 버튼 업데이트
-            const opacityButton = Array.from(buttonContainer.children).find(
-                (button) => button.querySelector(".opacity-control-icon")
-            );
-            if (opacityButton) {
-                if (!visible) {
-                    row.opacityState = 3;
-                    opacityButton.innerHTML = this.getOpacityIcon(this.isDarkMode).none;
-                } else {
-                    row.opacityState = 1;
-                    opacityButton.innerHTML = this.getOpacityIcon(this.isDarkMode).medium;
-                }
+            // nodule margin 메시는 서로 배타적으로 동작: 켤 때 다른 margin 메시들은 자동으로 끔
+            if (newVisibility && isNoduleMarginMeshName(name)) {
+                this._applyNoduleMarginExclusivity(name);
             }
-
-            // label opacity 업데이트
-            const labelEl = row.querySelector("span");
-            if (labelEl) {
-                labelEl.style.opacity = visible ? "1" : "0.5";
-            }
-
-            // 콜백 호출 (실제 메시 visibility는 콜백에서 처리)
-            if (this.onToggleObject) {
-                this.onToggleObject(name, visible);
-            }
-
-            this.updateObjectVisibility(name, visible);
         });
 
         // visibility 버튼에 클래스 추가

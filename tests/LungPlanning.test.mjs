@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import { compareLungMeshes, getLungCategory, getLungMeshCategory, isGgoMeshName, isLungModel } from '../src/utils/lungStructures.js';
+import { compareLungMeshes, getLungCategory, getLungMeshCategory, getNoduleMarginValue, isGgoMeshName, isLungModel, isNoduleMarginMeshName } from '../src/utils/lungStructures.js';
 import { applyGgoStyle, GgoMaterial } from '../src/materials/GgoMaterial.js';
 import LungVesselROI from '../src/functions/LungVesselROI.js';
 import MaterialManager from '../src/materials/MaterialManager.js';
@@ -35,6 +35,18 @@ test('lung detection accepts local filenames and anatomy without changing liver/
     assert.equal(isLungModel('case.glb', [{ name: 'RUL_preserved' }]), true);
     assert.equal(isLungModel('case.glb', [{ name: 'T_GGO_1' }]), true);
     for (const name of ['Liver', 'kidney', 'Right_lobe', 'S1', 'arteries']) assert.equal(isLungModel('', [{ name }]), false);
+});
+
+test('nodule margin meshes are recognized regardless of separator and their margin value is extracted', () => {
+    for (const name of ['nodule_margin_20', 'Nodule-Margin-25', 'nodule margins 30', 'NODULE_MARGINS_10']) {
+        assert.equal(isNoduleMarginMeshName(name), true, name);
+    }
+    for (const name of ['nodules', 'nodules.001', 'margin', 'nodule', 'cancer', 'GGO']) {
+        assert.equal(isNoduleMarginMeshName(name), false, name);
+    }
+    assert.equal(getNoduleMarginValue('nodule_margin_20'), 20);
+    assert.equal(getNoduleMarginValue('Nodule-Margins-25'), 25);
+    assert.equal(getNoduleMarginValue('nodules'), null);
 });
 
 test('only explicitly named GGO regions receive cloud styling, including multi-material meshes', () => {
