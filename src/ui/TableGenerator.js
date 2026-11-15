@@ -2,7 +2,7 @@
 
 import { COLOR, tableColor } from "../utils/color.js";
 import { Constants } from "../utils/Constants.js";
-import { createModelTable, normalizeCccSegmentName } from './ModelTable.js';
+import { createModelTable, isCccOrganLayout, normalizeCccSegmentName } from './ModelTable.js';
 
 const KNOWN_HCC_COLUMNS = [
     "Measure",
@@ -1798,12 +1798,21 @@ export class TableGenerator {
 
         // Whole Liver 행
         const wholeLiverBg = colors["Whole Liver"];
+        const isOrganLayout = isCccOrganLayout(Object.keys(volumeData));
+        const displayVolume = (value) => {
+            if (!isOrganLayout) return this.formatVolume(value);
+            return /(?:cm³|ml)$/i.test(value) ? value : `${value}cm³`;
+        };
         table += "<tr>";
         table += `<th colspan='2' style='background-color: ${wholeLiverBg};'>Whole Liver</th>`;
         table += "</tr>";
         table += "<tr>";
-        table += `<td colspan='2' class='value'>${this.formatVolume(volumeData["Whole Liver"])}</td>`;
+        table += `<td colspan='2' class='value'>${displayVolume(volumeData["Whole Liver"])}</td>`;
         table += "</tr>";
+
+        if (isOrganLayout) {
+            table += `<tr><td colspan='2' class='value'>${this.formatPercent(percentData["Whole Liver"])}</td></tr>`;
+        }
 
         // HCC 와 같은 section 색상
         const sectionColors = { RAS: "#FFC1CC", RPS: "#E6CCEF", LLS: "#FFE0A3", LMS: "#FFF9C4" };
@@ -1824,9 +1833,15 @@ export class TableGenerator {
             return row((name) => name
                     ? `<th style='background-color: ${colorOf(name)};'>${name}</th>`
                     : "<th style='background-color: #FFFFFF;'></th>")
-                + row((name) => `<td class='value'>${name ? this.formatVolume(volumeData[name]) : ""}</td>`)
+                + row((name) => `<td class='value'>${name ? displayVolume(volumeData[name]) : ""}</td>`)
                 + row((name) => `<td class='value'>${name ? this.formatPercent(percentData[name]) : ""}</td>`);
         };
+
+        if (isOrganLayout) {
+            table += pair("Cancer", null);
+            table += pair("cyst", "Spleen");
+            return table + "</tbody></table>";
+        }
 
         // "Lt.lobe-S1" 처럼 접미사가 붙은 컬럼도 Lt.lobe 로 인식
         const ltKey = Object.keys(volumeData).find((k) => k.startsWith("Lt.lobe")) || "Lt.lobe";

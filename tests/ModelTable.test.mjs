@@ -103,6 +103,46 @@ test('CCC cyst values are shown when the CSV spells cyst with different capitali
     }
 });
 
+test('CCC organ measurements show liver, cancer, cyst and spleen without vessel or bile duct rows', t => {
+    const tables = generator(t);
+    const horizontal = [
+        '\uFEFFMeasure,Whole Liver,PV,HV,Cancer,BD,Cyst,Spleen,HA',
+        'Volume (cm³),1269.1,31.3,75.8,1.3,24.6,2.2,70.3,30.9',
+        '% to WLV,100.00,2.47,5.98,0.11,1.94,0.17,5.54,2.44',
+    ].join('\r\n');
+    const rows = parseTableCsv(horizontal.replace(/^\uFEFF/, ''));
+    const vertical = ['Segment,Volume (cm³),Percentage (%)', ...rows[0].slice(1)
+        .map((name, index) => `${name},${rows[1][index + 1]},${rows[2][index + 1]}`)].join('\n');
+    const reduced = [
+        'Measure,Whole Liver,Cancer,Cyst,Spleen',
+        'Volume (cm³),1269.1,1.3,2.2,70.3',
+        '% to WLV,100,0.11,0.17,5.54',
+    ].join('\n');
+    const reducedVertical = 'Segment,Volume (cm³),Percentage (%)\nWhole Liver,1269.1,100\nCancer,1.3,0.11\nCyst,2.2,0.17\nSpleen,70.3,5.54';
+    for (const model of [{ case: 'CCC' }, { case: 'BILIARY_RESECTION' }, { fileName: 'AHR_CCC.csv' },
+        { case: 'LIVER_RESECTION', fileName: 'AHR_CCC.csv' }]) {
+        for (const csv of [horizontal, vertical, vertical.replace('PV,', 'pv,').replace('Cyst,', 'CYST,'), reduced, reducedVertical]) {
+            const { html, method } = createModelTable(tables, csv, model);
+            assert.equal(method, 'createCCCTable');
+            assert.match(html, /1269\.1cm³/);
+            assert.match(html, /100(?:\.00)?%/);
+            assert.match(html, />Cancer<\/th><th[^>]*><\/th><\/tr><tr><td class='value'>1\.3cm³<\/td><td class='value'><\/td><\/tr><tr><td class='value'>0\.11%<\/td>/);
+            assert.match(html, />cyst<\/th><th[^>]*>Spleen<\/th><\/tr><tr><td class='value'>2\.2cm³<\/td><td class='value'>70\.3cm³<\/td><\/tr><tr><td class='value'>0\.17%<\/td><td class='value'>5\.54%<\/td>/);
+            for (const name of ['PV', 'HV', 'BD', 'HA']) assert.doesNotMatch(html, new RegExp(`>${name}</th>`));
+            for (const value of ['31.3cm³', '75.8cm³', '24.6cm³', '30.9cm³', '2.47%', '5.98%', '1.94%', '2.44%']) {
+                assert.ok(!html.includes(value), value);
+            }
+            assert.doesNotMatch(html, />0cm³<\/td>|>0\.00%<\/td>|>Rt\.lobe<\/th>/);
+        }
+    }
+    for (const csv of [vertical.replace('\nSpleen,70.3,5.54', ''), `${vertical}\nOther,1,1`,
+        `${vertical}\npv,1,1`, vertical.replace('PV,31.3,2.47', 'PV,missing,2.47')]) {
+        assert.equal(createModelTable(tables, csv, { case: 'CCC' }).method, 'generic');
+    }
+    const precise = createModelTable(tables, vertical.replace('Cancer,1.3,0.11', 'Cancer,1.345,0.11'), { case: 'CCC' });
+    assert.match(precise.html, />1\.345cm³<\/td>/);
+});
+
 test('CCC layout shows Lt.lobe-S1 and Spigelian rows', t => {
     const tables = generator(t);
     const vertical = 'Segment,Volume (cm³),Percentage (%)\nWhole Liver,1022.6,100\nRt.lobe,811.0,79.31\nLt.lobe-S1,190.0,18.58\nSpigelian,21.5,2.11\nSpleen,147.2,14.39\ncyst,0.4,0.04\nCancer,8.8,0.86';
