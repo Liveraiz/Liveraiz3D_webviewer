@@ -266,8 +266,9 @@ JSON manifest의 `case` 값이 `CUSTOM`인 경우에도, 호환되는 `Segment/V
 #### CCC Surgery (`CCC`)
 
 - 예시 파일명: `CCC_patient04.glb`
-- 순서 고정: `Whole Liver`(2칸 병합) → `Spleen`/`cyst` 쌍 → `Rt.lobe`/`Lt.lobe` 쌍 → `Cancer`(있을 때만, 왼쪽 칸만 사용)
-- 관련 코드: [src/ui/TableGenerator.js](src/ui/TableGenerator.js#L1758-L1875) `_generateCCCTableHTML()`
+- 순서 고정: `Whole Liver`(2칸 병합, CSV에 없으면 행 자체가 생략됨) → `Spleen`/`cyst` 쌍 → `Rt.lobe`/`Lt.lobe` 쌍 → `Cancer`(있을 때만, 왼쪽 칸만 사용)
+- `Rt.lobe`/`Lt.lobe` 자리는 확장 절제·잔존간 별칭도 허용: 오른쪽 칸은 `Rt.lobe` / `ext_Rt.lobe` / `Remnant_Rt` 중 하나, 왼쪽 칸은 `Lt.lobe` / `Lt.lobe-S1` / `ext_Lt.lobe` / `Remnant`(접미사 없음, 레거시) / `Remnant_Lt` 중 하나를 허용하며 각각 반대쪽 칸의 색상을 그대로 사용
+- 관련 코드: [src/ui/TableGenerator.js](src/ui/TableGenerator.js#L1662-L1872) `_generateCCCTableHTML()`
 
 | 왼쪽 칸                          | 오른쪽 칸 |
 | -------------------------------- | --------- |

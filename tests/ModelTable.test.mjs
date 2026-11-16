@@ -213,6 +213,41 @@ test('CCC extended right lobe and remnant use the dedicated table without losing
     assert.match(zero.html, />0\.0cm³<\/td>/);
 });
 
+test('CCC cases without a Whole Liver column support ext_Lt.lobe/Remnant_Rt and ext_Rt.lobe/Remnant_Lt pairs', t => {
+    const tables = generator(t);
+    const extLt = [
+        'Measure,Cancer,Cyst,Spleen,ext_Lt.lobe,Remnant_Rt',
+        'Volume (cm³),1.3,2.2,70.3,408.1,861.0',
+        '% to WLV,0.11,0.17,5.54,32.16,67.84',
+    ].join('\n');
+    const extRt = [
+        'Measure,Cancer,Cyst,Spleen,ext_Rt.lobe,Remnant_Lt',
+        'Volume (cm³),1.3,2.2,70.3,921.2,348.0',
+        '% to WLV,0.11,0.17,5.54,72.58,27.42',
+    ].join('\n');
+    for (const caseType of ['CCC', 'BILIARY_RESECTION']) {
+        const { html: ltHtml, method: ltMethod } = createModelTable(tables, extLt, { case: caseType, name: 'Model' });
+        assert.equal(ltMethod, 'createCCCTable');
+        assert.doesNotMatch(ltHtml, />Whole Liver<\/th>/);
+        assert.match(ltHtml, /#FFFFD5;'>ext_Lt\.lobe<\/th>/);
+        assert.match(ltHtml, /#FFDFC1;'>Remnant_Rt<\/th>/);
+        for (const value of ['408.1cm³', '861.0cm³', '32.16%', '67.84%', '1.3cm³', '70.3cm³', '0.17%'])
+            assert.ok(ltHtml.includes(value), value);
+        assert.match(ltHtml, /#B8E6B8;'>cyst<\/th>/);
+
+        const { html: rtHtml, method: rtMethod } = createModelTable(tables, extRt, { case: caseType, name: 'Model' });
+        assert.equal(rtMethod, 'createCCCTable');
+        assert.doesNotMatch(rtHtml, />Whole Liver<\/th>/);
+        assert.match(rtHtml, /#FFDFC1;'>ext_Rt\.lobe<\/th>/);
+        assert.match(rtHtml, /#FFFFD5;'>Remnant_Lt<\/th>/);
+        for (const value of ['921.2cm³', '348.0cm³', '72.58%', '27.42%'])
+            assert.ok(rtHtml.includes(value), value);
+    }
+    // Mixing both remnant slots at once is not a valid lobe split and should fall back to a generic table.
+    assert.equal(createModelTable(tables, `${extLt}`.replace('Remnant_Rt', 'Remnant_Rt').concat('\n'), { case: 'CCC' }).method, 'createCCCTable');
+    assert.equal(createModelTable(tables, extLt.replace('ext_Lt.lobe', 'ext_Lt.lobe,ext_Rt.lobe').replace('408.1', '408.1,100').replace('32.16', '32.16,10'), { case: 'CCC' }).method, 'generic');
+});
+
 test('CCC case falls back to the original CSV instead of showing missing, duplicate or unknown segments as 0', t => {
     const tables = generator(t);
     for (const csv of [

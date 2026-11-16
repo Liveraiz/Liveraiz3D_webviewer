@@ -6,12 +6,12 @@ const PROJECT_LAYOUTS = {
     NEPHRECTOMY: { method: 'createKTTable', title: 'Neph' },
 };
 const HCC_SEGMENTS = ['Whole Liver', 'Rt.lobe', 'Lt.lobe', 'RAS', 'RPS', 'LLS', 'LMS', 'Spigelian', 'Cancer'];
-const CCC_SEGMENTS = ['Whole Liver', 'Spleen'];
-// Not every CCC case has a cyst; when present it fills the slot beside Spleen.
-const CCC_OPTIONAL_SEGMENTS = ['cyst'];
-// Each CCC lobe slot accepts one name, including extended resection/remnant labels.
-const CCC_RIGHT_LOBES = ['Rt.lobe', 'ext_Rt.lobe'];
-const CCC_LEFT_LOBES = ['Lt.lobe', 'Lt.lobe-S1', 'Remnant'];
+const CCC_SEGMENTS = ['Spleen'];
+// Not every CCC case has a cyst or an explicit Whole Liver column; when present they fill their own slot.
+const CCC_OPTIONAL_SEGMENTS = ['cyst', 'Whole Liver'];
+// Each CCC lobe slot accepts one name, including extended resection/remnant labels; remnant may name its own side.
+const CCC_RIGHT_LOBES = ['Rt.lobe', 'ext_Rt.lobe', 'Remnant_Rt'];
+const CCC_LEFT_LOBES = ['Lt.lobe', 'Lt.lobe-S1', 'ext_Lt.lobe', 'Remnant', 'Remnant_Lt'];
 // Section-split CCC cases list the HCC sections instead of (or alongside) the lobes.
 const CCC_SECTIONS = ['RAS', 'RPS', 'LLS', 'LMS'];
 const CCC_ALLOWED_SEGMENTS = [...CCC_SEGMENTS, ...CCC_OPTIONAL_SEGMENTS, ...CCC_RIGHT_LOBES, ...CCC_LEFT_LOBES, ...CCC_SECTIONS, 'Spigelian', 'Cancer'];

@@ -1671,7 +1671,8 @@ export class TableGenerator {
         var headers = parsedRows[0];
         const canonicalName = name => {
             const trimmed = name.trim();
-            return ["Whole Liver", "Rt.lobe", "ext_Rt.lobe", "Lt.lobe", "Lt.lobe-S1", "Remnant", "RAS", "RPS", "LLS", "LMS", "Spigelian", "Spleen", "cyst", "Cancer"]
+            return ["Whole Liver", "Rt.lobe", "ext_Rt.lobe", "Remnant_Rt", "Lt.lobe", "Lt.lobe-S1", "ext_Lt.lobe", "Remnant", "Remnant_Lt",
+                "RAS", "RPS", "LLS", "LMS", "Spigelian", "Spleen", "cyst", "Cancer"]
                 .find(segment => segment.toLowerCase() === trimmed.toLowerCase()) || trimmed;
         };
 
@@ -1768,10 +1769,14 @@ export class TableGenerator {
                 padding: 8px;
                 text-align: center;
                 width: 50%;
+                white-space: normal;
+                overflow-wrap: anywhere;
+                word-break: break-word;
             }
 
             .ccc-table th {
                 font-weight: bold;
+                line-height: 1.2;
             }
 
             .ccc-table thead th {
@@ -1800,21 +1805,23 @@ export class TableGenerator {
 
         table += "<tbody>";
 
-        // Whole Liver 행
-        const wholeLiverBg = colors["Whole Liver"];
-        table += "<tr>";
-        table += `<th colspan='2' style='background-color: ${wholeLiverBg};'>Whole Liver</th>`;
-        table += "</tr>";
-        table += "<tr>";
-        table += `<td colspan='2' class='value'>${this.formatVolume(volumeData["Whole Liver"])}</td>`;
-        table += "</tr>";
+        // Whole Liver 행 (CSV에 명시된 경우에만 표시; 없으면 좌우 lobe 합이 전체 간 volume을 의미)
+        if (volumeData["Whole Liver"] !== undefined) {
+            const wholeLiverBg = colors["Whole Liver"];
+            table += "<tr>";
+            table += `<th colspan='2' style='background-color: ${wholeLiverBg};'>Whole Liver</th>`;
+            table += "</tr>";
+            table += "<tr>";
+            table += `<td colspan='2' class='value'>${this.formatVolume(volumeData["Whole Liver"])}</td>`;
+            table += "</tr>";
+        }
 
         // HCC 와 같은 section 색상
         const sectionColors = { RAS: "#FFC1CC", RPS: "#E6CCEF", LLS: "#FFE0A3", LMS: "#FFF9C4" };
         const colorOf = (name) => {
-            // Handle special cases for ext_Rt.lobe and Remnant
-            if (name === "ext_Rt.lobe") return colors["Rt.lobe"];
-            if (name === "Remnant") return colors["Lt.lobe"];
+            // Handle special cases for extended resection and side-qualified remnant labels
+            if (name === "ext_Rt.lobe" || name === "Remnant_Rt") return colors["Rt.lobe"];
+            if (name === "ext_Lt.lobe" || name === "Remnant" || name === "Remnant_Lt") return colors["Lt.lobe"];
 
             // Then fall back to original logic
             return colors[name] || sectionColors[name]
@@ -1834,12 +1841,18 @@ export class TableGenerator {
 
         // "Lt.lobe-S1" 처럼 접미사가 붙은 컬럼도 Lt.lobe 로 인식
         const ltKey = Object.keys(volumeData).find((k) => k.startsWith("Lt.lobe")) || "Lt.lobe";
-        // Determine which lobe names to use for display
-        const rtLobeDisplayKey = volumeData["ext_Rt.lobe"] ? "ext_Rt.lobe" : "Rt.lobe";
+        // Determine which lobe names to use for display; extended resection beats the plain lobe, remnant may name its own side.
+        const rtLobeDisplayKey = volumeData["ext_Rt.lobe"] !== undefined ? "ext_Rt.lobe"
+            : volumeData["Remnant_Rt"] !== undefined ? "Remnant_Rt" : "Rt.lobe";
         const isSectionSplit = ["RAS", "RPS", "LLS", "LMS"].every((name) => volumeData[name] !== undefined);
-        const ltLobeDisplayKey = volumeData["Remnant"] !== undefined ? "Remnant" : ltKey;
+        const ltLobeDisplayKey = volumeData["ext_Lt.lobe"] !== undefined ? "ext_Lt.lobe"
+            : volumeData["Remnant"] !== undefined ? "Remnant"
+            : volumeData["Remnant_Lt"] !== undefined ? "Remnant_Lt" : ltKey;
 
-        if (volumeData["Rt.lobe"] || volumeData["ext_Rt.lobe"]) table += pair(rtLobeDisplayKey, ltLobeDisplayKey);
+        const hasRightLobe = ["Rt.lobe", "ext_Rt.lobe", "Remnant_Rt"].some((key) => volumeData[key] !== undefined);
+        const hasLeftLobe = volumeData[ltKey] !== undefined || volumeData["ext_Lt.lobe"] !== undefined
+            || volumeData["Remnant"] !== undefined || volumeData["Remnant_Lt"] !== undefined;
+        if (hasRightLobe || hasLeftLobe) table += pair(rtLobeDisplayKey, ltLobeDisplayKey);
         if (isSectionSplit) {
             // Section 분할: lobe 다음에 RAS/LLS → RPS/LMS 배치
             table += pair("RAS", "LLS");
