@@ -162,6 +162,7 @@ GGO는 독립된 메쉬로 제작합니다. `GGO` 토큰(뒤 숫자 허용)을 �
 
 즉 `T_BD`는 간 메시보다 먼저 그려지고 자신의 깊이를 남기지 않으므로, 뒤이어 그려지는 반투명 간 메시가 그 위에 알파 블렌딩되어 "간 속에 비치는 담관"처럼 보이면서도, 실제 깊이 관계(다른 불투명 구조에 가려지는 것)는 유지됩니다.
 
+- 같은 규칙이 이름 토큰에 `cancer`가 정확히 있는 메시(대소문자 무관, `T_` 접두사 불필요. 예: `Cancer`, `T_cancer`, `cancer_1`)에도 적용되어, HCC 케이스에서 간 내부의 cancer가 비쳐 보입니다.
 - 이름 판정 함수: [src/utils/Constants.js](src/utils/Constants.js#L459) `isBileDuctDepthThroughMeshName()`
 - 적용 로직: [src/materials/MaterialManager.js](src/materials/MaterialManager.js) `updateTransparentMeshRenderOrder()` 일반 모델 분기
 
