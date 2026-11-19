@@ -466,11 +466,12 @@ export const VESSEL_KEYWORDS = [
 // 투명 간 실질 내부에서도 비쳐 보여야 하는 메시 판별
 // - T_BD(담관): "T_" 접두사 + 토큰 중 "bd"가 정확히 존재 (예: "T_BD", "T_BD_1" / "T_abdomen" 제외)
 // - cancer: 토큰 중 "cancer"가 정확히 존재 (대소문자 무관, 예: "Cancer", "T_cancer", "cancer_1")
+// - fibrosis: 토큰 중 "fibrosis"가 정확히 존재 (대소문자 무관, 예: "Fibrosis", "T_fibrosis", "fibrosis_1")
 export const isBileDuctDepthThroughMeshName = (meshName) => {
     if (!meshName) return false;
     const name = String(meshName).toLowerCase();
     const tokens = name.split(/[^a-z0-9]+/).filter(Boolean);
-    if (tokens.includes("cancer")) return true;
+    if (tokens.includes("cancer") || tokens.includes("fibrosis")) return true;
     return name.startsWith("t_") && tokens.includes("bd");
 };
 // 오브젝트 리스트에서 우선 체크할 제외 키워드
