@@ -1,0 +1,76 @@
+name: SOUP 취약점 점검
+
+# PR 마다 막고, main 반영(릴리스)마다 결과를 기록하고, 새로 공개되는 취약점은 매주 확인한다(CRS 5장 No.12).
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  schedule:
+    - cron: "0 0 * * 1" # 매주 월요일 09:00 KST
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  npm-audit:
+    name: npm audit
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      # functions/ 는 잠금 파일이 없어 점검용으로만 만든다(저장소에는 넣지 않음).
+      - name: Resolve Netlify functions dependencies
+        working-directory: functions
+        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+
+      - name: Save audit report
+        if: always()
+        run: |
+          npm audit --json > npm-audit-all.json || true
+          npm audit --omit=dev --json > npm-audit-prod.json || true
+          (cd functions && npm audit --omit=dev --json > ../npm-audit-functions.json || true)
+          {
+            echo "### npm audit (${GITHUB_SHA::7})"
+            echo ""
+            echo "| 범위 | critical | high | moderate | low |"
+            echo "| --- | --- | --- | --- | --- |"
+            for scope in prod all functions; do
+              node -e '
+                const names = { prod: "웹 배포본·서버", all: "데스크톱 앱·빌드 도구 포함", functions: "Netlify functions" };
+                const m = require("./npm-audit-" + process.argv[1] + ".json").metadata.vulnerabilities;
+                console.log(`| ${names[process.argv[1]]} | ${m.critical} | ${m.high} | ${m.moderate} | ${m.low} |`);
+              ' "$scope"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload audit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-audit-${{ github.sha }}
+          path: npm-audit-*.json
+          retention-days: 90
+
+      # Electron 은 npm 에서 개발 의존성으로 분류되지만 데스크톱 앱에 그대로 들어가므로
+      # 개발 의존성까지 포함한 전체 트리에서 high 이상이 있으면 실패한다.
+      - name: Fail on high or critical (including the desktop app runtime)
+        run: npm audit --audit-level=high
+
+      - name: Fail on high or critical in Netlify functions
+        working-directory: functions
+        run: npm audit --omit=dev --audit-level=high
