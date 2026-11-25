@@ -1,11 +1,12 @@
 // loaders/ModelLoader.js
 import * as THREE from "three";
-import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
-import { RGBELoader } from "three/examples/jsm/loaders/RGBELoader";
-import { EXCLUDE_KEYWORDS } from "../utils/Constants";
-import { LocalFileManager } from "../utils/LocalFileManager";
-import LungVesselROI from "../functions/LungVesselROI";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { RGBELoader } from "three/examples/jsm/loaders/RGBELoader.js";
+import { EXCLUDE_KEYWORDS } from "../utils/Constants.js";
+import { LocalFileManager } from "../utils/LocalFileManager.js";
+import LungVesselROI from "../functions/LungVesselROI.js";
 import { applyGgoStyle } from '../materials/GgoMaterial.js';
+import { isHccMaterialMesh, prepareHccMaterials } from '../materials/HccMaterial.js';
 import { isLungVesselMeshName } from '../utils/lungStructures.js';
 
 export default class ModelLoader {
@@ -340,16 +341,6 @@ export default class ModelLoader {
                 modelPath,
                 (gltf) => {
                     console.log("Model loaded successfully");
-                    // Dropbox 모델의 경우 조명 강도 조정
-                    if (this.modelPath.includes("dropbox.com")) {
-                        gltf.scene.traverse((child) => {
-                            if (child.isMesh) {
-                                if (child.material) {
-                                    child.material.envMapIntensity = 0.5;
-                                }
-                            }
-                        });
-                    }
                     this.modelLoaded = true;
                     this._pendingGltf = gltf;
                     this._tryFinalizeLoad();
@@ -493,9 +484,12 @@ export default class ModelLoader {
 
             const model = gltf.scene;
 
-            // HDRI 조명 세기 조정: 모든 메쉬의 envMapIntensity를 1.0로 설정
+            // Separate HCC materials before legacy styling can mutate shared glTF materials.
+            prepareHccMaterials(gltf);
+
+            // HDRI 조명 세기 조정: 일반 메쉬의 envMapIntensity를 1.0로 설정
             model.traverse((child) => {
-                if (child.isMesh && child.material && 'envMapIntensity' in child.material) {
+                if (child.isMesh && child.material && !isHccMaterialMesh(child) && 'envMapIntensity' in child.material) {
                     child.material.envMapIntensity = 1.0;
                 }
             });
@@ -504,7 +498,7 @@ export default class ModelLoader {
             // ObjectListPanel이 초기 상태를 읽기 전에 opacity 1.0(완전 불투명)으로 강제
             if (isROIModel) {
                 model.traverse((child) => {
-                    if (!child.isMesh || !child.material) return;
+                    if (!child.isMesh || !child.material || isHccMaterialMesh(child)) return;
                     const objectName = child.name.toLowerCase();
                     const isVesselOrBronchus = isLungVesselMeshName(objectName);
                     if (!isVesselOrBronchus) return;
@@ -521,7 +515,7 @@ export default class ModelLoader {
             // 메시별 기본 셰이더/투명도 설정. ObjectListPanel이 초기 opacity를 읽기 전에
             // 반드시 완료되어야 하므로 objectListPanel.updateObjectList() 호출보다 앞서 실행
             model.traverse((child) => {
-                if (child.isMesh) {
+                if (child.isMesh && !isHccMaterialMesh(child)) {
                     // fibroid 메시에 셰이더 자동 적용
                     if (child.name.toLowerCase().includes('fibroid')) {
                         console.log(`[ModelLoader] Found fibroid mesh: ${child.name}, applying shader`);

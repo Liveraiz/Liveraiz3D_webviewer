@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { LIVER_KEYWORDS, MESH_CONSTANTS, isBileDuctDepthThroughMeshName } from "../utils/Constants.js";
+import { isHccMaterialMesh } from "./HccMaterial.js";
 
 export default class MaterialManager {
     /**
@@ -401,7 +402,7 @@ export default class MaterialManager {
         let allMeshes = [];
         
         if (meshes && Array.isArray(meshes)) {
-            allMeshes = meshes.filter(mesh => mesh.isMesh && mesh.material);
+            allMeshes = meshes.filter(mesh => mesh.isMesh && mesh.material && !isHccMaterialMesh(mesh));
         }
         
         if (allMeshes.length === 0) return;
@@ -560,7 +561,7 @@ export default class MaterialManager {
     }
 
     applyTransparencyOptimization(mesh) {
-        if (!mesh || !mesh.material) return;
+        if (!mesh || !mesh.material || isHccMaterialMesh(mesh)) return;
         if (this.preserveGgoRenderMode(mesh)) return;
         
         const applyToMaterial = (material) => {
@@ -660,7 +661,7 @@ export default class MaterialManager {
 
         // 투명도가 적용된 메시들 중 vessel이 아닌 것만 필터링
         const transparentMeshes = meshes.filter(mesh => 
-            mesh.material && 
+            mesh.material && !isHccMaterialMesh(mesh) &&
             (mesh.material.transparent === true || mesh.material.opacity < 1) &&
             !VESSEL_KEYWORDS.some(keyword => mesh.name.toLowerCase().includes(keyword))
         );
@@ -707,7 +708,7 @@ export default class MaterialManager {
 
         // vessel과 투명하지 않은 메시들만 보이게 설정
         meshes.forEach(mesh => {
-            if (!visibilityUpdates.has(mesh.name)) {
+            if (!isHccMaterialMesh(mesh) && !visibilityUpdates.has(mesh.name)) {
                 const isVessel = VESSEL_KEYWORDS.some(keyword => 
                     mesh.name.toLowerCase().includes(keyword)
                 );
