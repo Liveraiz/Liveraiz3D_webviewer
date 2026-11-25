@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { isGgoMeshName, isLungVesselMeshName } from '../utils/lungStructures.js';
+import { isHccMaterialMesh } from '../materials/HccMaterial.js';
 
 /**
  * LungVesselROI - Region of Interest 시각화
@@ -254,7 +255,7 @@ export default class LungVesselROI {
         let hasTargetRegionMesh = false;
 
         this.scene.traverse((object) => {
-            if (object.isMesh && !this.isTransformControlMesh(object)) {
+            if (object.isMesh && !isHccMaterialMesh(object) && !this.isTransformControlMesh(object)) {
                 const objectName = this.normalizeMeshName(object.name);
                 
                 // Target A 영역 메시만 타겟으로 사용
@@ -268,7 +269,7 @@ export default class LungVesselROI {
 
         // Step 2: 모든 메시를 분류: 타겟 vs 예외 vs 비타겟
         this.scene.traverse((object) => {
-            if (object.isMesh && !this.isTransformControlMesh(object)) {
+            if (object.isMesh && !isHccMaterialMesh(object) && !this.isTransformControlMesh(object)) {
                 const objectName = object.name.toLowerCase();
 
                 // 모든 메시의 원본 material 저장
@@ -328,7 +329,7 @@ export default class LungVesselROI {
                 "No Target A meshes found. Using all lung vessel meshes for ROI effect."
             );
             this.scene.traverse((object) => {
-                if (object.isMesh && !this.isTransformControlMesh(object)) {
+                if (object.isMesh && !isHccMaterialMesh(object) && !this.isTransformControlMesh(object)) {
                     const objectName = this.normalizeMeshName(object.name);
                     
                     // desaturated 예외 메시는 항상 컬러 유지

@@ -15,6 +15,17 @@ import {
     Constants,
 } from "../utils/Constants.js";
 import { compareLungMeshes, getLungCategory, isGgoMeshName, isLungModel, isNoduleMarginMeshName, getNoduleMarginValue, LUNG_CATEGORY_ORDER } from '../utils/lungStructures.js';
+import { isHccMaterialMesh } from '../materials/HccMaterial.js';
+
+function getOpacityState(opacity) {
+    if (opacity >= 0.9) return 0;
+    if (opacity >= 0.5) return 1;
+    return opacity > 0 ? 2 : 3;
+}
+
+function getFirstMaterialOpacity(material) {
+    return (Array.isArray(material) ? material[0] : material)?.opacity ?? 1;
+}
 
 export class ObjectListPanel {
     constructor({ liverViewer, panelManager, isDarkMode }) {
@@ -407,6 +418,12 @@ export class ObjectListPanel {
         const newVisibility = !allVisible;
 
         meshes.forEach((mesh) => {
+            mesh.visible = newVisibility;
+            if (isHccMaterialMesh(mesh)) {
+                this.onToggleObject?.(mesh.name, newVisibility);
+                return;
+            }
+
             const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
             if (!mesh.userData._originalOpacitySaved) {
                 // opacity가 이미 0인 상태에서 캐프처되면 복원값이 영원히 0으로 고정되므로 방지
@@ -414,7 +431,6 @@ export class ObjectListPanel {
                 mesh.userData._originalOpacity = currentOpacity > 0 ? currentOpacity : 1;
                 mesh.userData._originalOpacitySaved = true;
             }
-            mesh.visible = newVisibility;
             const restoredOpacity = mesh.userData._originalOpacity !== undefined ? mesh.userData._originalOpacity : 1.0;
             mats.forEach((mat) => this._applyOpacityPreservingRenderMode(mat, newVisibility ? restoredOpacity : 0));
 
@@ -1487,6 +1503,7 @@ export class ObjectListPanel {
         const toggleButton = document.createElement("button");
         Object.assign(toggleButton.style, buttonStyle);
         toggleButton.innerHTML = this.getVisibilityIcon(visible);
+        const usesHccMaterial = isHccMaterialMesh(this.objects.get(name));
 
         // 단일 메시(비그룹) row의 visibility 상태를 일괄 반영하는 헬퍼.
         // 사용자의 클릭뿐 아니라 nodule margin 배타 처리처럼 외부에서 강제로
@@ -1507,8 +1524,8 @@ export class ObjectListPanel {
                     row.opacityState = 3;
                     opacityButton.innerHTML = this.getOpacityIcon(this.isDarkMode).none;
                 } else {
-                    row.opacityState = 1;
-                    opacityButton.innerHTML = this.getOpacityIcon(this.isDarkMode).medium;
+                    row.opacityState = usesHccMaterial ? getOpacityState(getFirstMaterialOpacity(material)) : 1;
+                    opacityButton.innerHTML = this.getOpacityIcon(this.isDarkMode)[["full", "medium", "low", "none"][row.opacityState]];
                 }
             }
 
@@ -1550,6 +1567,12 @@ export class ObjectListPanel {
                 const newVisibility = !currentVisibility;
                 groupMeshes.forEach((mesh) => {
                     mesh.visible = newVisibility;
+                    if (isHccMaterialMesh(mesh)) {
+                        this.onToggleObject?.(mesh.name, newVisibility);
+                        this.updateObjectVisibility(mesh.name, newVisibility);
+                        return;
+                    }
+
                     if (mesh.material) {
                         const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
                         if (!mesh.userData._originalOpacitySaved) {
@@ -1583,8 +1606,10 @@ export class ObjectListPanel {
                         row.opacityState = 3;
                         opacityButton.innerHTML = this.getOpacityIcon(this.isDarkMode).none;
                     } else {
-                        row.opacityState = 1;
-                        opacityButton.innerHTML = this.getOpacityIcon(this.isDarkMode).medium;
+                        row.opacityState = groupMeshes.some(isHccMaterialMesh)
+                            ? getOpacityState(groupMeshes.reduce((sum, mesh) => sum + getFirstMaterialOpacity(mesh.material), 0) / groupMeshes.length)
+                            : 1;
+                        opacityButton.innerHTML = this.getOpacityIcon(this.isDarkMode)[["full", "medium", "low", "none"][row.opacityState]];
                     }
                 }
                 // label opacity 업데이트
@@ -1636,15 +1661,7 @@ export class ObjectListPanel {
             Object.assign(opacityButton.style, buttonStyle);
             const opacityValues = [1.0, 0.6, 0.3, 0]; // 4단계 투명도 값
             // 실제 mesh의 현재 opacity에 맞춰 초기 아이콘/상태 결정 (하드코딩된 medium 대신)
-            if (opacity >= 0.9) {
-                row.opacityState = 0; // full
-            } else if (opacity >= 0.5) {
-                row.opacityState = 1; // medium
-            } else if (opacity > 0) {
-                row.opacityState = 2; // low
-            } else {
-                row.opacityState = 3; // none
-            }
+            row.opacityState = usesHccMaterial && !visible ? 3 : getOpacityState(opacity);
             opacityButton.innerHTML = this.getOpacityIcon(this.isDarkMode)[
                 ["full", "medium", "low", "none"][row.opacityState]
             ];
@@ -2009,6 +2026,11 @@ export class ObjectListPanel {
         this.objects.clear();
         meshes.forEach(mesh => {
             this.objects.set(mesh.name, mesh);
+            if (isHccMaterialMesh(mesh)) {
+                mesh.visible = !toHide;
+                return;
+            }
+
             const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
             if (toHide) {
                 mesh.userData.originalOpacity = mats[0]?.opacity ?? 1;
@@ -2030,7 +2052,7 @@ export class ObjectListPanel {
                 this.onToggleObject(
                     id,
                     !toHide,
-                    !toHide ? (mesh.userData.originalOpacity ?? 1) : 0
+                    isHccMaterialMesh(mesh) ? undefined : !toHide ? (mesh.userData.originalOpacity ?? 1) : 0
                 );
             }
             this.updateObjectVisibility(id, !toHide);
@@ -2058,8 +2080,10 @@ export class ObjectListPanel {
                         row.opacityState = 3;
                         opacityButton.innerHTML = this.getOpacityIcon(this.isDarkMode).none;
                     } else {
-                        row.opacityState = 1;
-                        opacityButton.innerHTML = this.getOpacityIcon(this.isDarkMode).medium;
+                        row.opacityState = isHccMaterialMesh(mesh)
+                            ? getOpacityState(getFirstMaterialOpacity(mesh.material))
+                            : 1;
+                        opacityButton.innerHTML = this.getOpacityIcon(this.isDarkMode)[["full", "medium", "low", "none"][row.opacityState]];
                     }
                 }
             }

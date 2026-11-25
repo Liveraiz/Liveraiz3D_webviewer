@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { isHccMaterialMesh } from "../materials/HccMaterial.js";
 // CSS2DObject는 더 이상 사용하지 않음 (화면 상단 고정 위치로 변경)
 
 class MeshTooltip {
@@ -74,31 +75,30 @@ class MeshTooltip {
     getMeshColor(mesh) {
         if (!mesh.material) return "#ffffff";
 
-        let color;
-        if (
-            mesh.material.type === "MeshStandardMaterial" ||
-            mesh.material.type === "MeshPhongMaterial"
-        ) {
-            // 기본 색상
-            color = mesh.material.color;
+        const material = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
+        let color = material?.color;
+        if (!color) return "#ffffff";
 
+        if (
+            !isHccMaterialMesh(mesh) &&
+            (material.type === "MeshStandardMaterial" ||
+            material.type === "MeshPhongMaterial")
+        ) {
             // emissive 색상이 있다면 고려
-            if (mesh.material.emissive && mesh.material.emissiveIntensity > 0) {
-                const emissiveColor = mesh.material.emissive;
+            if (material.emissive && material.emissiveIntensity > 0) {
+                const emissiveColor = material.emissive;
                 color = new THREE.Color(
-                    color.r + emissiveColor.r * mesh.material.emissiveIntensity,
-                    color.g + emissiveColor.g * mesh.material.emissiveIntensity,
-                    color.b + emissiveColor.b * mesh.material.emissiveIntensity
+                    color.r + emissiveColor.r * material.emissiveIntensity,
+                    color.g + emissiveColor.g * material.emissiveIntensity,
+                    color.b + emissiveColor.b * material.emissiveIntensity
                 );
             }
 
             // metalness와 roughness를 고려하여 색상 조정
-            if (mesh.material.metalness !== undefined) {
-                const metalFactor = 1 - mesh.material.metalness * 0.5;
+            if (material.metalness !== undefined) {
+                const metalFactor = 1 - material.metalness * 0.5;
                 color.multiplyScalar(metalFactor);
             }
-        } else {
-            color = mesh.material.color;
         }
 
         // THREE.Color를 CSS 색상 문자열로 변환
