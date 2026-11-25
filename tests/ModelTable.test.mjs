@@ -20,6 +20,59 @@ function generator(t) {
     return new TableGenerator();
 }
 
+const ldltRemnant = ['LDLT,', 'whole Liver,1146.5 cm³', 'Remnant,ext.LLS',
+    '802.8 cm³,343.8 cm³', '70.02%,29.98%', 'GRWR,GRWR', '9.33%,4.00%', 'Recip BW,8.6 kg'];
+const tableRows = html => [...html.matchAll(/<tr\b[^>]*>(.*?)<\/tr>/gs)]
+    .map(([, row]) => [...row.matchAll(/<t[hd]\b[^>]*>(.*?)<\/t[hd]>/gs)].map(([, cell]) => cell));
+
+test('LDLT RL preserves Remnant/ext.LLS labels, values and GRWR alignment with an empty patient name', t => {
+    const tables = generator(t);
+    for (const dark of [false, true]) {
+        tables.setTheme(dark);
+        for (const newline of ['\n', '\r\n']) {
+            const csv = ldltRemnant.join(newline);
+            const expected = ldltRemnant.map(row => row.split(','));
+            for (const result of [
+                createModelTable(tables, csv, { case: 'LDLT', fileName: 'RL.csv' }),
+                tables.autoCreateTable(csv, 'RL.csv'),
+            ]) {
+                assert.equal(result.method, 'createLDLTTable');
+                assert.deepEqual(tableRows(result.html), expected);
+            }
+            assert.deepEqual(tableRows(tables.createLDLTTable(csv)), expected);
+        }
+    }
+});
+
+test('LDLT RL keeps conventional lobes and reversed segment pairs in source order', t => {
+    const tables = generator(t);
+    for (const labels of ['Rt.lobe,Lt.lobe', 'ext.LLS,Remnant', 'Remnant_Rt,ext_Lt.lobe']) {
+        const rows = [...ldltRemnant];
+        rows[0] = 'LDLT,Example';
+        rows[2] = labels;
+        const { html } = createModelTable(tables, rows.join('\n'), { case: 'LDLT', name: 'RL' });
+        assert.deepEqual(tableRows(html), rows.map(row => row.split(',')));
+    }
+});
+
+test('LDLT missing percentages use the existing volume fallback without consuming the GRWR header', t => {
+    const tables = generator(t);
+    const csv = ['LDLT,', 'whole Liver,1000', 'Remnant,ext.LLS', '700,300',
+        'GRWR,GRWR', '7.00%,3.00%', 'Recip BW,10 kg'].join('\n');
+    const { html } = createModelTable(tables, csv, { case: 'LDLT', name: 'RL' });
+    assert.deepEqual(tableRows(html), [['LDLT', ''], ['whole Liver', '1000.0cm³'],
+        ['Remnant', 'ext.LLS'], ['700.0cm³', '300.0cm³'], ['70.00%', '30.00%'],
+        ['GRWR', 'GRWR'], ['7.00%', '3.00%'], ['Recip BW', '10 kg']]);
+});
+
+test('LDLT dynamic segment labels keep the shared HTML escaping boundary', t => {
+    const tables = generator(t);
+    const csv = ldltRemnant.join('\n').replace('Remnant,ext.LLS', '<img src=x>,ext.LLS & graft');
+    const { html } = createModelTable(tables, csv, { case: 'LDLT', name: 'RL' });
+    assert.deepEqual(tableRows(html)[2], ['&lt;img src=x&gt;', 'ext.LLS &amp; graft']);
+    assert.doesNotMatch(html, /<img/);
+});
+
 test('Maker marker takes precedence over every case and filename, with no derived clinical metrics', t => {
     const tables = generator(t);
     const csv = `${MAKER_VOLUME_TABLE_MARKER}\n${volumeList}`;

@@ -402,7 +402,7 @@ export class TableGenerator {
     createLDLTTable(csvData, surgeryType = "LDLT") {
         console.log("Creating LDLT table with data:", csvData);
 
-        var rows = csvData.replaceAll('"', "").split("\r\n");
+        var rows = csvData.replaceAll('"', "").split(/\r?\n/);
         rows = rows.filter((row) => row.trim() !== "");
 
         if (rows.length === 0) return "<p>데이터가 없습니다.</p>";
@@ -417,6 +417,9 @@ export class TableGenerator {
         var percentData = {};
         var grwrData = { LDLT: "0", Patient: "0" };
         var recipBW = "";
+        let segmentNames = ["Rt.lobe", "Lt.lobe"];
+        const isVolume = value => /^\s*\d+(?:\.\d+)?\s*(?:cm³|mL)?\s*$/i.test(value || "");
+        const isPercent = value => /^\s*\d+(?:\.\d+)?\s*%?\s*$/.test(value || "");
 
         // HCC 방식과 유사하게 파싱
         // 헤더 기반으로 데이터 추출
@@ -434,20 +437,24 @@ export class TableGenerator {
                 if (firstCol.toLowerCase().includes("whole liver") || firstCol.toLowerCase() === "whole liver") {
                     volumeData["Whole Liver"] = secondCol || "0";
                 }
-                // Rt.lobe / Lt.lobe 헤더 행 처리
-                else if ((firstCol.toLowerCase() === "rt.lobe" || firstCol === "Rt.lobe") && 
-                         (secondCol.toLowerCase() === "lt.lobe" || secondCol === "Lt.lobe")) {
+                // Preserve the two segment labels and their column order (e.g. Remnant / ext.LLS).
+                else if ((firstCol.toLowerCase() === "rt.lobe" && secondCol.toLowerCase() === "lt.lobe") ||
+                         (parsedRows[i - 1][0]?.trim().toLowerCase() === "whole liver" &&
+                          firstCol && secondCol && !isVolume(firstCol) && !isVolume(secondCol) &&
+                          firstCol.toLowerCase() !== "grwr" &&
+                          parsedRows[i + 1]?.length === 2 && parsedRows[i + 1].every(isVolume))) {
+                    segmentNames = [firstCol, secondCol];
                     // 다음 행이 볼륨값
                     if (i + 1 < parsedRows.length) {
                         var volRow = parsedRows[i + 1];
-                        volumeData["Rt.lobe"] = volRow[0]?.trim() || "0";
-                        volumeData["Lt.lobe"] = volRow[1]?.trim() || "0";
+                        volumeData[segmentNames[0]] = volRow[0]?.trim() || "0";
+                        volumeData[segmentNames[1]] = volRow[1]?.trim() || "0";
                     }
                     // 그 다음 행이 퍼센트값
-                    if (i + 2 < parsedRows.length) {
+                    if (parsedRows[i + 2]?.length === 2 && parsedRows[i + 2].every(isPercent)) {
                         var percentRow = parsedRows[i + 2];
-                        percentData["Rt.lobe"] = percentRow[0]?.trim() || "0";
-                        percentData["Lt.lobe"] = percentRow[1]?.trim() || "0";
+                        percentData[segmentNames[0]] = percentRow[0]?.trim() || "0";
+                        percentData[segmentNames[1]] = percentRow[1]?.trim() || "0";
                     }
                 }
                 // GRWR 처리
@@ -492,19 +499,15 @@ export class TableGenerator {
         }
 
         // 퍼센트 데이터가 없으면 볼륨 데이터에서 계산
-        if ((!percentData["Rt.lobe"] || !percentData["Lt.lobe"]) && volumeData["Whole Liver"]) {
+        if (segmentNames.some(name => !percentData[name]) && volumeData["Whole Liver"]) {
             const wholeLiver = parseFloat(volumeData["Whole Liver"].toString().replace(/[^\d.]/g, "")) || 1;
-            const rtLobe = parseFloat(volumeData["Rt.lobe"]?.toString().replace(/[^\d.]/g, "") || "0") || 0;
-            const ltLobe = parseFloat(volumeData["Lt.lobe"]?.toString().replace(/[^\d.]/g, "") || "0") || 0;
-            if (!percentData["Rt.lobe"]) {
-                percentData["Rt.lobe"] = ((rtLobe / wholeLiver) * 100).toFixed(2);
-            }
-            if (!percentData["Lt.lobe"]) {
-                percentData["Lt.lobe"] = ((ltLobe / wholeLiver) * 100).toFixed(2);
+            for (const name of segmentNames) {
+                const volume = parseFloat(volumeData[name]?.toString().replace(/[^\d.]/g, "") || "0") || 0;
+                if (!percentData[name]) percentData[name] = ((volume / wholeLiver) * 100).toFixed(2);
             }
         }
 
-        return this._generateLDLTTableHTML(volumeData, percentData, grwrData, recipBW, patientName, surgeryType);
+        return this._generateLDLTTableHTML(volumeData, percentData, grwrData, recipBW, patientName, surgeryType, segmentNames);
     }
 
     // HVT 테이블 생성
@@ -1153,7 +1156,7 @@ export class TableGenerator {
     }
 
     // LDLT 테이블 HTML 생성
-    _generateLDLTTableHTML(volumeData, percentData, grwrData, recipBW, patientName, surgeryType) {
+    _generateLDLTTableHTML(volumeData, percentData, grwrData, recipBW, patientName, surgeryType, segmentNames = ["Rt.lobe", "Lt.lobe"]) {
         const theme = this.isDarkMode
             ? this.getCommonStyles().dark
             : this.getCommonStyles().light;
@@ -1221,22 +1224,22 @@ export class TableGenerator {
         table += "<td>" + this.formatVolume(volumeData["Whole Liver"]) + "</td>";
         table += "</tr>";
 
-        // Rt.lobe / Lt.lobe 헤더 행
+        // Segment headers follow the CSV column order, as do volumes, percentages and GRWR.
         table += "<tr>";
-        table += "<th class='rt-lobe'>Rt.lobe</th>";
-        table += "<th class='lt-lobe'>Lt.lobe</th>";
+        table += "<th class='rt-lobe'>" + segmentNames[0] + "</th>";
+        table += "<th class='lt-lobe'>" + segmentNames[1] + "</th>";
         table += "</tr>";
 
         // 볼륨 행
         table += "<tr>";
-        table += "<td class='value'>" + this.formatVolume(volumeData["Rt.lobe"]) + "</td>";
-        table += "<td class='value'>" + this.formatVolume(volumeData["Lt.lobe"]) + "</td>";
+        table += "<td class='value'>" + this.formatVolume(volumeData[segmentNames[0]]) + "</td>";
+        table += "<td class='value'>" + this.formatVolume(volumeData[segmentNames[1]]) + "</td>";
         table += "</tr>";
 
         // 퍼센트 행
         table += "<tr>";
-        table += "<td class='value'>" + this.formatPercent(percentData["Rt.lobe"]) + "</td>";
-        table += "<td class='value'>" + this.formatPercent(percentData["Lt.lobe"]) + "</td>";
+        table += "<td class='value'>" + this.formatPercent(percentData[segmentNames[0]]) + "</td>";
+        table += "<td class='value'>" + this.formatPercent(percentData[segmentNames[1]]) + "</td>";
         table += "</tr>";
 
         // GRWR 행
