@@ -1,7 +1,7 @@
 export const LUNG_CATEGORY_ORDER = ['lobes', 'arteries', 'veins', 'bronchus', 'cancer'];
 
 export function isGgoMeshName(name = '') {
-    return /(?:^|[^a-z0-9])ggo\d*(?=$|[^a-z0-9])/i.test(name);
+    return /(?:^|[^a-z0-9])(?:ggo|ggn)\d*(?=$|[^a-z0-9])/i.test(name);
 }
 
 // "Nodule_margin_20", "nodule-margins-10"처럼 구분자가 달라도 동일하게 인식하도록 공백으로 정규화
